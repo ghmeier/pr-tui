@@ -149,6 +149,31 @@ implementer, a refactor pass, and then verification with `go vet`, `go test`, an
   board, an action, and a provider.
 - Keep the example honest by compiling it in a test.
 
+### 4. Remove what is specific to one setup — not started
+
+The repository goes public once it is generalized, so nothing in it should name the
+original setup.
+
+- Test fixtures and the README use the real organization and repository names
+  (`CoProcure/gazebo`, `u2`, `analytics`, `infrastructure`) and the VS Code Insiders path.
+  Replace them with neutral names. Wait for step 2b to merge first, because it moves the
+  tests.
+- `v` reports a clear message when `wt` is not installed.
+- Decide what to do about history before the repository is made public: the early commits
+  contain the hard-coded organization, repository names, and team, and the `apl` branch
+  holds this plan, which names them too. Squashing `main` to one commit and not publishing
+  the `apl` branch would remove both.
+
+### 5. Distribution without Go — not started
+
+- `prs --version`.
+- GoReleaser in a GitHub Action, run on a version tag, publishing macOS (Apple silicon and
+  Intel) and Linux binaries to GitHub Releases.
+- A Homebrew tap that GoReleaser updates, with `gh` declared as a dependency, so the
+  install is `brew install ghmeier/tap/prs` followed by `prs --init`.
+- People who only enable existing plugins need no Go. Writing a plugin still means building
+  from source.
+
 ## Risks
 
 - **Step 2b is the uncertain one.** Moving the diff, description, and comment views onto a
