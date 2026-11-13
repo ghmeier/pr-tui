@@ -107,6 +107,9 @@ func (screen *descriptionScreen) keepVisible() {
 func (screen *descriptionScreen) show(body string) {
 	screen.body = body
 	screen.lines = ui.RenderMarkdown(body, screen.width)
+	if len(screen.lines) == 0 {
+		screen.lines = []string{ui.DimStyle.Render("No description.")}
+	}
 	screen.renderedWidth = screen.width
 }
 

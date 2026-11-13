@@ -59,6 +59,9 @@ func (screen *documentScreen) keepVisible() {
 func (screen *documentScreen) show(body string) {
 	screen.body = body
 	screen.lines = ui.RenderMarkdown(body, screen.width)
+	if len(screen.lines) == 0 {
+		screen.lines = []string{ui.DimStyle.Render("This document is empty.")}
+	}
 	screen.renderedWidth = screen.width
 }
 

@@ -178,6 +178,20 @@ func TestDescriptionKeyShowsTheDescription(t *testing.T) {
 	}
 }
 
+func TestDescriptionScreenShowsAPlaceholderOnlyForAnEmptyDescription(t *testing.T) {
+	empty := newFakeProvider()
+	empty.description = ""
+	withText := loadedBoard(t)
+	withoutText := loadedBoardWith(t, empty)
+
+	press(t, withText, "p")
+	press(t, withoutText, "p")
+
+	if strings.Contains(view(withText), "No description.") || !strings.Contains(view(withoutText), "No description.") {
+		t.Fatalf("with text:\n%s\nwithout text:\n%s", view(withText), view(withoutText))
+	}
+}
+
 func TestEscapeReturnsFromDescriptionToWhereItWasOpened(t *testing.T) {
 	fromBoard := loadedBoard(t)
 	fromDiff := loadedBoard(t)

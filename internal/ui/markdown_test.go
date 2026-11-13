@@ -7,10 +7,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-func TestRenderMarkdownShowsThePlaceholderForABlankBody(t *testing.T) {
-	lines := RenderMarkdown("  \n", 80)
-
-	if len(lines) != 1 || ansi.Strip(lines[0]) != "No description." {
+func TestRenderMarkdownGivesNoLinesForABlankBody(t *testing.T) {
+	if lines := RenderMarkdown("  \n", 80); len(lines) != 0 {
 		t.Fatalf("lines = %q", lines)
 	}
 }

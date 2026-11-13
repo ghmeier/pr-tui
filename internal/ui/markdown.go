@@ -6,13 +6,13 @@ import (
 	"github.com/charmbracelet/glamour"
 )
 
-// RenderMarkdown renders markdown as terminal lines wrapped for the width, or a dimmed
-// placeholder when the body is blank. Escape characters are removed so a document cannot move
+// RenderMarkdown renders markdown as terminal lines wrapped for the width. A blank body gives
+// no lines, so each caller words its own empty state. Escape characters are removed so a document cannot move
 // the cursor or restyle the screen.
 func RenderMarkdown(body string, width int) []string {
 	body = strings.ReplaceAll(body, "\x1b", "")
 	if strings.TrimSpace(body) == "" {
-		return []string{DimStyle.Render("No description.")}
+		return nil
 	}
 	theme := "light"
 	if DarkBackground {

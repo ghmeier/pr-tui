@@ -80,6 +80,15 @@ func TestDocumentWithoutFrontMatterShowsItsFirstLine(t *testing.T) {
 	}
 }
 
+func TestDocumentScreenShowsAPlaceholderOnlyForAnEmptyBody(t *testing.T) {
+	withoutText, _ := openedDocument(t, doc{file: "plan/empty.md", kind: "plan", title: "Empty plan", updated: "2026-11-12", body: "---\ntitle: Empty plan\n---\n"})
+	withText, _ := openedDocument(t, framedDoc())
+
+	if lineWith(withoutText, "This document is empty.") == "" || lineWith(withText, "This document is empty.") != "" {
+		t.Fatalf("empty:\n%s\nwith text:\n%s", strings.Join(screenLines(withoutText), "\n"), strings.Join(screenLines(withText), "\n"))
+	}
+}
+
 func TestLoadedMessageForAnotherDocumentLeavesTheScreenAlone(t *testing.T) {
 	example := framedDoc()
 	model, _ := openedDocument(t, example)
