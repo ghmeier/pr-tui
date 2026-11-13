@@ -44,7 +44,7 @@ const (
 
 var repositories = []string{"gazebo", "u2", "analytics", "infrastructure"}
 
-var columnHeaders = []string{"Repo", "#", "Title", "Author", "Lines", "State", "CI", "Review requested", "Updated"}
+var columnHeaders = []string{"Repo", "#", "Title", "Author", "Lines", "State", "Review requested", "Updated"}
 
 const pullRequestFields = `
 fragment pullRequestFields on Repository {
@@ -55,6 +55,8 @@ fragment pullRequestFields on Repository {
       url
       isDraft
       headRefOid
+      autoMergeRequest { enabledAt }
+      isInMergeQueue
       updatedAt
       reviewDecision
       author { login __typename }
@@ -147,6 +149,8 @@ type pullRequest struct {
 	isBot          bool
 	isDraft        bool
 	headCommit     string
+	autoMerge      bool
+	inMergeQueue   bool
 	lineCount      *lineCount
 	reviewDecision string
 	ciState        *string
@@ -156,14 +160,16 @@ type pullRequest struct {
 }
 
 type pullRequestNode struct {
-	Number         int
-	Title          string
-	URL            string `json:"url"`
-	IsDraft        bool
-	HeadRefOid     string
-	UpdatedAt      time.Time
-	ReviewDecision string
-	Author         *struct {
+	Number           int
+	Title            string
+	URL              string `json:"url"`
+	IsDraft          bool
+	HeadRefOid       string
+	AutoMergeRequest *struct{ EnabledAt string }
+	IsInMergeQueue   bool
+	UpdatedAt        time.Time
+	ReviewDecision   string
+	Author           *struct {
 		Login    string
 		Typename string `json:"__typename"`
 	}
@@ -187,6 +193,8 @@ func (node pullRequestNode) pullRequest(repository string) pullRequest {
 		author:         "ghost",
 		isDraft:        node.IsDraft,
 		headCommit:     node.HeadRefOid,
+		autoMerge:      node.AutoMergeRequest != nil,
+		inMergeQueue:   node.IsInMergeQueue,
 		reviewDecision: node.ReviewDecision,
 		updatedAt:      node.UpdatedAt,
 	}
@@ -325,11 +333,11 @@ func (pr pullRequest) label() string {
 	return fmt.Sprintf("%s #%d", pr.repository, pr.number)
 }
 
-func (pr pullRequest) toggleDraftQuestion() string {
+func (pr pullRequest) toggleDraftNotice() string {
 	if pr.isDraft {
-		return "Mark " + pr.label() + " ready for review?"
+		return "Marking " + pr.label() + " ready for review…"
 	}
-	return "Convert " + pr.label() + " back to draft?"
+	return "Converting " + pr.label() + " back to draft…"
 }
 
 func (pr pullRequest) toggleDraftCommand() []string {
@@ -371,6 +379,20 @@ func (pr pullRequest) openInEditorCommand(files []string) []string {
 		"--no-cd", "-x", editorCommand, "--", ".",
 	}
 	return append(command, files...)
+}
+
+func (pr pullRequest) toggleAutoMergeQuestion() string {
+	if pr.autoMerge {
+		return "Disable auto-merge on " + pr.label() + "?"
+	}
+	return "Enable auto-merge (squash) on " + pr.label() + "? It merges as soon as its requirements are met."
+}
+
+func (pr pullRequest) toggleAutoMergeCommand() []string {
+	if pr.autoMerge {
+		return []string{"gh", "pr", "merge", pr.url, "--disable-auto"}
+	}
+	return []string{"gh", "pr", "merge", pr.url, "--auto", "--squash"}
 }
 
 func (pr pullRequest) apiEndpoint() string {
@@ -568,6 +590,22 @@ var editInEditor = func(path string, finished func(error) tea.Msg) tea.Cmd {
 	return tea.ExecProcess(exec.Command(editor[0], append(editor[1:], path)...), finished)
 }
 
+// requestTeamReviewCommands marks a draft ready first, because a review request on a draft
+// does not ask anyone to look yet.
+func (pr pullRequest) requestTeamReviewCommands() [][]string {
+	if pr.isDraft {
+		return [][]string{pr.toggleDraftCommand(), pr.requestTeamReviewCommand()}
+	}
+	return [][]string{pr.requestTeamReviewCommand()}
+}
+
+func (pr pullRequest) requestTeamReviewNotice() string {
+	if pr.isDraft {
+		return "Marking " + pr.label() + " ready and requesting review from " + reviewTeam + "…"
+	}
+	return "Requesting review from " + reviewTeam + " on " + pr.label() + "…"
+}
+
 func (pr pullRequest) requestTeamReviewCommand() []string {
 	endpoint := fmt.Sprintf("repos/%s/%s/pulls/%d/requested_reviewers", owner, pr.repository, pr.number)
 	return []string{"gh", "api", "--method", "POST", endpoint, "-f", "team_reviewers[]=" + reviewTeam}
@@ -578,37 +616,47 @@ type segment struct {
 	style lipgloss.Style
 }
 
-func (pr pullRequest) stateSegment() segment {
-	switch {
-	case pr.isDraft:
-		return segment{"draft", dimStyle}
-	case pr.reviewDecision == "APPROVED":
-		return segment{"approved", greenStyle}
-	case pr.reviewDecision == "CHANGES_REQUESTED":
-		return segment{"changes requested", redStyle}
+// awaitsReviewFrom reports whether someone else's pull request has a review requested from
+// the viewer or from the review team.
+func (pr pullRequest) awaitsReviewFrom(viewer string) bool {
+	if pr.author == viewer {
+		return false
 	}
-	return segment{"ready", cyanStyle}
+	return slices.Contains(pr.requestedUsers, viewer) || slices.Contains(pr.requestedTeams, reviewTeam)
 }
 
-func (pr pullRequest) ciSegment() segment {
-	if pr.ciState == nil {
-		return segment{"…", dimStyle}
+// stateMarks summarises the pull request as emoji: review state, whether it waits on the
+// viewer, merge queue and auto-merge, then CI.
+func (pr pullRequest) stateMarks(viewer string) string {
+	var marks []string
+	switch {
+	case pr.isDraft:
+		marks = append(marks, "📝")
+	case pr.reviewDecision == "APPROVED":
+		marks = append(marks, "✅")
+	case pr.reviewDecision == "CHANGES_REQUESTED":
+		marks = append(marks, "❌")
 	}
-	switch *pr.ciState {
-	case "SUCCESS":
-		return segment{"✓ passing", greenStyle}
-	case "FAILURE":
-		return segment{"✗ failing", redStyle}
-	case "ERROR":
-		return segment{"✗ error", redStyle}
-	case "PENDING":
-		return segment{"● running", yellowStyle}
-	case "EXPECTED":
-		return segment{"● waiting", yellowStyle}
-	case "":
-		return segment{"– none", dimStyle}
+	if pr.awaitsReviewFrom(viewer) {
+		marks = append(marks, "✋")
 	}
-	return segment{strings.ToLower(*pr.ciState), dimStyle}
+	if pr.inMergeQueue {
+		marks = append(marks, "♻️")
+	}
+	if pr.autoMerge {
+		marks = append(marks, "⏩")
+	}
+	switch {
+	case pr.ciState == nil:
+		marks = append(marks, "…")
+	case *pr.ciState == "SUCCESS":
+		marks = append(marks, "🟢")
+	case *pr.ciState == "FAILURE", *pr.ciState == "ERROR":
+		marks = append(marks, "🔴")
+	case *pr.ciState == "PENDING", *pr.ciState == "EXPECTED":
+		marks = append(marks, "🟡")
+	}
+	return strings.Join(marks, " ")
 }
 
 func (pr pullRequest) reviewSegments(viewer string) []segment {
@@ -680,8 +728,7 @@ func (pr pullRequest) columns(viewer string) [][]segment {
 		{{pr.title, plainStyle}},
 		{{pr.author, authorStyle}},
 		pr.lineCountSegments(),
-		{pr.stateSegment()},
-		{pr.ciSegment()},
+		{{pr.stateMarks(viewer), plainStyle}},
 		pr.reviewSegments(viewer),
 		{{pr.age(), plainStyle}},
 	}
@@ -1139,10 +1186,15 @@ func scheduleRefresh() tea.Cmd {
 	return tea.Tick(refreshInterval, func(time.Time) tea.Msg { return refreshTickMessage{} })
 }
 
-func runCommand(command []string) tea.Cmd {
+// runCommands runs the commands in order and stops at the first failure.
+func runCommands(commands ...[]string) tea.Cmd {
 	return func() tea.Msg {
-		_, err := execute(command...)
-		return commandFinishedMessage{err: err}
+		for _, command := range commands {
+			if _, err := execute(command...); err != nil {
+				return commandFinishedMessage{err: err}
+			}
+		}
+		return commandFinishedMessage{}
 	}
 }
 
@@ -1738,11 +1790,17 @@ func (m model) handleKey(key string) (model, tea.Cmd) {
 		}
 	case "d":
 		if hasSelection {
-			m.ask(pr.toggleDraftQuestion(), pr.toggleDraftCommand())
+			m.notice = pr.toggleDraftNotice()
+			return m, runCommands(pr.toggleDraftCommand())
+		}
+	case "m":
+		if hasSelection {
+			m.ask(pr.toggleAutoMergeQuestion(), pr.toggleAutoMergeCommand())
 		}
 	case "e":
 		if hasSelection {
-			m.ask("Request review from "+reviewTeam+" on "+pr.label()+"?", pr.requestTeamReviewCommand())
+			m.notice = pr.requestTeamReviewNotice()
+			return m, runCommands(pr.requestTeamReviewCommands()...)
 		}
 	}
 	return m, nil
@@ -1845,7 +1903,7 @@ func (m model) handleConfirmKey(key string) (model, tea.Cmd) {
 		command := m.pendingCommand
 		m.mode, m.question, m.pendingCommand = boardMode, "", nil
 		m.notice = "Working…"
-		return m, runCommand(command)
+		return m, runCommands(command)
 	case "n", "esc":
 		m.mode, m.question, m.pendingCommand = boardMode, "", nil
 	}
@@ -1883,7 +1941,7 @@ func (m model) help() string {
 		return ""
 	}
 	return helpLine(
-		"enter", "diff", "p", "description", "o", "open", "v", editorName, "d", "draft / ready", "e", "request "+reviewTeam,
+		"enter", "diff", "p", "description", "o", "open", "v", editorName, "d", "draft / ready", "e", "request "+reviewTeam, "m", "auto-merge",
 		"f", "filters", "r", "refresh", "q", "quit",
 	)
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -26,7 +27,7 @@ const cannedResponse = `{"data": {
   ]}},
   "repository1": {"pullRequests": {"nodes": [
     {"number": 3, "title": "Ready with reviewers", "url": "https://example.test/u2/3", "isDraft": false,
-     "updatedAt": "2026-11-10T10:00:00Z", "reviewDecision": "REVIEW_REQUIRED",
+     "updatedAt": "2026-11-10T10:00:00Z", "reviewDecision": "REVIEW_REQUIRED", "autoMergeRequest": {"enabledAt": "2026-11-10T09:00:00Z"},
      "author": {"login": "person", "__typename": "User"},
      "reviewRequests": {"nodes": [
        {"requestedReviewer": {"__typename": "User", "login": "viewer"}},
@@ -251,33 +252,10 @@ func TestOpenRunsOpenWithTheSelectedUrl(t *testing.T) {
 	}
 }
 
-func TestDraftToggleAsksBeforeMarkingReady(t *testing.T) {
+func TestDraftKeyMarksDraftReadyWithoutAsking(t *testing.T) {
 	recorded := recordCommands(t)
 
-	m := press(t, loadedBoard(t), "d")
-
-	if m.mode != confirmMode || m.question != "Mark gazebo #1 ready for review?" {
-		t.Fatalf("mode = %v, question = %q", m.mode, m.question)
-	}
-	if len(*recorded) != 0 {
-		t.Fatalf("nothing should run before confirmation, ran %v", *recorded)
-	}
-}
-
-func TestDecliningDraftToggleRunsNothing(t *testing.T) {
-	recorded := recordCommands(t)
-
-	m := press(t, loadedBoard(t), "d", "n")
-
-	if m.mode != boardMode || len(*recorded) != 0 {
-		t.Fatalf("mode = %v, commands = %v", m.mode, *recorded)
-	}
-}
-
-func TestConfirmingDraftToggleMarksDraftReady(t *testing.T) {
-	recorded := recordCommands(t)
-
-	press(t, loadedBoard(t), "d", "y")
+	press(t, loadedBoard(t), "d")
 
 	expected := [][]string{{"gh", "pr", "ready", "https://example.test/gazebo/1"}}
 	if !reflect.DeepEqual(*recorded, expected) {
@@ -285,10 +263,10 @@ func TestConfirmingDraftToggleMarksDraftReady(t *testing.T) {
 	}
 }
 
-func TestConfirmingDraftToggleConvertsReadyBackToDraft(t *testing.T) {
+func TestDraftKeyConvertsReadyBackToDraftWithoutAsking(t *testing.T) {
 	recorded := recordCommands(t)
 
-	press(t, loadedBoard(t), "down", "d", "enter")
+	press(t, loadedBoard(t), "down", "d")
 
 	expected := [][]string{{"gh", "pr", "ready", "https://example.test/u2/3", "--undo"}}
 	if !reflect.DeepEqual(*recorded, expected) {
@@ -296,17 +274,51 @@ func TestConfirmingDraftToggleConvertsReadyBackToDraft(t *testing.T) {
 	}
 }
 
-func TestRequestingTeamReviewPostsTheTeamAsReviewer(t *testing.T) {
+func TestReviewKeyOnADraftMarksItReadyThenRequestsTheTeam(t *testing.T) {
 	recorded := recordCommands(t)
 
-	press(t, loadedBoard(t), "e", "y")
+	press(t, loadedBoard(t), "e")
+
+	expected := [][]string{
+		{"gh", "pr", "ready", "https://example.test/gazebo/1"},
+		{
+			"gh", "api", "--method", "POST", "repos/CoProcure/gazebo/pulls/1/requested_reviewers",
+			"-f", "team_reviewers[]=engineering",
+		},
+	}
+	if !reflect.DeepEqual(*recorded, expected) {
+		t.Fatalf("commands = %v, expected %v", *recorded, expected)
+	}
+}
+
+func TestReviewKeyOnAReadyPullRequestOnlyRequestsTheTeam(t *testing.T) {
+	recorded := recordCommands(t)
+
+	press(t, loadedBoard(t), "down", "e")
 
 	expected := [][]string{{
-		"gh", "api", "--method", "POST", "repos/CoProcure/gazebo/pulls/1/requested_reviewers",
+		"gh", "api", "--method", "POST", "repos/CoProcure/u2/pulls/3/requested_reviewers",
 		"-f", "team_reviewers[]=engineering",
 	}}
 	if !reflect.DeepEqual(*recorded, expected) {
 		t.Fatalf("commands = %v, expected %v", *recorded, expected)
+	}
+}
+
+func TestReviewKeyDoesNotRequestTheTeamWhenMarkingReadyFails(t *testing.T) {
+	recorded := recordCommands(t)
+	record := execute
+	execute = func(arguments ...string) ([]byte, error) {
+		if len(arguments) > 2 && arguments[2] == "ready" {
+			return nil, errors.New("cannot mark ready")
+		}
+		return record(arguments...)
+	}
+
+	m := press(t, loadedBoard(t), "e")
+
+	if len(*recorded) != 0 || m.notice != "Failed: cannot mark ready" {
+		t.Fatalf("commands = %v, notice = %q", *recorded, m.notice)
 	}
 }
 
@@ -358,18 +370,18 @@ func TestBoardShowsPullRequestsBeforeLineCountsArrive(t *testing.T) {
 	if lines := plainText(m.visible[0].columns(m.viewer)[4]); lines != "…" {
 		t.Fatalf("lines column = %q before line counts arrive", lines)
 	}
-	if ci := m.visible[0].ciSegment().text; ci != "…" {
-		t.Fatalf("CI column = %q before CI states arrive", ci)
+	if state := m.visible[0].stateMarks(m.viewer); state != "📝 …" {
+		t.Fatalf("state column = %q before CI states arrive", state)
 	}
 }
 
-func TestCIColumnShowsStateOnceLoaded(t *testing.T) {
+func TestStateColumnShowsCIOnceLoaded(t *testing.T) {
 	recordCommands(t)
 
 	m := loadedBoard(t)
 
-	if failing, none := m.visible[0].ciSegment().text, m.visible[1].ciSegment().text; failing != "✗ failing" || none != "– none" {
-		t.Fatalf("CI column = %q and %q", failing, none)
+	if failing, none := m.visible[0].stateMarks(m.viewer), m.visible[1].stateMarks(m.viewer); failing != "📝 🔴" || none != "✋ ⏩" {
+		t.Fatalf("state column = %q and %q", failing, none)
 	}
 }
 
@@ -379,8 +391,8 @@ func TestCIStatesSurviveARefresh(t *testing.T) {
 
 	next, _ := m.Update(load())
 
-	if ci := next.(model).visible[0].ciSegment().text; ci != "✗ failing" {
-		t.Fatalf("CI column = %q right after a refresh", ci)
+	if state := next.(model).visible[0].stateMarks(m.viewer); state != "📝 🔴" {
+		t.Fatalf("state column = %q right after a refresh", state)
 	}
 }
 
@@ -757,5 +769,86 @@ func TestCursorStaysOnTheSameLineWhenTheLayoutChanges(t *testing.T) {
 
 	if unified.cursorLine() != 6 || backToSplit.cursorLine() != 6 {
 		t.Fatalf("cursor line unified = %d, split = %d, expected 6", unified.cursorLine(), backToSplit.cursorLine())
+	}
+}
+
+func TestAutoMergeKeyEnablesSquashAutoMergeAfterConfirmation(t *testing.T) {
+	recorded := recordCommands(t)
+
+	asked := press(t, loadedBoard(t), "m")
+	press(t, asked, "y")
+
+	if asked.mode != confirmMode || !strings.HasPrefix(asked.question, "Enable auto-merge (squash) on gazebo #1?") {
+		t.Fatalf("mode = %v, question = %q", asked.mode, asked.question)
+	}
+	expected := [][]string{{"gh", "pr", "merge", "https://example.test/gazebo/1", "--auto", "--squash"}}
+	if !reflect.DeepEqual(*recorded, expected) {
+		t.Fatalf("commands = %v, expected %v", *recorded, expected)
+	}
+}
+
+func TestAutoMergeKeyDisablesAutoMergeWhenAlreadyEnabled(t *testing.T) {
+	recorded := recordCommands(t)
+
+	asked := press(t, loadedBoard(t), "down", "m")
+	press(t, asked, "y")
+
+	if asked.question != "Disable auto-merge on u2 #3?" {
+		t.Fatalf("question = %q", asked.question)
+	}
+	expected := [][]string{{"gh", "pr", "merge", "https://example.test/u2/3", "--disable-auto"}}
+	if !reflect.DeepEqual(*recorded, expected) {
+		t.Fatalf("commands = %v, expected %v", *recorded, expected)
+	}
+}
+
+func TestDecliningAutoMergeRunsNothing(t *testing.T) {
+	recorded := recordCommands(t)
+
+	press(t, loadedBoard(t), "m", "n")
+
+	if len(*recorded) != 0 {
+		t.Fatalf("commands = %v", *recorded)
+	}
+}
+
+func TestStateMarksCoverEachState(t *testing.T) {
+	passing, running := "SUCCESS", "PENDING"
+	cases := map[string]pullRequest{
+		"📝 🟢":    {isDraft: true, ciState: &passing},
+		"✅ ♻️ 🟢": {reviewDecision: "APPROVED", inMergeQueue: true, ciState: &passing},
+		"❌ 🟡":    {reviewDecision: "CHANGES_REQUESTED", ciState: &running},
+		"✋ ⏩ 🟢":  {author: "person", requestedUsers: []string{"viewer"}, autoMerge: true, ciState: &passing},
+		"🟢":      {author: "person", requestedUsers: []string{"someone-else"}, ciState: &passing},
+	}
+
+	for expected, pr := range cases {
+		if marks := pr.stateMarks("viewer"); marks != expected {
+			t.Errorf("state marks = %q, expected %q", marks, expected)
+		}
+	}
+}
+
+func TestWaitingMarkShowsForAnotherAuthorsPullRequestRequestingTheReviewTeam(t *testing.T) {
+	pr := pullRequest{author: "person", requestedTeams: []string{reviewTeam}}
+
+	if !pr.awaitsReviewFrom("viewer") {
+		t.Fatalf("a review requested from %s on another author's pull request should wait on the viewer", reviewTeam)
+	}
+}
+
+func TestWaitingMarkIsHiddenOnTheViewersOwnPullRequest(t *testing.T) {
+	pr := pullRequest{author: "viewer", requestedTeams: []string{reviewTeam}}
+
+	if pr.awaitsReviewFrom("viewer") {
+		t.Fatalf("the viewer's own pull request should not wait on the viewer")
+	}
+}
+
+func TestWaitingMarkIsHiddenWhenOnlyAnotherTeamIsRequested(t *testing.T) {
+	pr := pullRequest{author: "person", requestedTeams: []string{"platform-data"}}
+
+	if pr.awaitsReviewFrom("viewer") {
+		t.Fatalf("a review requested from another team should not wait on the viewer")
 	}
 }
