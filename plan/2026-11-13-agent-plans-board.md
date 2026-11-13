@@ -4,7 +4,7 @@ status: active
 tags: [plugins, agent-plans]
 created: 2026-11-13
 updated: 2026-11-13
-next_step: Step 1 (agent-plans-board) is with the implementer.
+next_step: Step 2 (agent-plans-document-screen) is with the implementer.
 ---
 # Agent plans board
 
@@ -87,7 +87,7 @@ one user.
 
 ## Steps
 
-1. **`agent-plans-board`** from `main`. `shell.RunIn`, `Facet.OptionsFromRows` with host
+1. **`agent-plans-board`** from `main`. Done: `96a964e`, refactor `e101ca4`, verified locally. `shell.RunIn`, `Facet.OptionsFromRows` with host
    tests, the plugin with configuration, board, columns, facets, and pull request
    references, starter file and README. Verify: tests, and `go run . --config <tmp> --once`
    against `~/git/gazebo` and `~/git/prs`.
@@ -113,3 +113,8 @@ one user.
 
 - 2026-11-13: The user chose its own list of checkout paths, body references plus branch
   links, all doc types with a Type filter, and an in-app markdown view on enter.
+- 2026-11-13: Step 1 verified (vet, gofmt, 390 tests, `--once` on gazebo and prs). `apl ls
+  --json` takes about 0.36s for gazebo's 368 docs; body reads add little. Left alone: the
+  `/pull/123` pattern is GitHub's URL shape, accepted as a text heuristic; the Type facet's
+  start on `plan` is compiled in (apl's built-in type, so neutral). Branches are chained
+  locally; whether to open pull requests or fast-forward `main` is asked at the end.
