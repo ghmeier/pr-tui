@@ -16,7 +16,7 @@ const sectionsText = `
 clone_root = "~/code"
 
 [github]
-repositories = ["CoProcure/gazebo"]
+repositories = ["acme/storefront"]
 `
 
 // exampleFile holds the values written by fullConfigurationText, so tests compare against
@@ -148,7 +148,7 @@ func TestLoadAcceptsADurationOfExactlyOneSecond(t *testing.T) {
 }
 
 func TestLoadReadsAStringEditorCommandAsOneExecutableEvenWithSpaces(t *testing.T) {
-	executable := "/Applications/Visual Studio Code - Insiders.app/Contents/Resources/app/bin/code"
+	executable := "/Applications/Some Editor.app/Contents/bin/edit"
 
 	file := mustLoadText(t, fmt.Sprintf("[editor]\ncommand = %q\n", executable))
 
@@ -224,7 +224,7 @@ func TestSectionDecodesTheNamedTable(t *testing.T) {
 
 	err := file.Section("github", &target)
 
-	if expected := []string{"CoProcure/gazebo"}; err != nil || !reflect.DeepEqual(target.Repositories, expected) {
+	if expected := []string{"acme/storefront"}; err != nil || !reflect.DeepEqual(target.Repositories, expected) {
 		t.Fatalf("repositories = %v, err = %v, expected %v", target.Repositories, err, expected)
 	}
 }

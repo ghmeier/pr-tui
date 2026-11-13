@@ -13,17 +13,17 @@ import (
 const cannedPullRequests = `{"data": {
   "viewer": {"login": "viewer"},
   "repository0": {"pullRequests": {"nodes": [
-    {"number": 1, "title": "Draft from a person", "url": "https://example.test/gazebo/1", "isDraft": true, "headRefOid": "first-commit", "headRefName": "feature/first",
+    {"number": 1, "title": "Draft from a person", "url": "https://example.test/storefront/1", "isDraft": true, "headRefOid": "first-commit", "headRefName": "feature/first",
      "updatedAt": "2026-11-10T10:00:00Z", "reviewDecision": null,
      "author": {"login": "person", "__typename": "User"},
      "reviewRequests": {"nodes": []}},
-    {"number": 2, "title": "Dependency update", "url": "https://example.test/gazebo/2", "isDraft": false, "headRefName": "renovate/dependency",
+    {"number": 2, "title": "Dependency update", "url": "https://example.test/storefront/2", "isDraft": false, "headRefName": "renovate/dependency",
      "updatedAt": "2026-11-10T11:00:00Z", "reviewDecision": "APPROVED",
      "author": {"login": "renovate", "__typename": "Bot"},
      "reviewRequests": {"nodes": []}}
   ]}},
   "repository1": {"pullRequests": {"nodes": [
-    {"number": 3, "title": "Ready with reviewers", "url": "https://example.test/u2/3", "isDraft": false, "isInMergeQueue": true,
+    {"number": 3, "title": "Ready with reviewers", "url": "https://example.test/billing/3", "isDraft": false, "isInMergeQueue": true,
      "updatedAt": "2026-11-10T12:00:00Z", "reviewDecision": "CHANGES_REQUESTED", "autoMergeRequest": {"enabledAt": "2026-11-10T09:00:00Z"},
      "author": {"login": "person", "__typename": "User"},
      "reviewRequests": {"nodes": [
@@ -32,7 +32,7 @@ const cannedPullRequests = `{"data": {
        {"requestedReviewer": null},
        {"requestedReviewer": {"__typename": "User", "login": "someone-else"}}
      ]}},
-    {"number": 4, "title": "From a deleted account", "url": "https://example.test/u2/4", "isDraft": false,
+    {"number": 4, "title": "From a deleted account", "url": "https://example.test/billing/4", "isDraft": false,
      "updatedAt": "2026-11-10T09:00:00Z", "reviewDecision": "REVIEW_REQUIRED", "author": null,
      "reviewRequests": {"nodes": []}}
   ]}}
@@ -41,7 +41,7 @@ const cannedPullRequests = `{"data": {
 func loadCannedPullRequests(t *testing.T) (pullRequests []pullrequests.PullRequest, viewer string, stub *stubbedGh) {
 	t.Helper()
 	stub = stubShell(t, cannedPullRequests)
-	pullRequests, viewer, err := providerFor(gazebo, partners).PullRequests()
+	pullRequests, viewer, err := providerFor(storefront, partners).PullRequests()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,13 +76,13 @@ func TestPullRequestsQueryNamesEachRepositoryWithItsOwnOwner(t *testing.T) {
 
 	query := stub.commands[0][4]
 
-	for index, source := range []pullrequests.Repository{gazebo, partners} {
+	for index, source := range []pullrequests.Repository{storefront, partners} {
 		expected := fmt.Sprintf("repository%d: repository(owner: %q, name: %q)", index, source.Owner, source.Name)
 		if !strings.Contains(query, expected) {
 			t.Fatalf("query is missing %s:\n%s", expected, query)
 		}
 	}
-	wrongOwner := fmt.Sprintf("owner: %q, name: %q", gazebo.Owner, partners.Name)
+	wrongOwner := fmt.Sprintf("owner: %q, name: %q", storefront.Owner, partners.Name)
 	if strings.Contains(query, wrongOwner) {
 		t.Fatalf("query asks for %s under the wrong owner:\n%s", partners.Name, query)
 	}
@@ -112,8 +112,8 @@ func TestPullRequestsAreSortedNewestFirstAcrossRepositories(t *testing.T) {
 func TestPullRequestsAttributeEachPullRequestToTheRepositoryItWasAskedFor(t *testing.T) {
 	pullRequests, _, _ := loadCannedPullRequests(t)
 
-	if got := pullRequestNumbered(t, pullRequests, 1).Repository; got != gazebo {
-		t.Fatalf("repository of 1 = %v, expected %v", got, gazebo)
+	if got := pullRequestNumbered(t, pullRequests, 1).Repository; got != storefront {
+		t.Fatalf("repository of 1 = %v, expected %v", got, storefront)
 	}
 	if got := pullRequestNumbered(t, pullRequests, 3).Repository; got != partners {
 		t.Fatalf("repository of 3 = %v, expected %v", got, partners)
@@ -126,7 +126,7 @@ func TestPullRequestsReadDraftHeadCommitAndAuthor(t *testing.T) {
 	draft := pullRequestNumbered(t, pullRequests, 1)
 
 	expected := pullrequests.PullRequest{
-		Repository: gazebo, Number: 1, Title: "Draft from a person", URL: "https://example.test/gazebo/1",
+		Repository: storefront, Number: 1, Title: "Draft from a person", URL: "https://example.test/storefront/1",
 		Author: "person", IsDraft: true, HeadCommit: "first-commit", HeadBranch: "feature/first", UpdatedAt: time.Date(2026, 11, 10, 10, 0, 0, 0, time.UTC),
 	}
 	if !reflect.DeepEqual(draft, expected) {
@@ -203,7 +203,7 @@ func TestPullRequestsSeparateRequestedUsersFromRequestedTeamsAndSkipEmptyRequest
 func TestPullRequestsRejectsAResponseThatIsNotJSON(t *testing.T) {
 	stubShell(t, "not json")
 
-	_, _, err := providerFor(gazebo).PullRequests()
+	_, _, err := providerFor(storefront).PullRequests()
 
 	if err == nil {
 		t.Fatal("expected an error")
@@ -211,14 +211,14 @@ func TestPullRequestsRejectsAResponseThatIsNotJSON(t *testing.T) {
 }
 
 const cannedLineCounts = `{"data": {"repository": {"pullRequests": {"nodes": [
-  {"url": "https://example.test/gazebo/1", "additions": 12, "deletions": 3},
-  {"url": "https://example.test/gazebo/2", "additions": 0, "deletions": 40}
+  {"url": "https://example.test/storefront/1", "additions": 12, "deletions": 3},
+  {"url": "https://example.test/storefront/2", "additions": 0, "deletions": 40}
 ]}}}}`
 
 func TestLineCountsAsksForTheRepositoryUnderItsOwnOwner(t *testing.T) {
 	stub := stubShell(t, cannedLineCounts)
 
-	_, err := providerFor(gazebo, partners).LineCounts(partners)
+	_, err := providerFor(storefront, partners).LineCounts(partners)
 
 	if err != nil {
 		t.Fatal(err)
@@ -231,11 +231,11 @@ func TestLineCountsAsksForTheRepositoryUnderItsOwnOwner(t *testing.T) {
 func TestLineCountsAreKeyedByPullRequestURL(t *testing.T) {
 	stubShell(t, cannedLineCounts)
 
-	counts, err := providerFor(gazebo).LineCounts(gazebo)
+	counts, err := providerFor(storefront).LineCounts(storefront)
 
 	expected := map[string]pullrequests.LineCount{
-		"https://example.test/gazebo/1": {Additions: 12, Deletions: 3},
-		"https://example.test/gazebo/2": {Additions: 0, Deletions: 40},
+		"https://example.test/storefront/1": {Additions: 12, Deletions: 3},
+		"https://example.test/storefront/2": {Additions: 0, Deletions: 40},
 	}
 	if err != nil || !reflect.DeepEqual(counts, expected) {
 		t.Fatalf("counts = %v, err = %v, expected %v", counts, err, expected)
@@ -250,7 +250,7 @@ func cannedCIStates(states ...string) string {
 			rollup = fmt.Sprintf(`{"state": %q}`, state)
 		}
 		nodes = append(nodes, fmt.Sprintf(
-			`{"url": "https://example.test/gazebo/%d", "commits": {"nodes": [{"commit": {"statusCheckRollup": %s}}]}}`, index, rollup,
+			`{"url": "https://example.test/storefront/%d", "commits": {"nodes": [{"commit": {"statusCheckRollup": %s}}]}}`, index, rollup,
 		))
 	}
 	return `{"data": {"repository": {"pullRequests": {"nodes": [` + strings.Join(nodes, ",") + `]}}}}`
@@ -259,7 +259,7 @@ func cannedCIStates(states ...string) string {
 func TestCIStatesAsksForTheRepositoryUnderItsOwnOwner(t *testing.T) {
 	stub := stubShell(t, cannedCIStates("SUCCESS"))
 
-	_, err := providerFor(gazebo, partners).CIStates(partners)
+	_, err := providerFor(storefront, partners).CIStates(partners)
 
 	if err != nil {
 		t.Fatal(err)
@@ -273,7 +273,7 @@ func TestCIStatesTranslateEachCheckRollupState(t *testing.T) {
 	rollups := []string{"SUCCESS", "FAILURE", "ERROR", "PENDING", "EXPECTED", "", "SOMETHING_NEW"}
 	stubShell(t, cannedCIStates(rollups...))
 
-	states, err := providerFor(gazebo).CIStates(gazebo)
+	states, err := providerFor(storefront).CIStates(storefront)
 
 	expected := []pullrequests.CIState{
 		pullrequests.CIStatePassing, pullrequests.CIStateFailing, pullrequests.CIStateFailing, pullrequests.CIStateRunning,
@@ -283,7 +283,7 @@ func TestCIStatesTranslateEachCheckRollupState(t *testing.T) {
 		t.Fatal(err)
 	}
 	for index, want := range expected {
-		url := fmt.Sprintf("https://example.test/gazebo/%d", index)
+		url := fmt.Sprintf("https://example.test/storefront/%d", index)
 		if got, present := states[url]; !present || got != want {
 			t.Errorf("state of %s = %v (present %v), expected %v", url, got, present, want)
 		}
@@ -292,12 +292,12 @@ func TestCIStatesTranslateEachCheckRollupState(t *testing.T) {
 
 func TestCIStatesRecordNoChecksForACommitWithoutAnyStatus(t *testing.T) {
 	stubShell(t, `{"data": {"repository": {"pullRequests": {"nodes": [
-	  {"url": "https://example.test/gazebo/1", "commits": {"nodes": []}}
+	  {"url": "https://example.test/storefront/1", "commits": {"nodes": []}}
 	]}}}}`)
 
-	states, err := providerFor(gazebo).CIStates(gazebo)
+	states, err := providerFor(storefront).CIStates(storefront)
 
-	if state, present := states["https://example.test/gazebo/1"]; err != nil || !present || state != pullrequests.CIStateNone {
+	if state, present := states["https://example.test/storefront/1"]; err != nil || !present || state != pullrequests.CIStateNone {
 		t.Fatalf("states = %v, err = %v", states, err)
 	}
 }

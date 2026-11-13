@@ -47,10 +47,10 @@ rename to second/new_name.py
 `
 
 var (
-	gazeboRepository         = Repository{Owner: "CoProcure", Name: "gazebo"}
-	secondRepository         = Repository{Owner: "CoProcure", Name: "u2"}
-	analyticsRepository      = Repository{Owner: "CoProcure", Name: "analytics"}
-	infrastructureRepository = Repository{Owner: "CoProcure", Name: "infrastructure"}
+	storefrontRepository = Repository{Owner: "acme", Name: "storefront"}
+	billingRepository    = Repository{Owner: "acme", Name: "billing"}
+	reportsRepository    = Repository{Owner: "acme", Name: "reports"}
+	platformRepository   = Repository{Owner: "acme", Name: "platform"}
 )
 
 // recordedCall is one change the board asked the fake provider to make.
@@ -111,21 +111,21 @@ func newFakeProvider() *fakeProvider {
 	updated := func(hour int) time.Time { return time.Date(2026, 11, 10, hour, 0, 0, 0, time.UTC) }
 	pullRequests := []PullRequest{
 		{
-			Repository: gazeboRepository, Number: 1, Title: "Draft from a person", URL: "https://example.test/gazebo/1",
+			Repository: storefrontRepository, Number: 1, Title: "Draft from a person", URL: "https://example.test/storefront/1",
 			Author: "person", IsDraft: true, HeadCommit: "first-commit", UpdatedAt: updated(12),
 		},
 		{
-			Repository: gazeboRepository, Number: 2, Title: "Dependency update", URL: "https://example.test/gazebo/2",
+			Repository: storefrontRepository, Number: 2, Title: "Dependency update", URL: "https://example.test/storefront/2",
 			Author: "renovate", IsBot: true, UpdatedAt: updated(11),
 		},
 		{
-			Repository: secondRepository, Number: 3, Title: "Ready with reviewers", URL: "https://example.test/u2/3",
+			Repository: billingRepository, Number: 3, Title: "Ready with reviewers", URL: "https://example.test/billing/3",
 			Author: "person", AutoMerge: true, UpdatedAt: updated(10),
 			RequestedUsers: []string{testViewer, "someone-else"}, RequestedTeams: []string{testReviewTeam},
 		},
 	}
 	return &fakeProvider{
-		repositories: []Repository{gazeboRepository, secondRepository, analyticsRepository, infrastructureRepository},
+		repositories: []Repository{storefrontRepository, billingRepository, reportsRepository, platformRepository},
 		reviewTeam:   testReviewTeam,
 		pullRequests: pullRequests,
 		lineCounts:   map[string]LineCount{pullRequests[0].URL: {Additions: 12, Deletions: 3}},

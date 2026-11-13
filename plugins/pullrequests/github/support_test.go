@@ -16,8 +16,8 @@ import (
 const reviewTeamName = "engineering"
 
 var (
-	gazebo   = pullrequests.Repository{Owner: "CoProcure", Name: "gazebo"}
-	partners = pullrequests.Repository{Owner: "Partner", Name: "u2"}
+	storefront = pullrequests.Repository{Owner: "acme", Name: "storefront"}
+	partners   = pullrequests.Repository{Owner: "Partner", Name: "billing"}
 )
 
 var errorFromGh = errors.New("gh failed")

@@ -13,7 +13,7 @@ func TestBoardStartsOnPeopleAndAllRepositories(t *testing.T) {
 
 	assertShown(t, model, provider, provider.pullRequest(1), provider.pullRequest(3))
 	summary := strings.Split(view(model), "\n")[0]
-	if !strings.HasPrefix(summary, "Repositories: ● gazebo  ● u2  ● analytics  ● infrastructure") || !strings.HasSuffix(summary, "Authors: people") {
+	if !strings.HasPrefix(summary, "Repositories: ● storefront  ● billing  ● reports  ● platform") || !strings.HasSuffix(summary, "Authors: people") {
 		t.Fatalf("summary = %q", summary)
 	}
 }
@@ -28,14 +28,14 @@ func TestFilterMenuSwitchesToBotsWithTheBKey(t *testing.T) {
 }
 
 func TestBKeyStillSwitchesAuthorsWhenARepositoryNameStartsWithB(t *testing.T) {
-	billing := Repository{Owner: "CoProcure", Name: "billing"}
-	provider := providerWithRepositories(gazeboRepository, secondRepository, billing)
+	backups := Repository{Owner: "acme", Name: "backups"}
+	provider := providerWithRepositories(storefrontRepository, billingRepository, backups)
 	model := loadedBoardWith(t, provider)
 
 	press(t, model, "f", "b", "esc")
 
 	assertShown(t, model, provider, provider.pullRequest(2))
-	if summary := strings.Split(view(model), "\n")[0]; !strings.Contains(summary, "● "+billing.Name) {
+	if summary := strings.Split(view(model), "\n")[0]; !strings.Contains(summary, "● "+backups.Name) {
 		t.Fatalf("summary = %q", summary)
 	}
 }

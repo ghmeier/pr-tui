@@ -3,10 +3,21 @@ package shell
 
 import (
 	"bytes"
-	"errors"
 	"os/exec"
 	"strings"
 )
+
+// commandError reports a failed command by what the command printed to standard error, and
+// keeps the original error so callers can still ask what kind of failure it was, such as
+// errors.Is(err, exec.ErrNotFound) for a program that is not installed.
+type commandError struct {
+	message string
+	cause   error
+}
+
+func (err commandError) Error() string { return err.message }
+
+func (err commandError) Unwrap() error { return err.cause }
 
 // Run runs an external command and returns its standard output. Tests replace it.
 var Run = func(arguments ...string) ([]byte, error) {
@@ -19,7 +30,7 @@ var Run = func(arguments ...string) ([]byte, error) {
 		if message == "" {
 			message = err.Error()
 		}
-		return nil, errors.New(message)
+		return nil, commandError{message: message, cause: err}
 	}
 	return output, nil
 }

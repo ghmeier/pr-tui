@@ -27,12 +27,12 @@ func TestProviderReadsRepositoriesAndReviewTeamFromTheGithubSection(t *testing.T
 [github]
 repositories = [%q, %q]
 review_team = %q
-`, gazebo.FullName(), partners.FullName(), reviewTeamName))
+`, storefront.FullName(), partners.FullName(), reviewTeamName))
 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if expected := []pullrequests.Repository{gazebo, partners}; !reflect.DeepEqual(result.Repositories(), expected) {
+	if expected := []pullrequests.Repository{storefront, partners}; !reflect.DeepEqual(result.Repositories(), expected) {
 		t.Fatalf("repositories = %v, expected %v", result.Repositories(), expected)
 	}
 	if result.ReviewTeam() != reviewTeamName {
@@ -41,7 +41,7 @@ review_team = %q
 }
 
 func TestProviderHasNoReviewTeamWhenTheKeyIsOmitted(t *testing.T) {
-	result, err := newProviderFromText(t, fmt.Sprintf("[github]\nrepositories = [%q]\n", gazebo.FullName()))
+	result, err := newProviderFromText(t, fmt.Sprintf("[github]\nrepositories = [%q]\n", storefront.FullName()))
 
 	if err != nil || result.ReviewTeam() != "" {
 		t.Fatalf("review team = %q, err = %v", result.ReviewTeam(), err)
@@ -57,7 +57,7 @@ func TestProviderRejectsAMissingSectionBecauseRepositoriesAreRequired(t *testing
 }
 
 func TestProviderRejectsRepositoriesNotWrittenAsOwnerSlashName(t *testing.T) {
-	for _, entry := range []string{"gazebo", "CoProcure/", "/gazebo", "a/b/c", `a/b"c`, "a/b c"} {
+	for _, entry := range []string{"storefront", "acme/", "/storefront", "a/b/c", `a/b"c`, "a/b c"} {
 		assertRejected(t, fmt.Sprintf("[github]\nrepositories = [%q]\n", entry), fmt.Sprintf("%q", entry))
 	}
 }
@@ -79,11 +79,11 @@ func TestProviderRejectsAnUnknownKeyNamingTheSectionAndTheKey(t *testing.T) {
 }
 
 func TestGithubRegistersItselfUnderTheNameTheConfigurationUses(t *testing.T) {
-	file := configtest.Load(t, fmt.Sprintf("[github]\nrepositories = [%q]\n", gazebo.FullName()))
+	file := configtest.Load(t, fmt.Sprintf("[github]\nrepositories = [%q]\n", storefront.FullName()))
 
 	result, err := pullrequests.NewProvider("github", file.Section)
 
-	if err != nil || !reflect.DeepEqual(result.Repositories(), []pullrequests.Repository{gazebo}) {
+	if err != nil || !reflect.DeepEqual(result.Repositories(), []pullrequests.Repository{storefront}) {
 		t.Fatalf("repositories = %v, err = %v", result.Repositories(), err)
 	}
 }

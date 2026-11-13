@@ -34,7 +34,7 @@ provider = "github"                # only "github" is supported; default "github
 clone_root = "~/git"               # default "~/git"; a clone lives at <clone_root>/<name>
 
 [github]                           # the settings of the provider named above
-repositories = ["CoProcure/gazebo", "CoProcure/u2"]   # required; owners may differ
+repositories = ["acme/storefront", "acme/billing"]   # required; owners may differ
 review_team = "engineering"        # optional
 ```
 
@@ -52,7 +52,7 @@ unknown key, are reported with the file, the table, and the key at startup.
 prs                  # interactive board
 prs --once           # print the table and exit
 prs --bots           # start on bot-authored pull requests
-prs --repo gazebo    # start with only this repository selected, as a name or owner/name (repeatable)
+prs --repo storefront    # start with only this repository selected, as a name or owner/name (repeatable)
 prs --config <path>  # use a configuration file at this path
 ```
 

@@ -24,10 +24,10 @@ const cannedComments = `[
 ]`
 
 func TestDiffReturnsTheTextOfGhPrDiff(t *testing.T) {
-	pr := fixturePullRequest(gazebo)
+	pr := fixturePullRequest(storefront)
 	stub := stubShell(t, "diff --git a/x b/x\n")
 
-	text, err := providerFor(gazebo).Diff(pr)
+	text, err := providerFor(storefront).Diff(pr)
 
 	if err != nil || text != "diff --git a/x b/x\n" {
 		t.Fatalf("text = %q, err = %v", text, err)
@@ -75,7 +75,7 @@ func TestSaveDescriptionPatchesTheBodyThroughAJSONFileOnTheOwnersRepository(t *t
 func TestCommentsReadAuthorSideAndThreading(t *testing.T) {
 	stub := stubShell(t, cannedComments)
 
-	comments, err := providerFor(gazebo).Comments(fixturePullRequest(gazebo))
+	comments, err := providerFor(storefront).Comments(fixturePullRequest(storefront))
 
 	expected := []pullrequests.ReviewComment{
 		{ID: 10, Path: "first.py", Line: 2, Side: pullrequests.CommentSideNew, Author: "reviewer", Body: "Why this change?",
@@ -88,7 +88,7 @@ func TestCommentsReadAuthorSideAndThreading(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(comments, expected) {
 		t.Fatalf("comments = %+v, err = %v, expected %+v", comments, err, expected)
 	}
-	stub.assertCommands(t, []string{"gh", "api", "repos/" + gazebo.FullName() + "/pulls/7/comments?per_page=100"})
+	stub.assertCommands(t, []string{"gh", "api", "repos/" + storefront.FullName() + "/pulls/7/comments?per_page=100"})
 }
 
 func TestPostCommentOnTheNewSideSendsTheHeadCommitAndRight(t *testing.T) {
@@ -106,11 +106,11 @@ func TestPostCommentOnTheNewSideSendsTheHeadCommitAndRight(t *testing.T) {
 }
 
 func TestPostCommentOnTheOldSideSendsLeft(t *testing.T) {
-	pr := fixturePullRequest(gazebo)
+	pr := fixturePullRequest(storefront)
 	stub := stubShell(t, "")
 	target := pullrequests.CommentTarget{Path: "first.py", Line: 2, Side: pullrequests.CommentSideOld}
 
-	err := providerFor(gazebo).PostComment(pr, target, "Why remove this?")
+	err := providerFor(storefront).PostComment(pr, target, "Why remove this?")
 
 	if err != nil {
 		t.Fatal(err)
@@ -119,24 +119,24 @@ func TestPostCommentOnTheOldSideSendsLeft(t *testing.T) {
 }
 
 func TestPostCommentAsAReplySendsOnlyTheBodyAndTheCommentItAnswers(t *testing.T) {
-	pr := fixturePullRequest(gazebo)
+	pr := fixturePullRequest(storefront)
 	stub := stubShell(t, "")
 	target := pullrequests.CommentTarget{Path: "first.py", Line: 2, ReplyTo: 10, ReplyAuthor: "reviewer"}
 
-	err := providerFor(gazebo).PostComment(pr, target, "Thanks")
+	err := providerFor(storefront).PostComment(pr, target, "Thanks")
 
 	if err != nil {
 		t.Fatal(err)
 	}
-	stub.assertCommands(t, []string{"gh", "api", "--method", "POST", "repos/" + gazebo.FullName() + "/pulls/7/comments"})
+	stub.assertCommands(t, []string{"gh", "api", "--method", "POST", "repos/" + storefront.FullName() + "/pulls/7/comments"})
 	stub.assertInputs(t, `{"body":"Thanks","in_reply_to":10}`)
 }
 
 func TestSetDraftFalseMarksThePullRequestReady(t *testing.T) {
-	pr := fixturePullRequest(gazebo)
+	pr := fixturePullRequest(storefront)
 	stub := stubShell(t, "")
 
-	err := providerFor(gazebo).SetDraft(pr, false)
+	err := providerFor(storefront).SetDraft(pr, false)
 
 	if err != nil {
 		t.Fatal(err)
@@ -145,10 +145,10 @@ func TestSetDraftFalseMarksThePullRequestReady(t *testing.T) {
 }
 
 func TestSetDraftTrueConvertsThePullRequestBackToDraft(t *testing.T) {
-	pr := fixturePullRequest(gazebo)
+	pr := fixturePullRequest(storefront)
 	stub := stubShell(t, "")
 
-	err := providerFor(gazebo).SetDraft(pr, true)
+	err := providerFor(storefront).SetDraft(pr, true)
 
 	if err != nil {
 		t.Fatal(err)
@@ -157,10 +157,10 @@ func TestSetDraftTrueConvertsThePullRequestBackToDraft(t *testing.T) {
 }
 
 func TestSetAutoMergeEnablesSquashAutoMerge(t *testing.T) {
-	pr := fixturePullRequest(gazebo)
+	pr := fixturePullRequest(storefront)
 	stub := stubShell(t, "")
 
-	err := providerFor(gazebo).SetAutoMerge(pr, true)
+	err := providerFor(storefront).SetAutoMerge(pr, true)
 
 	if err != nil {
 		t.Fatal(err)
@@ -169,10 +169,10 @@ func TestSetAutoMergeEnablesSquashAutoMerge(t *testing.T) {
 }
 
 func TestSetAutoMergeDisablesAutoMerge(t *testing.T) {
-	pr := fixturePullRequest(gazebo)
+	pr := fixturePullRequest(storefront)
 	stub := stubShell(t, "")
 
-	err := providerFor(gazebo).SetAutoMerge(pr, false)
+	err := providerFor(storefront).SetAutoMerge(pr, false)
 
 	if err != nil {
 		t.Fatal(err)
@@ -196,12 +196,12 @@ func TestRequestTeamReviewGoesToTheOwnerOfThePullRequest(t *testing.T) {
 }
 
 func TestEveryMethodReturnsTheFailureOfTheCommandItRan(t *testing.T) {
-	pr := fixturePullRequest(gazebo)
+	pr := fixturePullRequest(storefront)
 	target := pullrequests.CommentTarget{Path: "first.py", Line: 2}
 	methods := map[string]func(*provider) error{
 		"PullRequests":      func(p *provider) error { _, _, err := p.PullRequests(); return err },
-		"LineCounts":        func(p *provider) error { _, err := p.LineCounts(gazebo); return err },
-		"CIStates":          func(p *provider) error { _, err := p.CIStates(gazebo); return err },
+		"LineCounts":        func(p *provider) error { _, err := p.LineCounts(storefront); return err },
+		"CIStates":          func(p *provider) error { _, err := p.CIStates(storefront); return err },
 		"Diff":              func(p *provider) error { _, err := p.Diff(pr); return err },
 		"ChangedFiles":      func(p *provider) error { _, err := p.ChangedFiles(pr); return err },
 		"Description":       func(p *provider) error { _, err := p.Description(pr); return err },
@@ -215,7 +215,7 @@ func TestEveryMethodReturnsTheFailureOfTheCommandItRan(t *testing.T) {
 	stubShellWith(t, func([]string) ([]byte, error) { return nil, errorFromGh })
 
 	for name, call := range methods {
-		if err := call(providerFor(gazebo)); err != errorFromGh {
+		if err := call(providerFor(storefront)); err != errorFromGh {
 			t.Errorf("%s returned %v, expected the command failure", name, err)
 		}
 	}

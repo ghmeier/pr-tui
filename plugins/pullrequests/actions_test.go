@@ -1,6 +1,7 @@
 package pullrequests
 
 import (
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -223,7 +224,7 @@ func TestEditorKeyStillOpensTheWorktreeWhenTheChangedFilesCannotBeListed(t *test
 func TestEditorKeyPassesAStringCommandAsTheOnlyProgramWordEvenWithSpaces(t *testing.T) {
 	provider := newFakeProvider()
 	commands := recordShell(t)
-	program := "/Applications/Visual Studio Code - Insiders.app/Contents/Resources/app/bin/code"
+	program := "/Applications/Some Editor.app/Contents/bin/edit"
 
 	press(t, newSetup(provider).withEditorCommand(program).started(t), "down", "v")
 
@@ -231,6 +232,17 @@ func TestEditorKeyPassesAStringCommandAsTheOnlyProgramWordEvenWithSpaces(t *test
 		"wt", "-C", filepath.Join(testCloneRoot, provider.pullRequest(3).Repository.Name), "switch", "pr:3",
 		"--no-cd", "-x", program, "--", ".",
 	}, provider.changedFiles...))
+}
+
+func TestEditorKeyExplainsWhenWorktrunkIsNotInstalled(t *testing.T) {
+	failShell(t, &exec.Error{Name: "wt", Err: exec.ErrNotFound})
+	model := loadedBoard(t)
+
+	press(t, model, "v")
+
+	if !strings.Contains(view(model), "Failed: "+errWorktrunkMissing.Error()) {
+		t.Fatalf("view:\n%s", view(model))
+	}
 }
 
 func TestEditorKeyShowsTheFailureWhenTheWorktreeCannotBeOpened(t *testing.T) {

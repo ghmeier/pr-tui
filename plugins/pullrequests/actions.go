@@ -1,7 +1,9 @@
 package pullrequests
 
 import (
+	"errors"
 	"fmt"
+	"os/exec"
 	"path/filepath"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -57,8 +59,13 @@ func (board *pullRequestBoard) openInEditor(selection plugin.Selection) plugin.E
 func (board *pullRequestBoard) runEditor(pr PullRequest) error {
 	files, _ := board.provider.ChangedFiles(pr)
 	_, err := shell.Run(pr.openInEditorCommand(board.editor.Command, board.settings.CloneRoot, files)...)
+	if errors.Is(err, exec.ErrNotFound) {
+		return errWorktrunkMissing
+	}
 	return err
 }
+
+var errWorktrunkMissing = errors.New("v needs worktrunk (wt), which is not installed: https://worktrunk.dev")
 
 func (board *pullRequestBoard) toggleDraft(selection plugin.Selection) plugin.Effect {
 	pr := pullRequestOf(selection)
