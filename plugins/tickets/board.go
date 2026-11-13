@@ -59,11 +59,11 @@ func (tracker *tracker) load() ([]plugin.Row, error) {
 
 // openInBrowser returns an Effect rather than running anything, so the host shows the notice
 // and runs the command on a background goroutine.
-func (tracker *tracker) openInBrowser(of ticket) plugin.Effect {
+func (tracker *tracker) openInBrowser(target ticket) plugin.Effect {
 	return plugin.Effect{
-		Notice: "Opening " + of.ID + "…",
+		Notice: "Opening " + target.ID + "…",
 		Command: func() error {
-			_, err := shell.Run("open", tracker.url(of))
+			_, err := shell.Run("open", tracker.url(target))
 			return err
 		},
 	}

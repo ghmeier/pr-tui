@@ -2,7 +2,7 @@ package tickets
 
 import (
 	"cmp"
-	"fmt"
+	"errors"
 	"strings"
 )
 
@@ -23,7 +23,7 @@ func loadSettings(decodeSection func(name string, target any) error) (settings, 
 	}
 	section.URLPrefix = cmp.Or(section.URLPrefix, defaultURLPrefix)
 	if !strings.HasPrefix(section.URLPrefix, "https://") && !strings.HasPrefix(section.URLPrefix, "http://") {
-		return settings{}, fmt.Errorf(`[tickets] url_prefix must start with "https://" or "http://"`)
+		return settings{}, errors.New(`[tickets] url_prefix must start with "https://" or "http://"`)
 	}
 	return section, nil
 }

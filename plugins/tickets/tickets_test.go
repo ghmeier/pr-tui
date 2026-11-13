@@ -2,6 +2,7 @@ package tickets
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -49,9 +50,9 @@ func (f fixture) provider() *pullrequeststest.Provider {
 }
 
 // startedWith builds the host from a configuration file that enables the named plugins, and
-// loads every board. The configuration is the plugins list, the pull request provider when
-// that plugin is enabled, and any extra text.
-func startedWith(t *testing.T, f fixture, enabled []string, extra string) *plugin.Model {
+// loads every board. The configuration is the plugins list, and the pull request provider when
+// that plugin is enabled.
+func startedWith(t *testing.T, f fixture, enabled []string) *plugin.Model {
 	t.Helper()
 	quoted := make([]string, len(enabled))
 	for index, name := range enabled {
@@ -63,7 +64,7 @@ func startedWith(t *testing.T, f fixture, enabled []string, extra string) *plugi
 			text += fmt.Sprintf("[pull_requests]\nprovider = %q\n", pullrequeststest.Register(t, f.provider()))
 		}
 	}
-	host, err := plugin.NewHost("config.toml", configtest.Load(t, text+extra), plugin.Registered())
+	host, err := plugin.NewHost("config.toml", configtest.Load(t, text), plugin.Registered())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +76,7 @@ func startedWith(t *testing.T, f fixture, enabled []string, extra string) *plugi
 
 func startedWithBoth(t *testing.T, f fixture) *plugin.Model {
 	t.Helper()
-	return startedWith(t, f, []string{pullrequests.BoardName, "tickets"}, "")
+	return startedWith(t, f, []string{pullrequests.BoardName, "tickets"})
 }
 
 func view(model *plugin.Model) string { return ansi.Strip(model.View()) }
@@ -123,8 +124,11 @@ func TestTicketColumnIsEmptyForAPullRequestWhoseBranchNamesNoTicket(t *testing.T
 
 	model := startedWithBoth(t, f)
 
-	if line := lineWith(t, model, f.unrelated.Title); strings.Contains(line, "TCK-") {
-		t.Fatalf("line = %q, expected no ticket", line)
+	line := lineWith(t, model, f.unrelated.Title)
+	for _, known := range exampleTickets() {
+		if strings.Contains(line, known.ID) {
+			t.Fatalf("line = %q, expected no ticket", line)
+		}
 	}
 }
 
@@ -165,7 +169,7 @@ func TestTicketKeyOnAPullRequestOpensTheMatchedTicketsAddress(t *testing.T) {
 	plugintest.Press(t, model, "t")
 
 	expected := [][]string{{"open", defaultURLPrefix + f.ticket.ID}}
-	if fmt.Sprint(*commands) != fmt.Sprint(expected) {
+	if !reflect.DeepEqual(*commands, expected) {
 		t.Fatalf("commands = %v, expected %v", *commands, expected)
 	}
 }
@@ -194,7 +198,7 @@ func TestOpenKeyOnTheTicketsBoardOpensTheSelectedTicket(t *testing.T) {
 
 	second := exampleTickets()[1]
 	expected := [][]string{{"open", defaultURLPrefix + second.ID}}
-	if fmt.Sprint(*commands) != fmt.Sprint(expected) {
+	if !reflect.DeepEqual(*commands, expected) {
 		t.Fatalf("commands = %v, expected %v", *commands, expected)
 	}
 }
@@ -202,7 +206,7 @@ func TestOpenKeyOnTheTicketsBoardOpensTheSelectedTicket(t *testing.T) {
 func TestPluginStillStartsWithOnlyItsOwnBoardWhenPullRequestsIsDisabled(t *testing.T) {
 	f := newFixture()
 
-	model := startedWith(t, f, []string{"tickets"}, "")
+	model := startedWith(t, f, []string{"tickets"})
 
 	if !strings.Contains(view(model), f.ticket.Title) {
 		t.Fatalf("view:\n%s", view(model))

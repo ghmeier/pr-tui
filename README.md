@@ -49,11 +49,11 @@ unknown key, are reported with the file, the table, and the key at startup.
 ## Use
 
 ```
-prs                  # interactive board
-prs --once           # print the table and exit
-prs --bots           # start on bot-authored pull requests
-prs --repo storefront    # start with only this repository selected, as a name or owner/name (repeatable)
-prs --config <path>  # use a configuration file at this path
+prs                    # interactive board
+prs --once             # print the table and exit
+prs --bots             # start on bot-authored pull requests
+prs --repo storefront  # start with only this repository selected, as a name or owner/name (repeatable)
+prs --config <path>    # use a configuration file at this path
 ```
 
 The State column uses these marks:

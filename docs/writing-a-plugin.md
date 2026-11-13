@@ -98,7 +98,7 @@ package tickets
 
 import (
 	"cmp"
-	"fmt"
+	"errors"
 	"strings"
 )
 
@@ -119,7 +119,7 @@ func loadSettings(decodeSection func(name string, target any) error) (settings, 
 	}
 	section.URLPrefix = cmp.Or(section.URLPrefix, defaultURLPrefix)
 	if !strings.HasPrefix(section.URLPrefix, "https://") && !strings.HasPrefix(section.URLPrefix, "http://") {
-		return settings{}, fmt.Errorf(`[tickets] url_prefix must start with "https://" or "http://"`)
+		return settings{}, errors.New(`[tickets] url_prefix must start with "https://" or "http://"`)
 	}
 	return section, nil
 }
@@ -148,10 +148,7 @@ url_prefix = "https://tickets.example.com/browse/"   # optional
 ```go
 package tickets
 
-import (
-	"regexp"
-	"strings"
-)
+import "strings"
 
 // ticket is one made-up ticket. A real plugin would fetch these from a service.
 type ticket struct {
@@ -179,29 +176,23 @@ func exampleTickets() []ticket {
 type tracker struct {
 	urlPrefix string
 	tickets   []ticket
-	byID      map[string]ticket
 }
 
 func newTracker(settings settings) *tracker {
-	tracker := &tracker{urlPrefix: settings.URLPrefix, tickets: exampleTickets(), byID: map[string]ticket{}}
-	for _, known := range tracker.tickets {
-		tracker.byID[known.ID] = known
-	}
-	return tracker
+	return &tracker{urlPrefix: settings.URLPrefix, tickets: exampleTickets()}
 }
 
-func (tracker *tracker) url(of ticket) string {
-	return tracker.urlPrefix + of.ID
+func (tracker *tracker) url(target ticket) string {
+	return tracker.urlPrefix + target.ID
 }
 
-var ticketIDPattern = regexp.MustCompile(`[A-Za-z]+-[0-9]+`)
-
-// ticketForBranch finds the first known ticket whose id appears in the branch name, such as
-// TCK-101 in "feature/tck-101-sign-in".
+// ticketForBranch finds the first ticket whose id appears in the branch name, ignoring case,
+// such as TCK-101 in "feature/tck-101-sign-in".
 func (tracker *tracker) ticketForBranch(branch string) (ticket, bool) {
-	for _, candidate := range ticketIDPattern.FindAllString(branch, -1) {
-		if found, known := tracker.byID[strings.ToUpper(candidate)]; known {
-			return found, true
+	upperBranch := strings.ToUpper(branch)
+	for _, candidate := range tracker.tickets {
+		if strings.Contains(upperBranch, candidate.ID) {
+			return candidate, true
 		}
 	}
 	return ticket{}, false
@@ -279,11 +270,11 @@ func (tracker *tracker) load() ([]plugin.Row, error) {
 
 // openInBrowser returns an Effect rather than running anything, so the host shows the notice
 // and runs the command on a background goroutine.
-func (tracker *tracker) openInBrowser(of ticket) plugin.Effect {
+func (tracker *tracker) openInBrowser(target ticket) plugin.Effect {
 	return plugin.Effect{
-		Notice: "Opening " + of.ID + "…",
+		Notice: "Opening " + target.ID + "…",
 		Command: func() error {
-			_, err := shell.Run("open", tracker.url(of))
+			_, err := shell.Run("open", tracker.url(target))
 			return err
 		},
 	}
@@ -393,7 +384,9 @@ the target board does not already use; the pull request board uses `enter`, `p`,
 
 ### Switching it on
 
-In `main.go`, a blank import registers the plugin:
+A blank import in `main.go` registers the plugin:
+
+`main.go`:
 
 ```go
 _ "github.com/ghmeier/pr-tui/plugins/tickets"
@@ -528,8 +521,10 @@ being added next to the pull request board, and is the best example of this laye
 **Provider behavior** is tested by replacing `shell.Run`, asserting the exact command line, and
 parsing a canned response. Tests never run the real `gh` or touch the network.
 
-The tests for `tickets` are in `plugins/tickets/tickets_test.go`. Here is the helper that replaces
-`shell.Run`, and one test that uses it:
+The tests for `tickets` are in `plugins/tickets/tickets_test.go`. This helper replaces
+`shell.Run`, so that no test opens a browser:
+
+`plugins/tickets/tickets_test.go`:
 
 ```go
 func recordShell(t *testing.T) *[][]string {
@@ -545,6 +540,10 @@ func recordShell(t *testing.T) *[][]string {
 }
 ```
 
+This test uses it to check what the `t` key does on a pull request:
+
+`plugins/tickets/tickets_test.go`:
+
 ```go
 func TestTicketKeyOnAPullRequestOpensTheMatchedTicketsAddress(t *testing.T) {
 	f := newFixture()
@@ -554,11 +553,15 @@ func TestTicketKeyOnAPullRequestOpensTheMatchedTicketsAddress(t *testing.T) {
 	plugintest.Press(t, model, "t")
 
 	expected := [][]string{{"open", defaultURLPrefix + f.ticket.ID}}
-	if fmt.Sprint(*commands) != fmt.Sprint(expected) {
+	if !reflect.DeepEqual(*commands, expected) {
 		t.Fatalf("commands = %v, expected %v", *commands, expected)
 	}
 }
 ```
+
+`plugins/tickets/guide_test.go` fails when a code block in this guide that is introduced by the
+path of a source file is not found in that file. After you change a plugin file, copy the
+changed code into the guide.
 
 Each test states one invariant and is named by subject and expected behavior. Arrange, act, and
 assert are separated by blank lines, a positive case is paired with a negative one, and

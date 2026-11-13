@@ -61,8 +61,9 @@ A plugin that adds a column or action to another plugin's board checks
 Rows are matched across plugins through the owning plugin's exported row type, for example
 `row.(pullrequests.Row).PullRequest.HeadBranch`.
 
-The guide in `docs/writing-a-plugin.md` quotes `plugins/tickets` verbatim; when you change that
-package, update the matching blocks in the guide by hand.
+The guide in `docs/writing-a-plugin.md` quotes `plugins/tickets` verbatim. When you change that
+package, copy the change into the guide's matching blocks; the test in
+`plugins/tickets/guide_test.go` fails when a block differs from its file.
 
 A provider is a data source behind a plugin. The pull request plugin only talks to its
 `Provider` interface, and a provider registers with the plugin that consumes it.
