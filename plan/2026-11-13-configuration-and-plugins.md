@@ -4,7 +4,7 @@ status: active
 tags: [plugins, configuration]
 created: 2026-11-13
 updated: 2026-11-13
-next_step: Write the plugin author guide (step 3), then scrub setup-specific names (step 4)
+next_step: Step 5 (distribution). Needs a ghmeier/homebrew-tap repository and the repository made public; run gitleaks over history first
 ---
 # Configuration file and plugin system
 
@@ -147,13 +147,13 @@ Outcome: 341 tests pass, also under the race detector, and `--once` output is id
 before the port. An Opus review found one blocking data race and several fixes, all applied
 before merge (see the notes for 2026-11-13).
 
-### 3. Plugin author guide — not started
+### 3. Plugin author guide — done, merged to `main` at `8e1615c`
 
 - A "write a plugin" section in the README covering a board, a column on someone else's
   board, an action, and a provider.
 - Keep the example honest by compiling it in a test.
 
-### 4. Remove what is specific to one setup — not started
+### 4. Remove what is specific to one setup — done, merged to `main` at `8e1615c`
 
 The repository goes public once it is generalized, so nothing in it should name the
 original setup.
@@ -227,3 +227,14 @@ original setup.
 - `CLAUDE.md` and the `project-lead`, `implementer`, and `code-reviewer` skills, with
   `implementer`, `refactorer` (Sonnet) and `code-reviewer` (Opus) agents, were added at
   the commit after `eeccc12`.
+- Steps 3 and 4 landed together on `guide-and-scrub`. The guide is
+  `docs/writing-a-plugin.md`, and its worked example ships as `plugins/tickets`, an
+  example plugin that stays off unless listed in `plugins`. A test in that package fails
+  when a code block in the guide differs from its source file. 357 tests pass.
+- Fixtures and docs now use `acme` with `storefront`, `billing`, `reports`, and `platform`.
+  `v` reports a missing `wt` plainly. Still to do before publishing: the `gitleaks` run.
+- Rough edges found while writing the example plugin, to revisit with a real second plugin:
+  `selection.Data` finds a column by header text, so two plugins using the same header
+  collide silently; a cell cannot tell "still loading" from "loaded, nothing found";
+  provider registrations cannot be removed, so the exported test fake registers under a
+  generated name; there is no shared helper that builds a host from configuration text.
