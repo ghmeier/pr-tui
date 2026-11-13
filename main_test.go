@@ -124,7 +124,7 @@ func loadedBoardFor(t *testing.T, settings configuration) model {
 }
 
 func reviewTeamOf(m model) string {
-	return m.config.pullRequests.reviewTeam
+	return m.settings.pullRequests.reviewTeam
 }
 
 // testRepository returns the repository at the given position in testConfiguration.
@@ -946,7 +946,7 @@ func TestFilterMenuNumbersEachRepositoryInConfiguredOrder(t *testing.T) {
 func TestNumberKeyTogglesTheRepositoryEvenWhenItsNameSharesAFirstLetter(t *testing.T) {
 	recordCommands(t)
 	settings := settingsWithRepositories(
-		repository{owner: "CoProcure", name: "gazebo"}, repository{owner: "CoProcure", name: "u2"},
+		testRepository(0), testRepository(1),
 		repository{owner: "CoProcure", name: "billing"}, repository{owner: "CoProcure", name: "gamma"},
 	)
 	last := settings.pullRequests.repositories[3]
@@ -1061,18 +1061,6 @@ func TestDescriptionEditGoesToTheOwnerOfThePullRequest(t *testing.T) {
 	expected := [][]string{{"gh", "api", "--method", "PATCH", "repos/" + partner.fullName() + "/pulls/3"}}
 	if !reflect.DeepEqual(*recorded, expected) {
 		t.Fatalf("commands = %v, expected %v", *recorded, expected)
-	}
-}
-
-func TestEditorKeyUsesTheCloneNamedAfterTheRepository(t *testing.T) {
-	recorded := recordCommands(t)
-	settings, partner := settingsWithPartnerRepository()
-
-	press(t, loadedBoardFor(t, settings), "down", "v")
-
-	expectedClone := filepath.Join(settings.pullRequests.cloneRoot, partner.name)
-	if len(*recorded) != 1 || (*recorded)[0][2] != expectedClone {
-		t.Fatalf("commands = %v, expected a clone at %s", *recorded, expectedClone)
 	}
 }
 

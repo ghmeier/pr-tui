@@ -235,13 +235,13 @@ func fetchPullRequests(repositories []repository) (pullRequests []pullRequest, v
 		return nil, "", err
 	}
 	for index, source := range repositories {
-		var repository struct {
+		var repositoryNode struct {
 			PullRequests struct{ Nodes []pullRequestNode }
 		}
-		if err := json.Unmarshal(response.Data[fmt.Sprintf("repository%d", index)], &repository); err != nil {
+		if err := json.Unmarshal(response.Data[fmt.Sprintf("repository%d", index)], &repositoryNode); err != nil {
 			return nil, "", err
 		}
-		for _, node := range repository.PullRequests.Nodes {
+		for _, node := range repositoryNode.PullRequests.Nodes {
 			pullRequests = append(pullRequests, node.pullRequest(source))
 		}
 	}
@@ -624,7 +624,12 @@ func (pr pullRequest) awaitsReviewFrom(viewer, reviewTeam string) bool {
 	if pr.author == viewer {
 		return false
 	}
-	return slices.Contains(pr.requestedUsers, viewer) || (reviewTeam != "" && slices.Contains(pr.requestedTeams, reviewTeam))
+	return slices.Contains(pr.requestedUsers, viewer) || pr.requestsTeam(reviewTeam)
+}
+
+// requestsTeam is false for an empty reviewTeam, which means no team is configured.
+func (pr pullRequest) requestsTeam(reviewTeam string) bool {
+	return reviewTeam != "" && slices.Contains(pr.requestedTeams, reviewTeam)
 }
 
 // stateMarks summarises the pull request as emoji: review state, whether it waits on the
@@ -666,7 +671,7 @@ func (pr pullRequest) reviewSegments(viewer, reviewTeam string) []segment {
 	if slices.Contains(pr.requestedUsers, viewer) {
 		reviewers = append(reviewers, segment{"you", youStyle})
 	}
-	if reviewTeam != "" && slices.Contains(pr.requestedTeams, reviewTeam) {
+	if pr.requestsTeam(reviewTeam) {
 		reviewers = append(reviewers, segment{reviewTeam, teamStyle})
 	}
 	for _, login := range pr.requestedUsers {
@@ -1276,7 +1281,7 @@ func firstLine(err error) string {
 }
 
 type model struct {
-	config          configuration
+	settings        configuration
 	filters         filters
 	viewer          string
 	pullRequests    []pullRequest
@@ -1321,15 +1326,15 @@ type model struct {
 }
 
 func newModel(settings configuration, f filters) model {
-	return model{config: settings, filters: f, lineCounts: map[string]lineCount{}, ciStates: map[string]string{}, diffCache: map[string]cachedDiff{}, splitDiff: true, width: 120, height: 30}
+	return model{settings: settings, filters: f, lineCounts: map[string]lineCount{}, ciStates: map[string]string{}, diffCache: map[string]cachedDiff{}, splitDiff: true, width: 120, height: 30}
 }
 
 func (m model) Init() tea.Cmd {
-	return tea.Batch(load(m.repositories()), scheduleRefresh(m.config.refreshInterval))
+	return tea.Batch(load(m.repositories()), scheduleRefresh(m.settings.refreshInterval))
 }
 
 func (m model) repositories() []repository {
-	return m.config.pullRequests.repositories
+	return m.settings.pullRequests.repositories
 }
 
 func (m model) selected() (pullRequest, bool) {
@@ -1715,7 +1720,7 @@ func (m model) update(message tea.Msg) (model, tea.Cmd) {
 			m.notice = "Failed: " + firstLine(message.err)
 		}
 	case refreshTickMessage:
-		return m, tea.Batch(load(m.repositories()), scheduleRefresh(m.config.refreshInterval))
+		return m, tea.Batch(load(m.repositories()), scheduleRefresh(m.settings.refreshInterval))
 	case commentPostedMessage:
 		m.commentPosting = false
 		if message.err != nil {
@@ -1806,8 +1811,8 @@ func (m model) handleKey(key string) (model, tea.Cmd) {
 		}
 	case "v":
 		if hasSelection {
-			m.notice = "Opening " + pr.label() + " in " + m.config.editor.name + "…"
-			return m, openInEditor(pr, m.config)
+			m.notice = "Opening " + pr.label() + " in " + m.settings.editor.name + "…"
+			return m, openInEditor(pr, m.settings)
 		}
 	case "d":
 		if hasSelection {
@@ -1819,7 +1824,7 @@ func (m model) handleKey(key string) (model, tea.Cmd) {
 			m.ask(pr.toggleAutoMergeQuestion(), pr.toggleAutoMergeCommand())
 		}
 	case "e":
-		if reviewTeam := m.config.pullRequests.reviewTeam; hasSelection && reviewTeam != "" {
+		if reviewTeam := m.settings.pullRequests.reviewTeam; hasSelection && reviewTeam != "" {
 			m.notice = pr.requestTeamReviewNotice(reviewTeam)
 			return m, runCommands(pr.requestTeamReviewCommands(reviewTeam)...)
 		}
@@ -1864,7 +1869,7 @@ func (m model) handleDiffKey(key string) (model, tea.Cmd) {
 	case "o":
 		return m, openInBrowser(m.diffPullRequest.url)
 	case "v":
-		return m, openInEditor(m.diffPullRequest, m.config)
+		return m, openInEditor(m.diffPullRequest, m.settings)
 	case "p":
 		return m, m.openDescription(m.diffPullRequest)
 	}
@@ -1895,7 +1900,7 @@ func (m model) handleDescriptionKey(key string) (model, tea.Cmd) {
 	case "o":
 		return m, openInBrowser(m.descriptionPullRequest.url)
 	case "v":
-		return m, openInEditor(m.descriptionPullRequest, m.config)
+		return m, openInEditor(m.descriptionPullRequest, m.settings)
 	}
 	return m, nil
 }
@@ -1908,11 +1913,10 @@ func (m model) handleFilterKey(key string) model {
 	case "b":
 		m.filters.showBots = !m.filters.showBots
 	default:
-		if len(key) == 1 && key[0] >= '1' && key[0] <= '0'+maximumFilterKeys {
-			if index := int(key[0] - '1'); index < len(m.filters.available) {
-				name := m.filters.available[index].fullName()
-				m.filters.repositories[name] = !m.filters.repositories[name]
-			}
+		number, err := strconv.Atoi(key)
+		if err == nil && number >= 1 && number <= min(maximumFilterKeys, len(m.filters.available)) {
+			name := m.filters.available[number-1].fullName()
+			m.filters.repositories[name] = !m.filters.repositories[name]
 		}
 	}
 	m.applyFilters()
@@ -1943,18 +1947,17 @@ func (m model) statusLine() string {
 	}
 	return dimStyle.Render(fmt.Sprintf(
 		"%d of %d open pull requests · updated %s · refreshes every %s",
-		len(m.visible), len(m.pullRequests), m.loadedAt.Format("15:04"), intervalText(m.config.refreshInterval),
+		len(m.visible), len(m.pullRequests), m.loadedAt.Format("15:04"), intervalText(m.settings.refreshInterval),
 	))
 }
 
 // intervalText says a refresh interval in whole minutes where it can, as in "3 minutes".
 func intervalText(interval time.Duration) string {
-	minutes := int(interval / time.Minute)
 	switch {
 	case interval == time.Minute:
 		return "minute"
 	case interval%time.Minute == 0:
-		return fmt.Sprintf("%d minutes", minutes)
+		return fmt.Sprintf("%d minutes", interval/time.Minute)
 	}
 	return fmt.Sprintf("%d seconds", int(interval.Round(time.Second)/time.Second))
 }
@@ -1974,8 +1977,8 @@ func (m model) help() string {
 	case confirmMode:
 		return ""
 	}
-	keysAndLabels := []string{"enter", "diff", "p", "description", "o", "open", "v", m.config.editor.name, "d", "draft / ready"}
-	if reviewTeam := m.config.pullRequests.reviewTeam; reviewTeam != "" {
+	keysAndLabels := []string{"enter", "diff", "p", "description", "o", "open", "v", m.settings.editor.name, "d", "draft / ready"}
+	if reviewTeam := m.settings.pullRequests.reviewTeam; reviewTeam != "" {
 		keysAndLabels = append(keysAndLabels, "e", "request "+reviewTeam)
 	}
 	return helpLine(append(keysAndLabels, "m", "auto-merge", "f", "filters", "r", "refresh", "q", "quit")...)
@@ -2040,7 +2043,7 @@ func (m model) diffHelp() string {
 	}
 	return position + helpLine(
 		"↑/↓", "file", "j/k", "line", "space/b", "page", "c", "comment", "tab", "old/new side", "s", layout,
-		"p", "description", "o", "open", "v", m.config.editor.name, "esc", "back",
+		"p", "description", "o", "open", "v", m.settings.editor.name, "esc", "back",
 	)
 }
 
@@ -2071,7 +2074,7 @@ func (m model) descriptionView() string {
 	for len(lines) < m.descriptionRows()+1 {
 		lines = append(lines, "")
 	}
-	help := helpLine("↑/↓", "scroll", "space/b", "page", "e", "edit", "o", "open", "v", m.config.editor.name, "esc", "back")
+	help := helpLine("↑/↓", "scroll", "space/b", "page", "e", "edit", "o", "open", "v", m.settings.editor.name, "esc", "back")
 	lines = append(lines, ansi.Truncate(m.descriptionNotice, m.width, "…"), ansi.Truncate(help, m.width, "…"))
 	return strings.Join(lines, "\n")
 }
@@ -2088,7 +2091,7 @@ func (m model) View() string {
 		sections = append(sections, m.filters.menu())
 	}
 	rows := m.tableRows()
-	table := renderTable(m.visible, m.viewer, m.config.pullRequests.reviewTeam, m.width, m.cursor, m.offset, rows)
+	table := renderTable(m.visible, m.viewer, m.settings.pullRequests.reviewTeam, m.width, m.cursor, m.offset, rows)
 	blankLines := rows + 1 - lipgloss.Height(table)
 	sections = append(sections, table+strings.Repeat("\n", max(blankLines, 0)))
 	sections = append(sections, ansi.Truncate(m.statusLine(), m.width, "…"), ansi.Truncate(m.help(), m.width, "…"))
@@ -2166,11 +2169,11 @@ func main() {
 	})
 	showBots := flag.Bool("bots", false, "start on bot-authored pull requests")
 	once := flag.Bool("once", false, "print the table and exit")
-	configFlag := flag.String("config", "", "path to the configuration file")
+	configurationFlag := flag.String("config", "", "path to the configuration file")
 	initialize := flag.Bool("init", false, "write a starter configuration file and exit")
 	flag.Parse()
 
-	path, err := configPath(*configFlag)
+	path, err := configurationPath(*configurationFlag)
 	if err != nil {
 		fail(err)
 	}

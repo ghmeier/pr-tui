@@ -105,9 +105,9 @@ repositories = ["your-organization/your-repository"]
 clone_root = "~/git"
 `
 
-// configPath picks the configuration file: the --config flag, then $PRS_CONFIG, then the
+// configurationPath picks the configuration file: the --config flag, then $PRS_CONFIG, then the
 // XDG configuration directory, then ~/.config.
-func configPath(flagValue string) (string, error) {
+func configurationPath(flagValue string) (string, error) {
 	if flagValue != "" {
 		return flagValue, nil
 	}
@@ -156,20 +156,19 @@ func loadConfiguration(path string) (configuration, error) {
 	if err != nil {
 		return configuration{}, fmt.Errorf("%s: %w", path, err)
 	}
-	result, err := validateConfiguration(raw, metadata.Undecoded())
+	// Unknown keys are reported first, because a misspelt key would otherwise show up as a
+	// confusing "missing" error for the key that was meant.
+	if unknownKeys := metadata.Undecoded(); len(unknownKeys) > 0 {
+		return configuration{}, fmt.Errorf("%s: unknown key %q; check its spelling", path, unknownKeys[0].String())
+	}
+	result, err := validateConfiguration(raw)
 	if err != nil {
 		return configuration{}, fmt.Errorf("%s: %w", path, err)
 	}
 	return result, nil
 }
 
-func validateConfiguration(raw fileConfiguration, unknownKeys []toml.Key) (configuration, error) {
-	// Unknown keys are reported first, because a misspelt key would otherwise show up as a
-	// confusing "missing" error for the key that was meant.
-	if len(unknownKeys) > 0 {
-		return configuration{}, fmt.Errorf("unknown key %q; check its spelling", unknownKeys[0].String())
-	}
-
+func validateConfiguration(raw fileConfiguration) (configuration, error) {
 	result := configuration{
 		plugins:         raw.Plugins,
 		refreshInterval: defaultRefreshInterval,

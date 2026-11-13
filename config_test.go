@@ -157,22 +157,13 @@ func TestLoadConfigurationRejectsMissingRepositories(t *testing.T) {
 	assertRejected(t, `plugins = ["pull_requests"]`, "repositories")
 }
 
-func TestLoadConfigurationRejectsRepositoryWithoutOwner(t *testing.T) {
+func TestLoadConfigurationRejectsRepositoriesNotWrittenAsOwnerSlashName(t *testing.T) {
 	isolateConfigurationEnvironment(t)
+	malformed := []string{"gazebo", "CoProcure/", "/gazebo", "a/b/c"}
 
-	assertRejected(t, "[pull_requests]\nrepositories = [\"gazebo\"]", `"gazebo"`)
-}
-
-func TestLoadConfigurationRejectsRepositoryWithoutName(t *testing.T) {
-	isolateConfigurationEnvironment(t)
-
-	assertRejected(t, "[pull_requests]\nrepositories = [\"CoProcure/\"]", `"CoProcure/"`)
-}
-
-func TestLoadConfigurationRejectsRepositoryWithMoreThanOneSlash(t *testing.T) {
-	isolateConfigurationEnvironment(t)
-
-	assertRejected(t, "[pull_requests]\nrepositories = [\"a/b/c\"]", `"a/b/c"`)
+	for _, entry := range malformed {
+		assertRejected(t, fmt.Sprintf("[pull_requests]\nrepositories = [%q]", entry), fmt.Sprintf("%q", entry))
+	}
 }
 
 func TestLoadConfigurationRejectsRepositoryListedTwice(t *testing.T) {
@@ -256,45 +247,45 @@ func TestWriteStarterConfigurationRefusesToOverwriteAnExistingFile(t *testing.T)
 	}
 }
 
-func TestConfigPathPrefersTheFlagOverTheEnvironment(t *testing.T) {
+func TestConfigurationPathPrefersTheFlagOverTheEnvironment(t *testing.T) {
 	isolateConfigurationEnvironment(t)
 	t.Setenv("PRS_CONFIG", "/from/environment.toml")
 	t.Setenv("XDG_CONFIG_HOME", "/from/xdg")
 
-	path, err := configPath("/from/flag.toml")
+	path, err := configurationPath("/from/flag.toml")
 
 	if err != nil || path != "/from/flag.toml" {
 		t.Fatalf("path = %q, err = %v", path, err)
 	}
 }
 
-func TestConfigPathPrefersPRSConfigOverTheConfigDirectories(t *testing.T) {
+func TestConfigurationPathPrefersPRSConfigOverTheConfigDirectories(t *testing.T) {
 	isolateConfigurationEnvironment(t)
 	t.Setenv("PRS_CONFIG", "/from/environment.toml")
 	t.Setenv("XDG_CONFIG_HOME", "/from/xdg")
 
-	path, err := configPath("")
+	path, err := configurationPath("")
 
 	if err != nil || path != "/from/environment.toml" {
 		t.Fatalf("path = %q, err = %v", path, err)
 	}
 }
 
-func TestConfigPathUsesXDGConfigHomeWhenSet(t *testing.T) {
+func TestConfigurationPathUsesXDGConfigHomeWhenSet(t *testing.T) {
 	isolateConfigurationEnvironment(t)
 	t.Setenv("XDG_CONFIG_HOME", "/from/xdg")
 
-	path, err := configPath("")
+	path, err := configurationPath("")
 
 	if expected := filepath.Join("/from/xdg", "prs", "config.toml"); err != nil || path != expected {
 		t.Fatalf("path = %q, err = %v, expected %q", path, err, expected)
 	}
 }
 
-func TestConfigPathFallsBackToTheConfigDirectoryInHome(t *testing.T) {
+func TestConfigurationPathFallsBackToTheConfigDirectoryInHome(t *testing.T) {
 	home := isolateConfigurationEnvironment(t)
 
-	path, err := configPath("")
+	path, err := configurationPath("")
 
 	if expected := filepath.Join(home, ".config", "prs", "config.toml"); err != nil || path != expected {
 		t.Fatalf("path = %q, err = %v, expected %q", path, err, expected)
@@ -330,10 +321,19 @@ func TestResolveRepositoriesRejectsAnUnknownRepositoryAndListsTheConfiguredOnes(
 func TestResolveRepositoriesRejectsAShortNameSharedByTwoOwners(t *testing.T) {
 	available := []repository{{owner: "FirstOwner", name: "shared"}, {owner: "SecondOwner", name: "shared"}}
 
-	_, ambiguous := resolveRepositories(available, []string{"shared"})
-	names, spelledOut := resolveRepositories(available, []string{available[1].fullName()})
+	_, err := resolveRepositories(available, []string{"shared"})
 
-	if ambiguous == nil || spelledOut != nil || !reflect.DeepEqual(names, []string{available[1].fullName()}) {
-		t.Fatalf("ambiguous = %v, spelledOut = %v, names = %v", ambiguous, spelledOut, names)
+	if err == nil || !strings.Contains(err.Error(), "owner/name") {
+		t.Fatalf("error = %v, expected a request to write owner/name", err)
+	}
+}
+
+func TestResolveRepositoriesAcceptsTheFullNameOfAShortNameSharedByTwoOwners(t *testing.T) {
+	available := []repository{{owner: "FirstOwner", name: "shared"}, {owner: "SecondOwner", name: "shared"}}
+
+	names, err := resolveRepositories(available, []string{available[1].fullName()})
+
+	if err != nil || !reflect.DeepEqual(names, []string{available[1].fullName()}) {
+		t.Fatalf("names = %v, err = %v", names, err)
 	}
 }
