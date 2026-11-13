@@ -15,6 +15,9 @@ const numberKeyCount = 9
 type facetState struct {
 	facet    Facet
 	selected map[string]bool
+	// fixedOptions are the options the plugin declared, which come first. facet.Options is
+	// them followed by the options found in the rows, when the facet asks for those.
+	fixedOptions []FacetOption
 }
 
 func newFacetState(facet Facet) facetState {
@@ -33,7 +36,37 @@ func newFacetState(facet Facet) facetState {
 			selected[option.Value] = true
 		}
 	}
-	return facetState{facet: facet, selected: selected}
+	return facetState{facet: facet, selected: selected, fixedOptions: facet.Options}
+}
+
+// addOptionsFromRows replaces the options found in rows by those of the given rows. An option
+// seen for the first time starts selected unless the plugin named an initial selection, and
+// one that was seen before keeps its selection even while no row has it.
+func (state *facetState) addOptionsFromRows(rows []Row) {
+	if !state.facet.OptionsFromRows {
+		return
+	}
+	options := slices.Clone(state.fixedOptions)
+	known := map[string]bool{}
+	for _, option := range options {
+		known[option.Value] = true
+	}
+	var found []string
+	for _, row := range rows {
+		value := state.facet.Value(row)
+		if !known[value] {
+			known[value] = true
+			found = append(found, value)
+		}
+	}
+	slices.Sort(found)
+	for _, value := range found {
+		options = append(options, FacetOption{Value: value, Label: value})
+		if _, seen := state.selected[value]; !seen {
+			state.selected[value] = len(state.facet.Selected) == 0
+		}
+	}
+	state.facet.Options = options
 }
 
 func (state facetState) matches(row Row) bool {

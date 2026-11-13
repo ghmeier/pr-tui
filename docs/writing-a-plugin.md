@@ -288,7 +288,8 @@ the key across refreshes, so a key that changes on every load makes the cursor j
 Each column has a `Header` and a `Cell` function that draws one row as styled segments. At
 most one column may be `Flexible`; it shrinks when the terminal is narrow. The facet adds a
 choice to the filter menu (`f`): its `Value` function says which option a row has, and with no
-`Selected` set, every option starts selected.
+`Selected` set, every option starts selected. A facet with `OptionsFromRows` also gets an option
+for every other value its loaded rows have, so a plugin need not know the values in advance.
 
 An action is a key and a `Run` function. `Run` does not do the work. It returns a
 `plugin.Effect` that describes it, and the host carries it out: `Notice` goes in the status

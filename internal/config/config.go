@@ -227,8 +227,9 @@ func validate(raw rawFile) (*File, error) {
 // it is the one place that has to change when a section gains a key.
 const starterConfiguration = `# Configuration for prs, a board of open pull requests.
 
-# Which parts of the board to show. Only "pull_requests" exists today.
+# Which parts of the board to show: "pull_requests", and optionally "agent_plans".
 plugins = ["pull_requests"]
+# plugins = ["pull_requests", "agent_plans"]
 
 # How often the board refreshes itself, as a Go duration such as "90s" or "5m", at least "1s".
 refresh_interval = "3m"
@@ -256,6 +257,12 @@ repositories = ["your-organization/your-repository"]
 # Optional. When set, the "e" key requests a review from this team and the board marks
 # pull requests that are waiting on it.
 # review_team = "engineering"
+
+# Only read when "agent_plans" is in the plugins list above.
+# [agent_plans]
+# Required. Local checkouts whose apl documents (plans, research, handoffs) are listed. Each
+# must contain a .apl directory, and no two may share a directory name.
+# repositories = ["~/git/your-repository"]
 `
 
 // WriteStarter never overwrites: the file is created exclusively, so an existing

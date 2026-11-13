@@ -144,6 +144,13 @@ type FacetOption struct {
 type Facet struct {
 	Title   string
 	Options []FacetOption
+	// OptionsFromRows adds an option for every other value that the loaded rows have, after
+	// the fixed Options, sorted and labelled by value. The options are rebuilt after each load,
+	// and one the rows no longer have disappears from the menu but keeps its selection in case
+	// it returns. A new option is selected unless Selected names the initial selection. It
+	// calls Value for every row on the update loop, so Value must return quickly. It cannot be
+	// combined with Single.
+	OptionsFromRows bool
 	// Value is the option value a row has for this facet. It runs on the update loop, so it
 	// must return quickly.
 	Value func(row Row) string

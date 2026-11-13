@@ -45,6 +45,9 @@ clone_root = "~/git"               # default "~/git"; a clone lives at <clone_ro
 [github]                           # the settings of the provider named above
 repositories = ["acme/storefront", "acme/billing"]   # required; owners may differ
 review_team = "engineering"        # optional
+
+[agent_plans]                      # read only when "agent_plans" is in plugins
+repositories = ["~/git/storefront", "~/git/billing"]   # required; checkouts that contain a .apl directory
 ```
 
 The repositories and the review team belong to the provider, so they live in the table named
@@ -104,6 +107,16 @@ Diff view keys:
 | `c` | Comment on the line under the cursor, or reply to the thread under it (`ctrl+s` posts) |
 | `tab` | Choose the old or new side of a split row for the comment |
 | `esc` | Back |
+
+## Agent plans
+
+The `agent_plans` plugin adds a board of the `apl` documents
+(plans, research notes, and handoffs) in your local checkouts, newest first, with the pull
+request numbers each document mentions. It needs `apl` on your `PATH` and is off until you add
+`"agent_plans"` to `plugins`. Each entry of `repositories` must be a directory with a `.apl`
+directory inside, and two entries cannot have the same directory name, because the name is how
+the board tells repositories apart. The filter menu (`f`) narrows by repository, type, and
+status; it starts on plans only.
 
 ## Extending
 

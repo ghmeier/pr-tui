@@ -167,6 +167,9 @@ func validateBoard(board Board, owner string) error {
 		if facet.Value == nil {
 			return fmt.Errorf("board %q has facet %q without a Value function", board.Name, facet.Title)
 		}
+		if facet.OptionsFromRows && facet.Single {
+			return fmt.Errorf("board %q facet %q takes options from the rows, so it cannot also be a single facet", board.Name, facet.Title)
+		}
 		if facet.CycleKey != "" && slices.Contains(filterMenuKeys, facet.CycleKey) {
 			return fmt.Errorf("board %q facet %q cycles on %q, a key the filter menu uses itself", board.Name, facet.Title, facet.CycleKey)
 		}

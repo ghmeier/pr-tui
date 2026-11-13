@@ -18,6 +18,12 @@ func boardWithFacets(rows []Row, facets ...Facet) Board {
 	return board
 }
 
+func boardOfSource(source *rowSource, facets ...Facet) Board {
+	board := groceryBoard(source)
+	board.Facets = facets
+	return board
+}
+
 func TestMultipleFacetStartsWithEveryOptionSelected(t *testing.T) {
 	rows := groceries()
 
@@ -350,5 +356,149 @@ func TestMenuShrinksTheTableByItsOwnHeightSoTheViewStillFits(t *testing.T) {
 
 	if open := len(lines(model)); open != closed {
 		t.Fatalf("the view has %d lines with the menu open and %d with it closed", open, closed)
+	}
+}
+
+// groupFacetFromRows has no fixed options, so every option comes from the loaded rows.
+func groupFacetFromRows() Facet {
+	facet := groupFacet()
+	facet.Options = nil
+	facet.OptionsFromRows = true
+	return facet
+}
+
+func optionValues(model *Model) []string {
+	var values []string
+	for _, option := range model.current().facets[0].facet.Options {
+		values = append(values, option.Value)
+	}
+	return values
+}
+
+func TestFacetOptionsFromRowsAreTheSortedValuesOfTheLoadedRowsLabelledByValue(t *testing.T) {
+	rows := []Row{vegetable("a", "broccoli"), fruit("b", "apple"), vegetable("c", "carrot")}
+
+	model := modelForBoard(t, boardWithFacets(rows, groupFacetFromRows()))
+
+	options := model.current().facets[0].facet.Options
+	if !reflect.DeepEqual(options, []FacetOption{{Value: "fruit", Label: "fruit"}, {Value: "vegetable", Label: "vegetable"}}) {
+		t.Fatalf("options = %v", options)
+	}
+}
+
+func TestFacetOptionsFromRowsFollowTheFixedOptionsWithoutRepeatingThem(t *testing.T) {
+	facet := groupFacetFromRows()
+	facet.Options = []FacetOption{{Value: "vegetable", Label: "greens"}}
+	rows := []Row{fruit("a", "apple"), vegetable("b", "broccoli"), fakeRow{key: "c", name: "cheese", group: "dairy"}}
+
+	model := modelForBoard(t, boardWithFacets(rows, facet))
+
+	if expected := []string{"vegetable", "dairy", "fruit"}; !reflect.DeepEqual(optionValues(model), expected) {
+		t.Fatalf("option values = %v, expected %v", optionValues(model), expected)
+	}
+	if label := model.current().facets[0].facet.Options[0].Label; label != "greens" {
+		t.Fatalf("the fixed option's label = %q", label)
+	}
+}
+
+func TestFacetOptionsFromRowsDoNotExistBeforeTheFirstLoad(t *testing.T) {
+	facet := groupFacetFromRows()
+	facet.Options = []FacetOption{{Value: "fruit", Label: "fruit"}}
+	host, err := buildHost(t, `plugins = ["fake"]`, boardPlugin("fake", boardWithFacets(groceries(), facet)))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	model := host.Model()
+
+	if expected := []string{"fruit"}; !reflect.DeepEqual(optionValues(model), expected) {
+		t.Fatalf("option values = %v, expected %v", optionValues(model), expected)
+	}
+}
+
+func TestNewOptionFromRowsStartsSelectedWhenTheFacetNamesNoInitialSelection(t *testing.T) {
+	rows := groceries()
+
+	model := modelForBoard(t, boardWithFacets(rows, groupFacetFromRows()))
+
+	if !reflect.DeepEqual(visibleNames(model), namesOf(rows...)) {
+		t.Fatalf("visible = %v", visibleNames(model))
+	}
+}
+
+func TestNewOptionFromRowsStartsUnselectedWhenTheFacetNamesAnInitialSelection(t *testing.T) {
+	rows := groceries()
+	facet := groupFacetFromRows()
+	facet.Selected = []string{"fruit"}
+
+	model := modelForBoard(t, boardWithFacets(rows, facet))
+
+	if !reflect.DeepEqual(visibleNames(model), namesOf(rows[0], rows[2])) {
+		t.Fatalf("visible = %v", visibleNames(model))
+	}
+	if expected := []string{"fruit", "vegetable"}; !reflect.DeepEqual(optionValues(model), expected) {
+		t.Fatalf("option values = %v, expected %v", optionValues(model), expected)
+	}
+}
+
+func TestAnOptionTheUserToggledKeepsItsStateAcrossARefresh(t *testing.T) {
+	source := newRowSource(groceries()...)
+	model := modelForBoard(t, boardOfSource(source, groupFacetFromRows()))
+	plugintest.Press(t, model, "f", "2", "esc")
+	hidden := visibleNames(model)
+
+	plugintest.Press(t, model, "r")
+
+	if !reflect.DeepEqual(visibleNames(model), hidden) || slices.Contains(hidden, "broccoli") {
+		t.Fatalf("visible before = %v, after = %v", hidden, visibleNames(model))
+	}
+}
+
+func TestAnOptionWhoseRowsDisappearedIsRememberedWhenItsRowsReturn(t *testing.T) {
+	source := newRowSource(groceries()...)
+	model := modelForBoard(t, boardOfSource(source, groupFacetFromRows()))
+	plugintest.Press(t, model, "f", "2", "esc")
+
+	source.set(fruit("a", "apple"))
+	plugintest.Press(t, model, "r")
+	gone := optionValues(model)
+	source.set(groceries()...)
+	plugintest.Press(t, model, "r")
+
+	if expected := []string{"fruit"}; !reflect.DeepEqual(gone, expected) {
+		t.Fatalf("option values after the rows disappeared = %v, expected %v", gone, expected)
+	}
+	if slices.Contains(visibleNames(model), "broccoli") {
+		t.Fatalf("visible = %v, the vegetable was toggled off", visibleNames(model))
+	}
+}
+
+func TestMenuCursorStaysInRangeWhenTheOptionsFromRowsShrink(t *testing.T) {
+	source := newRowSource(groceries()...)
+	model := modelForBoard(t, boardOfSource(source, groupFacetFromRows()))
+	plugintest.Press(t, model, "f", "down", "esc")
+
+	source.set(fruit("a", "apple"))
+	plugintest.Press(t, model, "r")
+
+	if cursor := model.current().menuCursor; cursor != len(optionValues(model))-1 {
+		t.Fatalf("menu cursor = %d with options %v", cursor, optionValues(model))
+	}
+}
+
+func TestABoardCannotTakeASingleFacetsOptionsFromItsRows(t *testing.T) {
+	facet := groupFacetFromRows()
+	facet.Single = true
+
+	_, err := buildHost(t, `plugins = ["owner"]`, boardPlugin("owner", boardWithFacets(nil, facet)))
+
+	assertRejectedNamingTheFileOnce(t, err, `"groceries"`, `"Groups"`, "single")
+}
+
+func TestABoardMayTakeAMultipleFacetsOptionsFromItsRows(t *testing.T) {
+	_, err := buildHost(t, `plugins = ["owner"]`, boardPlugin("owner", boardWithFacets(nil, groupFacetFromRows())))
+
+	if err != nil {
+		t.Fatal(err)
 	}
 }

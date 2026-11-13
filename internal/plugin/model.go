@@ -164,6 +164,10 @@ func (m *Model) finishLoad(index int, rows []Row, generation int) []tea.Cmd {
 			}
 		}
 	}
+	for facet := range board.facets {
+		board.facets[facet].addOptionsFromRows(rows)
+	}
+	board.menuCursor = max(0, min(board.menuCursor, optionCount(board.facets)-1))
 	board.applyFilters()
 	return m.fetchCommands(index, generation)
 }
