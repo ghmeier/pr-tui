@@ -2,12 +2,14 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
@@ -83,7 +85,62 @@ rename to second/new_name.py
 +++ looks like a header
 `
 
+// testReviewTeam is the team slug that cannedResponse requests a review from.
+const testReviewTeam = "engineering"
+
+// testConfiguration is the configuration every board test starts from. Its repositories
+// are in the order the cannedResponse aliases (repository0, repository1, ...) expect.
+func testConfiguration() configuration {
+	return configuration{
+		plugins:         knownPlugins,
+		refreshInterval: 5 * time.Minute,
+		editor:          editorConfiguration{name: "Test Editor", command: "test-editor"},
+		pullRequests: pullRequestsConfiguration{
+			provider: "github",
+			repositories: []repository{
+				{owner: "CoProcure", name: "gazebo"},
+				{owner: "CoProcure", name: "u2"},
+				{owner: "CoProcure", name: "analytics"},
+				{owner: "CoProcure", name: "infrastructure"},
+			},
+			reviewTeam: testReviewTeam,
+			cloneRoot:  "/clones",
+		},
+	}
+}
+
+func testBoardFor(settings configuration) model {
+	return newModel(settings, newFilters(settings.pullRequests.repositories, nil, false))
+}
+
+func testBoard() model {
+	return testBoardFor(testConfiguration())
+}
+
+func loadedBoardFor(t *testing.T, settings configuration) model {
+	t.Helper()
+	board := testBoardFor(settings)
+	return settle(t, board, load(board.repositories()))
+}
+
+func reviewTeamOf(m model) string {
+	return m.config.pullRequests.reviewTeam
+}
+
+// testRepository returns the repository at the given position in testConfiguration.
+func testRepository(index int) repository {
+	return testConfiguration().pullRequests.repositories[index]
+}
+
+func reviewRequestCommand(source repository, number int) []string {
+	endpoint := fmt.Sprintf("repos/%s/pulls/%d/requested_reviewers", source.fullName(), number)
+	return []string{"gh", "api", "--method", "POST", endpoint, "-f", "team_reviewers[]=" + testReviewTeam}
+}
+
 var diffFetches int
+
+// graphqlQueries records the query text and variables of each GraphQL call.
+var graphqlQueries [][]string
 
 var savedInputs []string
 
@@ -93,8 +150,12 @@ func recordCommands(t *testing.T) *[][]string {
 	recorded := &[][]string{}
 	diffFetches = 0
 	savedInputs = nil
+	graphqlQueries = nil
 	original := execute
 	execute = func(arguments ...string) ([]byte, error) {
+		if len(arguments) > 2 && arguments[2] == "graphql" {
+			graphqlQueries = append(graphqlQueries, arguments[3:])
+		}
 		if len(arguments) > 4 && arguments[2] == "graphql" && strings.Contains(arguments[4], "statusCheckRollup") {
 			return []byte(cannedCIStates), nil
 		}
@@ -151,7 +212,7 @@ func settle(t *testing.T, m model, command tea.Cmd) model {
 
 func loadedBoard(t *testing.T) model {
 	t.Helper()
-	return settle(t, newModel(newFilters(nil, false)), load)
+	return loadedBoardFor(t, testConfiguration())
 }
 
 func keyMessage(key string) tea.KeyMsg {
@@ -215,18 +276,18 @@ func TestFilterMenuSwitchesToBots(t *testing.T) {
 	}
 }
 
-func TestFilterMenuTogglesRepository(t *testing.T) {
+func TestFilterMenuTogglesRepositoryByNumberKey(t *testing.T) {
 	recordCommands(t)
 
-	m := press(t, loadedBoard(t), "f", "g")
+	m := press(t, loadedBoard(t), "f", "1")
 
 	assertLabels(t, m, "u2 #3")
 }
 
-func TestRepositoryKeyDoesNothingOutsideFilterMenu(t *testing.T) {
+func TestNumberKeysDoNothingOutsideFilterMenu(t *testing.T) {
 	recordCommands(t)
 
-	m := press(t, loadedBoard(t), "g", "u", "b")
+	m := press(t, loadedBoard(t), "1", "2", "b")
 
 	assertLabels(t, m, "gazebo #1", "u2 #3")
 }
@@ -281,10 +342,7 @@ func TestReviewKeyOnADraftMarksItReadyThenRequestsTheTeam(t *testing.T) {
 
 	expected := [][]string{
 		{"gh", "pr", "ready", "https://example.test/gazebo/1"},
-		{
-			"gh", "api", "--method", "POST", "repos/CoProcure/gazebo/pulls/1/requested_reviewers",
-			"-f", "team_reviewers[]=engineering",
-		},
+		reviewRequestCommand(testRepository(0), 1),
 	}
 	if !reflect.DeepEqual(*recorded, expected) {
 		t.Fatalf("commands = %v, expected %v", *recorded, expected)
@@ -296,10 +354,7 @@ func TestReviewKeyOnAReadyPullRequestOnlyRequestsTheTeam(t *testing.T) {
 
 	press(t, loadedBoard(t), "down", "e")
 
-	expected := [][]string{{
-		"gh", "api", "--method", "POST", "repos/CoProcure/u2/pulls/3/requested_reviewers",
-		"-f", "team_reviewers[]=engineering",
-	}}
+	expected := [][]string{reviewRequestCommand(testRepository(1), 3)}
 	if !reflect.DeepEqual(*recorded, expected) {
 		t.Fatalf("commands = %v, expected %v", *recorded, expected)
 	}
@@ -337,7 +392,7 @@ func TestReviewColumnNamesViewerAndTeamBeforeOtherReviewers(t *testing.T) {
 	recordCommands(t)
 	m := loadedBoard(t)
 
-	review := plainText(m.visible[1].reviewSegments(m.viewer))
+	review := plainText(m.visible[1].reviewSegments(m.viewer, reviewTeamOf(m)))
 
 	if review != "you, engineering, someone-else" {
 		t.Fatalf("review column = %q", review)
@@ -363,14 +418,15 @@ func TestViewTruncatesLongTitlesToTheTerminalWidth(t *testing.T) {
 func TestBoardShowsPullRequestsBeforeLineCountsArrive(t *testing.T) {
 	recordCommands(t)
 
-	next, _ := newModel(newFilters(nil, false)).Update(load())
+	board := testBoard()
+	next, _ := board.Update(load(board.repositories())())
 	m := next.(model)
 
 	assertLabels(t, m, "gazebo #1", "u2 #3")
-	if lines := plainText(m.visible[0].columns(m.viewer)[4]); lines != "…" {
+	if lines := plainText(m.visible[0].columns(m.viewer, reviewTeamOf(m))[4]); lines != "…" {
 		t.Fatalf("lines column = %q before line counts arrive", lines)
 	}
-	if state := m.visible[0].stateMarks(m.viewer); state != "📝 …" {
+	if state := m.visible[0].stateMarks(m.viewer, reviewTeamOf(m)); state != "📝 …" {
 		t.Fatalf("state column = %q before CI states arrive", state)
 	}
 }
@@ -380,7 +436,7 @@ func TestStateColumnShowsCIOnceLoaded(t *testing.T) {
 
 	m := loadedBoard(t)
 
-	if failing, none := m.visible[0].stateMarks(m.viewer), m.visible[1].stateMarks(m.viewer); failing != "📝 🔴" || none != "✋ ⏩" {
+	if failing, none := m.visible[0].stateMarks(m.viewer, reviewTeamOf(m)), m.visible[1].stateMarks(m.viewer, reviewTeamOf(m)); failing != "📝 🔴" || none != "✋ ⏩" {
 		t.Fatalf("state column = %q and %q", failing, none)
 	}
 }
@@ -389,9 +445,9 @@ func TestCIStatesSurviveARefresh(t *testing.T) {
 	recordCommands(t)
 	m := loadedBoard(t)
 
-	next, _ := m.Update(load())
+	next, _ := m.Update(load(m.repositories())())
 
-	if state := next.(model).visible[0].stateMarks(m.viewer); state != "📝 🔴" {
+	if state := next.(model).visible[0].stateMarks(m.viewer, reviewTeamOf(m)); state != "📝 🔴" {
 		t.Fatalf("state column = %q right after a refresh", state)
 	}
 }
@@ -400,9 +456,9 @@ func TestLineCountsSurviveARefresh(t *testing.T) {
 	recordCommands(t)
 	m := loadedBoard(t)
 
-	next, _ := m.Update(load())
+	next, _ := m.Update(load(m.repositories())())
 
-	if lines := plainText(next.(model).visible[0].columns(m.viewer)[4]); lines != "+12 −3" {
+	if lines := plainText(next.(model).visible[0].columns(m.viewer, reviewTeamOf(m))[4]); lines != "+12 −3" {
 		t.Fatalf("lines column = %q right after a refresh", lines)
 	}
 }
@@ -411,7 +467,7 @@ func TestLinesColumnShowsAdditionsAndDeletions(t *testing.T) {
 	recordCommands(t)
 	m := loadedBoard(t)
 
-	lines := plainText(m.visible[0].columns(m.viewer)[4])
+	lines := plainText(m.visible[0].columns(m.viewer, reviewTeamOf(m))[4])
 
 	if lines != "+12 −3" {
 		t.Fatalf("lines column = %q", lines)
@@ -487,13 +543,13 @@ func TestQuitKeyLeavesDiffViewInsteadOfQuitting(t *testing.T) {
 
 func TestEditorKeyOpensTheWorktreeAndItsChangedFilesExceptDeletedOnes(t *testing.T) {
 	recorded := recordCommands(t)
-	home, _ := os.UserHomeDir()
+	settings := testConfiguration()
 
 	m := press(t, loadedBoard(t), "down", "v")
 
 	expected := [][]string{{
-		"wt", "-C", filepath.Join(home, "git", "u2"), "switch", "pr:3",
-		"--no-cd", "-x", editorCommand, "--", ".", "kept.py", "tests/added.py",
+		"wt", "-C", filepath.Join(settings.pullRequests.cloneRoot, testRepository(1).name), "switch", "pr:3",
+		"--no-cd", "-x", settings.editor.command, "--", ".", "kept.py", "tests/added.py",
 	}}
 	if !reflect.DeepEqual(*recorded, expected) {
 		t.Fatalf("commands = %v, expected %v", *recorded, expected)
@@ -569,7 +625,7 @@ func TestEditingTheDescriptionUpdatesThePullRequest(t *testing.T) {
 
 	m := press(t, loadedBoard(t), "p", "e")
 
-	expectedCommands := [][]string{{"gh", "api", "--method", "PATCH", "repos/CoProcure/gazebo/pulls/1"}}
+	expectedCommands := [][]string{{"gh", "api", "--method", "PATCH", "repos/" + testRepository(0).fullName() + "/pulls/1"}}
 	expectedInputs := []string{`{"body":"Edited description"}`}
 	if !reflect.DeepEqual(*recorded, expectedCommands) || !reflect.DeepEqual(savedInputs, expectedInputs) {
 		t.Fatalf("commands = %v, inputs = %v", *recorded, savedInputs)
@@ -655,7 +711,7 @@ func TestCommentPostsOnTheNewLineUnderTheCursor(t *testing.T) {
 
 	m := press(t, loadedBoard(t), "enter", "j", "j", "j", "j", "j", "c", "Looks good", "ctrl+s")
 
-	expectedCommands := [][]string{{"gh", "api", "--method", "POST", "repos/CoProcure/gazebo/pulls/1/comments"}}
+	expectedCommands := [][]string{{"gh", "api", "--method", "POST", "repos/" + testRepository(0).fullName() + "/pulls/1/comments"}}
 	expectedInputs := []string{`{"body":"Looks good","commit_id":"first-commit","line":2,"path":"first.py","side":"RIGHT"}`}
 	if !reflect.DeepEqual(*recorded, expectedCommands) || !reflect.DeepEqual(savedInputs, expectedInputs) {
 		t.Fatalf("commands = %v, inputs = %v", *recorded, savedInputs)
@@ -823,24 +879,24 @@ func TestStateMarksCoverEachState(t *testing.T) {
 	}
 
 	for expected, pr := range cases {
-		if marks := pr.stateMarks("viewer"); marks != expected {
+		if marks := pr.stateMarks("viewer", testReviewTeam); marks != expected {
 			t.Errorf("state marks = %q, expected %q", marks, expected)
 		}
 	}
 }
 
 func TestWaitingMarkShowsForAnotherAuthorsPullRequestRequestingTheReviewTeam(t *testing.T) {
-	pr := pullRequest{author: "person", requestedTeams: []string{reviewTeam}}
+	pr := pullRequest{author: "person", requestedTeams: []string{testReviewTeam}}
 
-	if !pr.awaitsReviewFrom("viewer") {
-		t.Fatalf("a review requested from %s on another author's pull request should wait on the viewer", reviewTeam)
+	if !pr.awaitsReviewFrom("viewer", testReviewTeam) {
+		t.Fatalf("a review requested from %s on another author's pull request should wait on the viewer", testReviewTeam)
 	}
 }
 
 func TestWaitingMarkIsHiddenOnTheViewersOwnPullRequest(t *testing.T) {
-	pr := pullRequest{author: "viewer", requestedTeams: []string{reviewTeam}}
+	pr := pullRequest{author: "viewer", requestedTeams: []string{testReviewTeam}}
 
-	if pr.awaitsReviewFrom("viewer") {
+	if pr.awaitsReviewFrom("viewer", testReviewTeam) {
 		t.Fatalf("the viewer's own pull request should not wait on the viewer")
 	}
 }
@@ -848,7 +904,254 @@ func TestWaitingMarkIsHiddenOnTheViewersOwnPullRequest(t *testing.T) {
 func TestWaitingMarkIsHiddenWhenOnlyAnotherTeamIsRequested(t *testing.T) {
 	pr := pullRequest{author: "person", requestedTeams: []string{"platform-data"}}
 
-	if pr.awaitsReviewFrom("viewer") {
+	if pr.awaitsReviewFrom("viewer", testReviewTeam) {
 		t.Fatalf("a review requested from another team should not wait on the viewer")
+	}
+}
+
+// settingsWithRepositories replaces the configured repositories, keeping the rest of
+// testConfiguration. The cannedResponse needs at least two.
+func settingsWithRepositories(repositories ...repository) configuration {
+	settings := testConfiguration()
+	settings.pullRequests.repositories = repositories
+	return settings
+}
+
+// settingsWithoutReviewTeam is testConfiguration with no review team configured.
+func settingsWithoutReviewTeam() configuration {
+	settings := testConfiguration()
+	settings.pullRequests.reviewTeam = ""
+	return settings
+}
+
+// settingsWithPartnerRepository puts the second repository under a different owner.
+func settingsWithPartnerRepository() (configuration, repository) {
+	partner := repository{owner: "Partner", name: testRepository(1).name}
+	return settingsWithRepositories(testRepository(0), partner, testRepository(2), testRepository(3)), partner
+}
+
+func TestFilterMenuNumbersEachRepositoryInConfiguredOrder(t *testing.T) {
+	settings := testConfiguration()
+
+	menu := ansi.Strip(testBoardFor(settings).filters.menu())
+
+	for index, source := range settings.pullRequests.repositories {
+		expected := fmt.Sprintf("%d  ● %s", index+1, source.name)
+		if !strings.Contains(menu, expected) {
+			t.Fatalf("menu is missing %q:\n%s", expected, menu)
+		}
+	}
+}
+
+func TestNumberKeyTogglesTheRepositoryEvenWhenItsNameSharesAFirstLetter(t *testing.T) {
+	recordCommands(t)
+	settings := settingsWithRepositories(
+		repository{owner: "CoProcure", name: "gazebo"}, repository{owner: "CoProcure", name: "u2"},
+		repository{owner: "CoProcure", name: "billing"}, repository{owner: "CoProcure", name: "gamma"},
+	)
+	last := settings.pullRequests.repositories[3]
+
+	m := press(t, loadedBoardFor(t, settings), "f", "4")
+
+	selected := m.filters.repositories
+	if selected[last.fullName()] || !selected[settings.pullRequests.repositories[0].fullName()] {
+		t.Fatalf("selected repositories = %v after toggling %s", selected, last.fullName())
+	}
+}
+
+func TestBKeyStillSwitchesAuthorsWhenARepositoryNameStartsWithB(t *testing.T) {
+	recordCommands(t)
+	billing := repository{owner: "CoProcure", name: "billing"}
+	settings := settingsWithRepositories(testRepository(0), testRepository(1), billing)
+
+	m := press(t, loadedBoardFor(t, settings), "f", "b")
+
+	if !m.filters.showBots || !m.filters.repositories[billing.fullName()] {
+		t.Fatalf("showBots = %v, selected = %v", m.filters.showBots, m.filters.repositories)
+	}
+}
+
+func TestNumberKeyBeyondTheConfiguredRepositoriesDoesNothing(t *testing.T) {
+	recordCommands(t)
+	settings := testConfiguration()
+	beyond := fmt.Sprint(len(settings.pullRequests.repositories) + 1)
+
+	m := press(t, loadedBoardFor(t, settings), "f", beyond, "0")
+
+	assertLabels(t, m, "gazebo #1", "u2 #3")
+}
+
+func TestFiltersKeepSameNamedRepositoriesFromDifferentOwnersApart(t *testing.T) {
+	recordCommands(t)
+	settings := settingsWithRepositories(
+		repository{owner: "FirstOwner", name: "shared"}, repository{owner: "SecondOwner", name: "shared"},
+	)
+
+	both := loadedBoardFor(t, settings)
+	onlySecond := press(t, both, "f", "1")
+
+	assertLabels(t, both, "shared #1", "shared #3")
+	assertLabels(t, onlySecond, "shared #3")
+}
+
+func TestStartingFiltersCanSelectOneRepository(t *testing.T) {
+	available := testConfiguration().pullRequests.repositories
+	chosen := available[1]
+
+	f := newFilters(available, []string{chosen.fullName()}, false)
+
+	if !f.repositories[chosen.fullName()] || f.repositories[available[0].fullName()] {
+		t.Fatalf("selected = %v, expected only %s", f.repositories, chosen.fullName())
+	}
+}
+
+func TestPullRequestQueryNamesEachRepositoryWithItsOwnOwner(t *testing.T) {
+	recordCommands(t)
+	settings, partner := settingsWithPartnerRepository()
+
+	loadedBoardFor(t, settings)
+
+	query := graphqlQueries[0][1]
+	for _, source := range settings.pullRequests.repositories {
+		expected := fmt.Sprintf("repository(owner: %q, name: %q)", source.owner, source.name)
+		if !strings.Contains(query, expected) {
+			t.Fatalf("query is missing %s:\n%s", expected, query)
+		}
+	}
+	if strings.Contains(query, fmt.Sprintf("owner: %q, name: %q", testRepository(1).owner, partner.name)) {
+		t.Fatalf("query asks for %s under the wrong owner:\n%s", partner.name, query)
+	}
+}
+
+func TestLineCountAndCIQueriesUseTheRepositorysOwnOwner(t *testing.T) {
+	recordCommands(t)
+	settings, partner := settingsWithPartnerRepository()
+
+	loadedBoardFor(t, settings)
+
+	asked := func(source repository) bool {
+		return slices.ContainsFunc(graphqlQueries, func(arguments []string) bool {
+			return slices.Contains(arguments, "owner="+source.owner) && slices.Contains(arguments, "name="+source.name)
+		})
+	}
+	if !asked(partner) || asked(testRepository(1)) {
+		t.Fatalf("detail queries = %v", graphqlQueries)
+	}
+}
+
+func TestReviewRequestGoesToTheOwnerOfThePullRequest(t *testing.T) {
+	recorded := recordCommands(t)
+	settings, partner := settingsWithPartnerRepository()
+
+	press(t, loadedBoardFor(t, settings), "down", "e")
+
+	expected := [][]string{reviewRequestCommand(partner, 3)}
+	if !reflect.DeepEqual(*recorded, expected) {
+		t.Fatalf("commands = %v, expected %v", *recorded, expected)
+	}
+}
+
+func TestDescriptionEditGoesToTheOwnerOfThePullRequest(t *testing.T) {
+	recorded := recordCommands(t)
+	editorWrites(t, "Edited description\n")
+	settings, partner := settingsWithPartnerRepository()
+
+	press(t, loadedBoardFor(t, settings), "down", "p", "e")
+
+	expected := [][]string{{"gh", "api", "--method", "PATCH", "repos/" + partner.fullName() + "/pulls/3"}}
+	if !reflect.DeepEqual(*recorded, expected) {
+		t.Fatalf("commands = %v, expected %v", *recorded, expected)
+	}
+}
+
+func TestEditorKeyUsesTheCloneNamedAfterTheRepository(t *testing.T) {
+	recorded := recordCommands(t)
+	settings, partner := settingsWithPartnerRepository()
+
+	press(t, loadedBoardFor(t, settings), "down", "v")
+
+	expectedClone := filepath.Join(settings.pullRequests.cloneRoot, partner.name)
+	if len(*recorded) != 1 || (*recorded)[0][2] != expectedClone {
+		t.Fatalf("commands = %v, expected a clone at %s", *recorded, expectedClone)
+	}
+}
+
+func TestReviewKeyDoesNothingWithoutAReviewTeam(t *testing.T) {
+	recorded := recordCommands(t)
+
+	m := press(t, loadedBoardFor(t, settingsWithoutReviewTeam()), "e")
+
+	if len(*recorded) != 0 || m.notice != "" {
+		t.Fatalf("commands = %v, notice = %q", *recorded, m.notice)
+	}
+}
+
+func TestHelpOffersTheReviewKeyOnlyWithAReviewTeam(t *testing.T) {
+	without := ansi.Strip(testBoardFor(settingsWithoutReviewTeam()).help())
+	with := ansi.Strip(testBoard().help())
+
+	if strings.Contains(without, "request") {
+		t.Fatalf("help without a review team mentions a request: %s", without)
+	}
+	if !strings.Contains(with, "e request "+testReviewTeam) {
+		t.Fatalf("help with a review team = %s", with)
+	}
+}
+
+func TestHelpNamesTheConfiguredEditor(t *testing.T) {
+	help := ansi.Strip(testBoard().help())
+
+	if expected := "v " + testConfiguration().editor.name; !strings.Contains(help, expected) {
+		t.Fatalf("help = %s, expected it to contain %q", help, expected)
+	}
+}
+
+func TestWaitingMarkIgnoresTheTeamWhenNoReviewTeamIsConfigured(t *testing.T) {
+	teamRequested := pullRequest{author: "person", requestedTeams: []string{testReviewTeam}}
+	viewerRequested := pullRequest{author: "person", requestedUsers: []string{"viewer"}}
+
+	if teamRequested.awaitsReviewFrom("viewer", "") {
+		t.Fatalf("a team request should not wait on the viewer when no review team is configured")
+	}
+	if !viewerRequested.awaitsReviewFrom("viewer", "") {
+		t.Fatalf("a request to the viewer should still wait on the viewer")
+	}
+}
+
+func TestReviewColumnDoesNotSingleOutATeamWhenNoReviewTeamIsConfigured(t *testing.T) {
+	recordCommands(t)
+	m := loadedBoardFor(t, settingsWithoutReviewTeam())
+
+	review := plainText(m.visible[1].reviewSegments(m.viewer, reviewTeamOf(m)))
+
+	if review != "you, someone-else, "+testReviewTeam {
+		t.Fatalf("review column = %q", review)
+	}
+}
+
+func TestStatusLineShowsTheConfiguredRefreshInterval(t *testing.T) {
+	recordCommands(t)
+	settings := testConfiguration()
+
+	status := ansi.Strip(loadedBoardFor(t, settings).statusLine())
+
+	expected := fmt.Sprintf("refreshes every %d minutes", int(settings.refreshInterval.Minutes()))
+	if !strings.Contains(status, expected) {
+		t.Fatalf("status = %q, expected it to contain %q", status, expected)
+	}
+}
+
+func TestIntervalTextUsesWholeMinutesWhenPossibleAndSecondsOtherwise(t *testing.T) {
+	cases := map[time.Duration]string{
+		time.Minute:      "minute",
+		7 * time.Minute:  "7 minutes",
+		90 * time.Second: "90 seconds",
+		30 * time.Second: "30 seconds",
+	}
+
+	for interval, expected := range cases {
+		if text := intervalText(interval); text != expected {
+			t.Errorf("intervalText(%v) = %q, expected %q", interval, text, expected)
+		}
 	}
 }

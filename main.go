@@ -1,4 +1,4 @@
-// prs is a terminal board of open pull requests across the Pavilion repositories.
+// prs is a terminal board of open pull requests across a configured set of repositories.
 package main
 
 import (
@@ -31,18 +31,11 @@ import (
 )
 
 const (
-	owner           = "CoProcure"
-	reviewTeam      = "engineering"
-	editorName      = "VS Code"
-	editorCommand   = "/Applications/Visual Studio Code - Insiders.app/Contents/Resources/app/bin/code"
-	refreshInterval = 3 * time.Minute
-	columnGap       = "  "
-	titleColumn     = 2
-	minimumTitle    = 20
-	commentRows     = 4
+	columnGap    = "  "
+	titleColumn  = 2
+	minimumTitle = 20
+	commentRows  = 4
 )
-
-var repositories = []string{"gazebo", "u2", "analytics", "infrastructure"}
 
 var columnHeaders = []string{"Repo", "#", "Title", "Author", "Lines", "State", "Review requested", "Updated"}
 
@@ -141,6 +134,7 @@ var execute = func(arguments ...string) ([]byte, error) {
 }
 
 type pullRequest struct {
+	owner          string
 	repository     string
 	number         int
 	title          string
@@ -184,9 +178,10 @@ type pullRequestNode struct {
 	}
 }
 
-func (node pullRequestNode) pullRequest(repository string) pullRequest {
+func (node pullRequestNode) pullRequest(source repository) pullRequest {
 	result := pullRequest{
-		repository:     repository,
+		owner:          source.owner,
+		repository:     source.name,
 		number:         node.Number,
 		title:          node.Title,
 		url:            node.URL,
@@ -216,14 +211,16 @@ func (node pullRequestNode) pullRequest(repository string) pullRequest {
 	return result
 }
 
-func fetchPullRequests() (pullRequests []pullRequest, viewer string, err error) {
+// fetchPullRequests asks for every repository in one query. The owner is written into each
+// alias, because the repositories may belong to different owners.
+func fetchPullRequests(repositories []repository) (pullRequests []pullRequest, viewer string, err error) {
 	var selections strings.Builder
-	for index, name := range repositories {
-		fmt.Fprintf(&selections, "repository%d: repository(owner: $owner, name: %q) { ...pullRequestFields }\n", index, name)
+	for index, source := range repositories {
+		fmt.Fprintf(&selections, "repository%d: repository(owner: %q, name: %q) { ...pullRequestFields }\n", index, source.owner, source.name)
 	}
-	query := "query($owner: String!) { viewer { login }\n" + selections.String() + "}\n" + pullRequestFields
+	query := "query { viewer { login }\n" + selections.String() + "}\n" + pullRequestFields
 
-	output, err := execute("gh", "api", "graphql", "-f", "query="+query, "-f", "owner="+owner)
+	output, err := execute("gh", "api", "graphql", "-f", "query="+query)
 	if err != nil {
 		return nil, "", err
 	}
@@ -237,7 +234,7 @@ func fetchPullRequests() (pullRequests []pullRequest, viewer string, err error) 
 	if err := json.Unmarshal(response.Data["viewer"], &viewerNode); err != nil {
 		return nil, "", err
 	}
-	for index, name := range repositories {
+	for index, source := range repositories {
 		var repository struct {
 			PullRequests struct{ Nodes []pullRequestNode }
 		}
@@ -245,7 +242,7 @@ func fetchPullRequests() (pullRequests []pullRequest, viewer string, err error) 
 			return nil, "", err
 		}
 		for _, node := range repository.PullRequests.Nodes {
-			pullRequests = append(pullRequests, node.pullRequest(name))
+			pullRequests = append(pullRequests, node.pullRequest(source))
 		}
 	}
 	sort.SliceStable(pullRequests, func(i, j int) bool {
@@ -261,9 +258,9 @@ type lineCount struct {
 
 // fetchLineCounts and fetchCIStates are separate from fetchPullRequests because GitHub
 // computes both slowly, and the board should not wait for them.
-func fetchLineCounts(repository string) (map[string]lineCount, error) {
+func fetchLineCounts(source repository) (map[string]lineCount, error) {
 	output, err := execute(
-		"gh", "api", "graphql", "-f", "query="+lineCountsQuery, "-f", "owner="+owner, "-f", "name="+repository,
+		"gh", "api", "graphql", "-f", "query="+lineCountsQuery, "-f", "owner="+source.owner, "-f", "name="+source.name,
 	)
 	if err != nil {
 		return nil, err
@@ -291,9 +288,9 @@ func fetchLineCounts(repository string) (map[string]lineCount, error) {
 }
 
 // fetchCIStates maps each open pull request's URL to its CI state, with "" for no checks.
-func fetchCIStates(repository string) (map[string]string, error) {
+func fetchCIStates(source repository) (map[string]string, error) {
 	output, err := execute(
-		"gh", "api", "graphql", "-f", "query="+ciStatesQuery, "-f", "owner="+owner, "-f", "name="+repository,
+		"gh", "api", "graphql", "-f", "query="+ciStatesQuery, "-f", "owner="+source.owner, "-f", "name="+source.name,
 	)
 	if err != nil {
 		return nil, err
@@ -331,6 +328,12 @@ func fetchCIStates(repository string) (map[string]string, error) {
 
 func (pr pullRequest) label() string {
 	return fmt.Sprintf("%s #%d", pr.repository, pr.number)
+}
+
+// fullName is how filters identify the repository, since two owners can have repositories
+// with the same name.
+func (pr pullRequest) fullName() string {
+	return pr.owner + "/" + pr.repository
 }
 
 func (pr pullRequest) toggleDraftNotice() string {
@@ -371,11 +374,10 @@ func fetchChangedFiles(pr pullRequest) ([]string, error) {
 }
 
 // openInEditorCommand has worktrunk find or create the pull request's worktree in the local
-// clone at ~/git/<repository>, then open that worktree and the given files in the editor.
-func (pr pullRequest) openInEditorCommand(files []string) []string {
-	home, _ := os.UserHomeDir()
+// clone at <cloneRoot>/<repository>, then open that worktree and the given files in the editor.
+func (pr pullRequest) openInEditorCommand(editorCommand, cloneRoot string, files []string) []string {
 	command := []string{
-		"wt", "-C", filepath.Join(home, "git", pr.repository), "switch", fmt.Sprintf("pr:%d", pr.number),
+		"wt", "-C", filepath.Join(cloneRoot, pr.repository), "switch", fmt.Sprintf("pr:%d", pr.number),
 		"--no-cd", "-x", editorCommand, "--", ".",
 	}
 	return append(command, files...)
@@ -396,7 +398,7 @@ func (pr pullRequest) toggleAutoMergeCommand() []string {
 }
 
 func (pr pullRequest) apiEndpoint() string {
-	return fmt.Sprintf("repos/%s/%s/pulls/%d", owner, pr.repository, pr.number)
+	return fmt.Sprintf("repos/%s/%s/pulls/%d", pr.owner, pr.repository, pr.number)
 }
 
 func fetchDescription(pr pullRequest) (string, error) {
@@ -592,22 +594,22 @@ var editInEditor = func(path string, finished func(error) tea.Msg) tea.Cmd {
 
 // requestTeamReviewCommands marks a draft ready first, because a review request on a draft
 // does not ask anyone to look yet.
-func (pr pullRequest) requestTeamReviewCommands() [][]string {
+func (pr pullRequest) requestTeamReviewCommands(reviewTeam string) [][]string {
 	if pr.isDraft {
-		return [][]string{pr.toggleDraftCommand(), pr.requestTeamReviewCommand()}
+		return [][]string{pr.toggleDraftCommand(), pr.requestTeamReviewCommand(reviewTeam)}
 	}
-	return [][]string{pr.requestTeamReviewCommand()}
+	return [][]string{pr.requestTeamReviewCommand(reviewTeam)}
 }
 
-func (pr pullRequest) requestTeamReviewNotice() string {
+func (pr pullRequest) requestTeamReviewNotice(reviewTeam string) string {
 	if pr.isDraft {
 		return "Marking " + pr.label() + " ready and requesting review from " + reviewTeam + "…"
 	}
 	return "Requesting review from " + reviewTeam + " on " + pr.label() + "…"
 }
 
-func (pr pullRequest) requestTeamReviewCommand() []string {
-	endpoint := fmt.Sprintf("repos/%s/%s/pulls/%d/requested_reviewers", owner, pr.repository, pr.number)
+func (pr pullRequest) requestTeamReviewCommand(reviewTeam string) []string {
+	endpoint := fmt.Sprintf("repos/%s/%s/pulls/%d/requested_reviewers", pr.owner, pr.repository, pr.number)
 	return []string{"gh", "api", "--method", "POST", endpoint, "-f", "team_reviewers[]=" + reviewTeam}
 }
 
@@ -617,17 +619,17 @@ type segment struct {
 }
 
 // awaitsReviewFrom reports whether someone else's pull request has a review requested from
-// the viewer or from the review team.
-func (pr pullRequest) awaitsReviewFrom(viewer string) bool {
+// the viewer or from the review team. Without a review team, only the viewer counts.
+func (pr pullRequest) awaitsReviewFrom(viewer, reviewTeam string) bool {
 	if pr.author == viewer {
 		return false
 	}
-	return slices.Contains(pr.requestedUsers, viewer) || slices.Contains(pr.requestedTeams, reviewTeam)
+	return slices.Contains(pr.requestedUsers, viewer) || (reviewTeam != "" && slices.Contains(pr.requestedTeams, reviewTeam))
 }
 
 // stateMarks summarises the pull request as emoji: review state, whether it waits on the
 // viewer, merge queue and auto-merge, then CI.
-func (pr pullRequest) stateMarks(viewer string) string {
+func (pr pullRequest) stateMarks(viewer, reviewTeam string) string {
 	var marks []string
 	switch {
 	case pr.isDraft:
@@ -637,7 +639,7 @@ func (pr pullRequest) stateMarks(viewer string) string {
 	case pr.reviewDecision == "CHANGES_REQUESTED":
 		marks = append(marks, "❌")
 	}
-	if pr.awaitsReviewFrom(viewer) {
+	if pr.awaitsReviewFrom(viewer, reviewTeam) {
 		marks = append(marks, "✋")
 	}
 	if pr.inMergeQueue {
@@ -659,12 +661,12 @@ func (pr pullRequest) stateMarks(viewer string) string {
 	return strings.Join(marks, " ")
 }
 
-func (pr pullRequest) reviewSegments(viewer string) []segment {
+func (pr pullRequest) reviewSegments(viewer, reviewTeam string) []segment {
 	var reviewers []segment
 	if slices.Contains(pr.requestedUsers, viewer) {
 		reviewers = append(reviewers, segment{"you", youStyle})
 	}
-	if slices.Contains(pr.requestedTeams, reviewTeam) {
+	if reviewTeam != "" && slices.Contains(pr.requestedTeams, reviewTeam) {
 		reviewers = append(reviewers, segment{reviewTeam, teamStyle})
 	}
 	for _, login := range pr.requestedUsers {
@@ -717,7 +719,7 @@ func ageText(since time.Time) string {
 	return fmt.Sprintf("%dd", minutes/(60*24))
 }
 
-func (pr pullRequest) columns(viewer string) [][]segment {
+func (pr pullRequest) columns(viewer, reviewTeam string) [][]segment {
 	authorStyle := plainStyle
 	if pr.isBot {
 		authorStyle = dimStyle
@@ -728,8 +730,8 @@ func (pr pullRequest) columns(viewer string) [][]segment {
 		{{pr.title, plainStyle}},
 		{{pr.author, authorStyle}},
 		pr.lineCountSegments(),
-		{{pr.stateMarks(viewer), plainStyle}},
-		pr.reviewSegments(viewer),
+		{{pr.stateMarks(viewer, reviewTeam), plainStyle}},
+		pr.reviewSegments(viewer, reviewTeam),
 		{{pr.age(), plainStyle}},
 	}
 }
@@ -757,14 +759,14 @@ func fit(text string, width int) string {
 
 // renderTable draws the header and the rows from offset that fit in rowCount lines.
 // Pass selected = -1 to draw no cursor.
-func renderTable(pullRequests []pullRequest, viewer string, width, selected, offset, rowCount int) string {
+func renderTable(pullRequests []pullRequest, viewer, reviewTeam string, width, selected, offset, rowCount int) string {
 	widths := make([]int, len(columnHeaders))
 	for index, header := range columnHeaders {
 		widths[index] = lipgloss.Width(header)
 	}
 	rows := make([][][]segment, len(pullRequests))
 	for rowIndex, pr := range pullRequests {
-		rows[rowIndex] = pr.columns(viewer)
+		rows[rowIndex] = pr.columns(viewer, reviewTeam)
 		for index, column := range rows[rowIndex] {
 			widths[index] = max(widths[index], lipgloss.Width(plainText(column)))
 		}
@@ -802,24 +804,32 @@ func renderTable(pullRequests []pullRequest, viewer string, width, selected, off
 	return strings.Join(lines, "\n")
 }
 
+// filters keys the selected repositories by full name. available is the configured
+// repositories in order, which is also the order of the number keys in the filter menu.
 type filters struct {
+	available    []repository
 	repositories map[string]bool
 	showBots     bool
 }
 
-func newFilters(selectedRepositories []string, showBots bool) filters {
-	if len(selectedRepositories) == 0 {
-		selectedRepositories = repositories
-	}
+// maximumFilterKeys is how many repositories get a number key, as the keys are 1 to 9.
+const maximumFilterKeys = 9
+
+func newFilters(available []repository, selectedRepositories []string, showBots bool) filters {
 	selected := map[string]bool{}
+	if len(selectedRepositories) == 0 {
+		for _, source := range available {
+			selected[source.fullName()] = true
+		}
+	}
 	for _, name := range selectedRepositories {
 		selected[name] = true
 	}
-	return filters{repositories: selected, showBots: showBots}
+	return filters{available: available, repositories: selected, showBots: showBots}
 }
 
 func (f filters) matches(pr pullRequest) bool {
-	return f.repositories[pr.repository] && pr.isBot == f.showBots
+	return f.repositories[pr.fullName()] && pr.isBot == f.showBots
 }
 
 func (f filters) visible(pullRequests []pullRequest) []pullRequest {
@@ -839,25 +849,29 @@ func (f filters) authors() string {
 	return "people"
 }
 
-func (f filters) repositoryMark(name string) string {
-	if f.repositories[name] {
-		return "● " + name
+func (f filters) repositoryMark(source repository) string {
+	if f.repositories[source.fullName()] {
+		return "● " + source.name
 	}
-	return dimStyle.Render("○ " + name)
+	return dimStyle.Render("○ " + source.name)
 }
 
 func (f filters) summary() string {
-	parts := make([]string, len(repositories))
-	for index, name := range repositories {
-		parts[index] = f.repositoryMark(name)
+	parts := make([]string, len(f.available))
+	for index, source := range f.available {
+		parts[index] = f.repositoryMark(source)
 	}
 	return "Repositories: " + strings.Join(parts, "  ") + "    Authors: " + boldStyle.Render(f.authors())
 }
 
 func (f filters) menu() string {
 	lines := []string{boldStyle.Render("Filters"), ""}
-	for _, name := range repositories {
-		lines = append(lines, keyStyle.Render(name[:1])+"  "+f.repositoryMark(name))
+	for index, source := range f.available {
+		key := " "
+		if index < maximumFilterKeys {
+			key = keyStyle.Render(strconv.Itoa(index + 1))
+		}
+		lines = append(lines, key+"  "+f.repositoryMark(source))
 	}
 	lines = append(lines, "", keyStyle.Render("b")+"  authors: "+f.authors())
 	lines = append(lines, "", keyStyle.Render("esc")+"  close")
@@ -1160,29 +1174,31 @@ type (
 	refreshTickMessage struct{}
 )
 
-func load() tea.Msg {
-	pullRequests, viewer, err := fetchPullRequests()
-	return loadedMessage{pullRequests: pullRequests, viewer: viewer, err: err}
+func load(repositories []repository) tea.Cmd {
+	return func() tea.Msg {
+		pullRequests, viewer, err := fetchPullRequests(repositories)
+		return loadedMessage{pullRequests: pullRequests, viewer: viewer, err: err}
+	}
 }
 
-func detailCommands() []tea.Cmd {
+func detailCommands(repositories []repository) []tea.Cmd {
 	var commands []tea.Cmd
-	for _, repository := range repositories {
+	for _, source := range repositories {
 		commands = append(commands, func() tea.Msg {
-			states, _ := fetchCIStates(repository)
+			states, _ := fetchCIStates(source)
 			return ciStatesLoadedMessage{states: states}
 		})
 	}
-	for _, repository := range repositories {
+	for _, source := range repositories {
 		commands = append(commands, func() tea.Msg {
-			counts, _ := fetchLineCounts(repository)
+			counts, _ := fetchLineCounts(source)
 			return lineCountsLoadedMessage{counts: counts}
 		})
 	}
 	return commands
 }
 
-func scheduleRefresh() tea.Cmd {
+func scheduleRefresh(refreshInterval time.Duration) tea.Cmd {
 	return tea.Tick(refreshInterval, func(time.Time) tea.Msg { return refreshTickMessage{} })
 }
 
@@ -1239,10 +1255,10 @@ func updateDescription(pr pullRequest, body, path string) tea.Cmd {
 }
 
 // openInEditor still opens the worktree when the changed files cannot be listed.
-func openInEditor(pr pullRequest) tea.Cmd {
+func openInEditor(pr pullRequest, settings configuration) tea.Cmd {
 	return func() tea.Msg {
 		files, _ := fetchChangedFiles(pr)
-		_, err := execute(pr.openInEditorCommand(files)...)
+		_, err := execute(pr.openInEditorCommand(settings.editor.command, settings.pullRequests.cloneRoot, files)...)
 		return editorOpenedMessage{err: err}
 	}
 }
@@ -1260,6 +1276,7 @@ func firstLine(err error) string {
 }
 
 type model struct {
+	config          configuration
 	filters         filters
 	viewer          string
 	pullRequests    []pullRequest
@@ -1303,12 +1320,16 @@ type model struct {
 	descriptionReturnsTo   mode
 }
 
-func newModel(f filters) model {
-	return model{filters: f, lineCounts: map[string]lineCount{}, ciStates: map[string]string{}, diffCache: map[string]cachedDiff{}, splitDiff: true, width: 120, height: 30}
+func newModel(settings configuration, f filters) model {
+	return model{config: settings, filters: f, lineCounts: map[string]lineCount{}, ciStates: map[string]string{}, diffCache: map[string]cachedDiff{}, splitDiff: true, width: 120, height: 30}
 }
 
 func (m model) Init() tea.Cmd {
-	return tea.Batch(load, scheduleRefresh())
+	return tea.Batch(load(m.repositories()), scheduleRefresh(m.config.refreshInterval))
+}
+
+func (m model) repositories() []repository {
+	return m.config.pullRequests.repositories
 }
 
 func (m model) selected() (pullRequest, bool) {
@@ -1658,7 +1679,7 @@ func (m model) update(message tea.Msg) (model, tea.Cmd) {
 		m.pullRequests = message.pullRequests
 		m.loadedAt = time.Now()
 		m.applyFilters()
-		return m, tea.Batch(detailCommands()...)
+		return m, tea.Batch(detailCommands(m.repositories())...)
 	case ciStatesLoadedMessage:
 		for url, state := range message.states {
 			m.ciStates[url] = state
@@ -1674,7 +1695,7 @@ func (m model) update(message tea.Msg) (model, tea.Cmd) {
 			m.notice = "Failed: " + firstLine(message.err)
 			return m, nil
 		}
-		return m, load
+		return m, load(m.repositories())
 	case diffLoadedMessage:
 		if message.err == nil {
 			m.diffCache[message.pullRequest.url] = cachedDiff{message.pullRequest.headCommit, message.files}
@@ -1694,7 +1715,7 @@ func (m model) update(message tea.Msg) (model, tea.Cmd) {
 			m.notice = "Failed: " + firstLine(message.err)
 		}
 	case refreshTickMessage:
-		return m, tea.Batch(load, scheduleRefresh())
+		return m, tea.Batch(load(m.repositories()), scheduleRefresh(m.config.refreshInterval))
 	case commentPostedMessage:
 		m.commentPosting = false
 		if message.err != nil {
@@ -1763,7 +1784,7 @@ func (m model) handleKey(key string) (model, tea.Cmd) {
 		m.mode = filterMode
 	case "r":
 		m.notice = "Refreshing…"
-		return m, load
+		return m, load(m.repositories())
 	case "o":
 		if hasSelection {
 			return m, openInBrowser(pr.url)
@@ -1785,8 +1806,8 @@ func (m model) handleKey(key string) (model, tea.Cmd) {
 		}
 	case "v":
 		if hasSelection {
-			m.notice = "Opening " + pr.label() + " in " + editorName + "…"
-			return m, openInEditor(pr)
+			m.notice = "Opening " + pr.label() + " in " + m.config.editor.name + "…"
+			return m, openInEditor(pr, m.config)
 		}
 	case "d":
 		if hasSelection {
@@ -1798,9 +1819,9 @@ func (m model) handleKey(key string) (model, tea.Cmd) {
 			m.ask(pr.toggleAutoMergeQuestion(), pr.toggleAutoMergeCommand())
 		}
 	case "e":
-		if hasSelection {
-			m.notice = pr.requestTeamReviewNotice()
-			return m, runCommands(pr.requestTeamReviewCommands()...)
+		if reviewTeam := m.config.pullRequests.reviewTeam; hasSelection && reviewTeam != "" {
+			m.notice = pr.requestTeamReviewNotice(reviewTeam)
+			return m, runCommands(pr.requestTeamReviewCommands(reviewTeam)...)
 		}
 	}
 	return m, nil
@@ -1843,7 +1864,7 @@ func (m model) handleDiffKey(key string) (model, tea.Cmd) {
 	case "o":
 		return m, openInBrowser(m.diffPullRequest.url)
 	case "v":
-		return m, openInEditor(m.diffPullRequest)
+		return m, openInEditor(m.diffPullRequest, m.config)
 	case "p":
 		return m, m.openDescription(m.diffPullRequest)
 	}
@@ -1874,7 +1895,7 @@ func (m model) handleDescriptionKey(key string) (model, tea.Cmd) {
 	case "o":
 		return m, openInBrowser(m.descriptionPullRequest.url)
 	case "v":
-		return m, openInEditor(m.descriptionPullRequest)
+		return m, openInEditor(m.descriptionPullRequest, m.config)
 	}
 	return m, nil
 }
@@ -1887,8 +1908,9 @@ func (m model) handleFilterKey(key string) model {
 	case "b":
 		m.filters.showBots = !m.filters.showBots
 	default:
-		for _, name := range repositories {
-			if key == name[:1] {
+		if len(key) == 1 && key[0] >= '1' && key[0] <= '0'+maximumFilterKeys {
+			if index := int(key[0] - '1'); index < len(m.filters.available) {
+				name := m.filters.available[index].fullName()
 				m.filters.repositories[name] = !m.filters.repositories[name]
 			}
 		}
@@ -1920,9 +1942,21 @@ func (m model) statusLine() string {
 		return dimStyle.Render("Loading…")
 	}
 	return dimStyle.Render(fmt.Sprintf(
-		"%d of %d open pull requests · updated %s · refreshes every %d minutes",
-		len(m.visible), len(m.pullRequests), m.loadedAt.Format("15:04"), int(refreshInterval.Minutes()),
+		"%d of %d open pull requests · updated %s · refreshes every %s",
+		len(m.visible), len(m.pullRequests), m.loadedAt.Format("15:04"), intervalText(m.config.refreshInterval),
 	))
+}
+
+// intervalText says a refresh interval in whole minutes where it can, as in "3 minutes".
+func intervalText(interval time.Duration) string {
+	minutes := int(interval / time.Minute)
+	switch {
+	case interval == time.Minute:
+		return "minute"
+	case interval%time.Minute == 0:
+		return fmt.Sprintf("%d minutes", minutes)
+	}
+	return fmt.Sprintf("%d seconds", int(interval.Round(time.Second)/time.Second))
 }
 
 func helpLine(keysAndLabels ...string) string {
@@ -1940,10 +1974,11 @@ func (m model) help() string {
 	case confirmMode:
 		return ""
 	}
-	return helpLine(
-		"enter", "diff", "p", "description", "o", "open", "v", editorName, "d", "draft / ready", "e", "request "+reviewTeam, "m", "auto-merge",
-		"f", "filters", "r", "refresh", "q", "quit",
-	)
+	keysAndLabels := []string{"enter", "diff", "p", "description", "o", "open", "v", m.config.editor.name, "d", "draft / ready"}
+	if reviewTeam := m.config.pullRequests.reviewTeam; reviewTeam != "" {
+		keysAndLabels = append(keysAndLabels, "e", "request "+reviewTeam)
+	}
+	return helpLine(append(keysAndLabels, "m", "auto-merge", "f", "filters", "r", "refresh", "q", "quit")...)
 }
 
 func (m model) diffBody() []string {
@@ -2005,7 +2040,7 @@ func (m model) diffHelp() string {
 	}
 	return position + helpLine(
 		"↑/↓", "file", "j/k", "line", "space/b", "page", "c", "comment", "tab", "old/new side", "s", layout,
-		"p", "description", "o", "open", "v", editorName, "esc", "back",
+		"p", "description", "o", "open", "v", m.config.editor.name, "esc", "back",
 	)
 }
 
@@ -2036,7 +2071,7 @@ func (m model) descriptionView() string {
 	for len(lines) < m.descriptionRows()+1 {
 		lines = append(lines, "")
 	}
-	help := helpLine("↑/↓", "scroll", "space/b", "page", "e", "edit", "o", "open", "v", editorName, "esc", "back")
+	help := helpLine("↑/↓", "scroll", "space/b", "page", "e", "edit", "o", "open", "v", m.config.editor.name, "esc", "back")
 	lines = append(lines, ansi.Truncate(m.descriptionNotice, m.width, "…"), ansi.Truncate(help, m.width, "…"))
 	return strings.Join(lines, "\n")
 }
@@ -2053,25 +2088,38 @@ func (m model) View() string {
 		sections = append(sections, m.filters.menu())
 	}
 	rows := m.tableRows()
-	table := renderTable(m.visible, m.viewer, m.width, m.cursor, m.offset, rows)
+	table := renderTable(m.visible, m.viewer, m.config.pullRequests.reviewTeam, m.width, m.cursor, m.offset, rows)
 	blankLines := rows + 1 - lipgloss.Height(table)
 	sections = append(sections, table+strings.Repeat("\n", max(blankLines, 0)))
 	sections = append(sections, ansi.Truncate(m.statusLine(), m.width, "…"), ansi.Truncate(m.help(), m.width, "…"))
 	return strings.Join(sections, "\n")
 }
 
-type repositoryFlag []string
-
-func (selected *repositoryFlag) String() string {
-	return strings.Join(*selected, ",")
-}
-
-func (selected *repositoryFlag) Set(name string) error {
-	if !slices.Contains(repositories, name) {
-		return fmt.Errorf("choose from %s", strings.Join(repositories, ", "))
+// resolveRepositories turns each --repo value, either a short name or owner/name, into the
+// full name filters use. A short name shared by two owners is ambiguous and must be spelled out.
+func resolveRepositories(available []repository, values []string) ([]string, error) {
+	var names []string
+	for _, value := range values {
+		var matches []repository
+		for _, source := range available {
+			if value == source.fullName() || value == source.name {
+				matches = append(matches, source)
+			}
+		}
+		switch len(matches) {
+		case 0:
+			fullNames := make([]string, len(available))
+			for index, source := range available {
+				fullNames[index] = source.fullName()
+			}
+			return nil, fmt.Errorf("unknown repository %q; configured repositories: %s", value, strings.Join(fullNames, ", "))
+		case 1:
+			names = append(names, matches[0].fullName())
+		default:
+			return nil, fmt.Errorf("repository name %q matches more than one owner; write it as owner/name", value)
+		}
 	}
-	*selected = append(*selected, name)
-	return nil
+	return names, nil
 }
 
 func terminalWidth() int {
@@ -2084,14 +2132,14 @@ func terminalWidth() int {
 	return 120
 }
 
-func printOnce(f filters) error {
-	pullRequests, viewer, err := fetchPullRequests()
+func printOnce(settings configuration, f filters) error {
+	pullRequests, viewer, err := fetchPullRequests(settings.pullRequests.repositories)
 	if err != nil {
 		return err
 	}
-	m := newModel(f)
+	m := newModel(settings, f)
 	m.pullRequests = pullRequests
-	commands := detailCommands()
+	commands := detailCommands(m.repositories())
 	messages := make(chan tea.Msg, len(commands))
 	for _, command := range commands {
 		go func() { messages <- command() }()
@@ -2101,26 +2149,54 @@ func printOnce(f filters) error {
 	}
 	visible := m.visible
 	fmt.Println(f.summary())
-	fmt.Println(renderTable(visible, viewer, terminalWidth(), -1, 0, len(visible)))
+	fmt.Println(renderTable(visible, viewer, settings.pullRequests.reviewTeam, terminalWidth(), -1, 0, len(visible)))
 	return nil
 }
 
+func fail(err error) {
+	fmt.Fprintln(os.Stderr, err)
+	os.Exit(1)
+}
+
 func main() {
-	var selectedRepositories repositoryFlag
-	flag.Var(&selectedRepositories, "repo", "start with only this repository selected (repeatable)")
+	var selectedRepositories []string
+	flag.Func("repo", "start with only this repository selected, as a name or owner/name (repeatable)", func(value string) error {
+		selectedRepositories = append(selectedRepositories, value)
+		return nil
+	})
 	showBots := flag.Bool("bots", false, "start on bot-authored pull requests")
 	once := flag.Bool("once", false, "print the table and exit")
+	configFlag := flag.String("config", "", "path to the configuration file")
+	initialize := flag.Bool("init", false, "write a starter configuration file and exit")
 	flag.Parse()
 
-	f := newFilters(selectedRepositories, *showBots)
-	var err error
+	path, err := configPath(*configFlag)
+	if err != nil {
+		fail(err)
+	}
+	if *initialize {
+		if err := writeStarterConfiguration(path); err != nil {
+			fail(err)
+		}
+		fmt.Println("Wrote", path)
+		return
+	}
+	settings, err := loadConfiguration(path)
+	if err != nil {
+		fail(err)
+	}
+	selected, err := resolveRepositories(settings.pullRequests.repositories, selectedRepositories)
+	if err != nil {
+		fail(err)
+	}
+
+	f := newFilters(settings.pullRequests.repositories, selected, *showBots)
 	if *once {
-		err = printOnce(f)
+		err = printOnce(settings, f)
 	} else {
-		_, err = tea.NewProgram(newModel(f), tea.WithAltScreen()).Run()
+		_, err = tea.NewProgram(newModel(settings, f), tea.WithAltScreen()).Run()
 	}
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		fail(err)
 	}
 }
