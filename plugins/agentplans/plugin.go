@@ -30,6 +30,7 @@ func (*agentPlansPlugin) Setup(host *plugin.Host) error {
 	if err != nil {
 		return err
 	}
+	settings.editor = host.Editor()
 	host.AddBoard(board(settings))
 	return nil
 }

@@ -116,7 +116,9 @@ request numbers each document mentions. It needs `apl` on your `PATH` and is off
 `"agent_plans"` to `plugins`. Each entry of `repositories` must be a directory with a `.apl`
 directory inside, and two entries cannot have the same directory name, because the name is how
 the board tells repositories apart. The filter menu (`f`) narrows by repository, type, and
-status; it starts on plans only.
+status; it starts on plans only. `enter` reads the selected document as rendered markdown
+(front matter left out), and `v` opens its file in your configured editor, from the board or
+from the document.
 
 ## Extending
 

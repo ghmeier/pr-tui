@@ -25,6 +25,14 @@ func board(settings settings) plugin.Board {
 		Title:   "Agent plans",
 		RowNoun: "docs",
 		Load:    settings.load,
+		Actions: []plugin.Action{
+			{Key: "enter", Label: "view", Run: func(selection plugin.Selection) plugin.Effect {
+				return plugin.Effect{Screen: newDocumentScreen(settings, selection)}
+			}},
+			{Key: "v", Label: settings.editor.Name, Run: func(selection plugin.Selection) plugin.Effect {
+				return settings.openInEditor(selection.Row.(Row))
+			}},
+		},
 		Columns: []plugin.Column{
 			textColumn("Repository", false, func(row Row) string { return row.Repository }),
 			textColumn("Type", false, func(row Row) string { return row.Doc.Type }),

@@ -89,7 +89,7 @@ func hostFor(t *testing.T, paths ...string) *plugin.Host {
 	for index, path := range paths {
 		quoted[index] = fmt.Sprintf("%q", path)
 	}
-	text := `plugins = ["agent_plans"]` + "\n[agent_plans]\nrepositories = [" + strings.Join(quoted, ", ") + "]\n"
+	text := `plugins = ["agent_plans"]` + "\n[editor]\nname = \"Test Editor\"\ncommand = [\"test-editor\", \"--wait\"]\n[agent_plans]\nrepositories = [" + strings.Join(quoted, ", ") + "]\n"
 	host, err := plugin.NewHost("config.toml", configtest.Load(t, text), []plugin.Plugin{&agentPlansPlugin{}})
 	if err != nil {
 		t.Fatal(err)

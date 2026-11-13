@@ -7,30 +7,11 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/ghmeier/pr-tui/internal/plugin"
 	"github.com/ghmeier/pr-tui/internal/ui"
 )
-
-func renderMarkdown(body string, width int) []string {
-	body = strings.ReplaceAll(body, "\x1b", "")
-	if strings.TrimSpace(body) == "" {
-		return []string{ui.DimStyle.Render("No description.")}
-	}
-	theme := "light"
-	if ui.DarkBackground {
-		theme = "dark"
-	}
-	renderer, err := glamour.NewTermRenderer(glamour.WithStandardStyle(theme), glamour.WithWordWrap(max(width-4, 20)))
-	if err == nil {
-		if rendered, err := renderer.Render(body); err == nil {
-			return strings.Split(strings.Trim(rendered, "\n"), "\n")
-		}
-	}
-	return strings.Split(body, "\n")
-}
 
 // editInEditor hands the terminal to the user's editor. Tests replace it.
 var editInEditor = func(path string, finished func(error) tea.Msg) tea.Cmd {
@@ -125,7 +106,7 @@ func (screen *descriptionScreen) keepVisible() {
 
 func (screen *descriptionScreen) show(body string) {
 	screen.body = body
-	screen.lines = renderMarkdown(body, screen.width)
+	screen.lines = ui.RenderMarkdown(body, screen.width)
 	screen.renderedWidth = screen.width
 }
 

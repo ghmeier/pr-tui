@@ -18,6 +18,8 @@ type checkout struct {
 
 type settings struct {
 	checkouts []checkout
+	// editor opens a document's file. It is set once during setup and not changed after.
+	editor config.Editor
 }
 
 // loadSettings reads the [agent_plans] table.
