@@ -159,10 +159,11 @@ original setup.
   Replace them with neutral names. Wait for step 2b to merge first, because it moves the
   tests.
 - `v` reports a clear message when `wt` is not installed.
-- Decide what to do about history before the repository is made public: the early commits
-  contain the hard-coded organization, repository names, and team, and the `apl` branch
-  holds this plan, which names them too. Squashing `main` to one commit and not publishing
-  the `apl` branch would remove both.
+- History stays as it is: the organization and repository names in early commits and in
+  this plan are fine to publish (decided 2026-11-13). The condition is that history holds
+  no keys. A pattern search of every commit on every branch on 2026-11-13 found none, and
+  the tool never handles a token itself because it uses the `gh` login. Run `gitleaks`
+  over the full history once more immediately before making the repository public.
 
 ### 5. Distribution without Go — not started
 
