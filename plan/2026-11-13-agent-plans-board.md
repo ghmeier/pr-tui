@@ -1,10 +1,10 @@
 ---
 title: Agent plans board
-status: draft
+status: active
 tags: [plugins, agent-plans]
 created: 2026-11-13
 updated: 2026-11-13
-next_step: Get approval, then dispatch step 1 (agent-plans-board).
+next_step: Step 1 (agent-plans-board) is with the implementer.
 ---
 # Agent plans board
 
