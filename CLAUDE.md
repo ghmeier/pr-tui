@@ -33,6 +33,9 @@ internal/ui                    styles, segments, and text helpers shared by ever
 internal/shell                 runs external commands; tests replace shell.Run
 plugins/pullrequests           the pull request board, its diff and description screens, and the Provider interface
 plugins/pullrequests/github    the GitHub provider; the only package that runs gh
+plugins/pullrequests/pullrequeststest  a small fake provider for tests of plugins that extend the pull request board
+plugins/tickets                the example plugin from the guide; ships disabled, built from main.go
+docs                           the guide to writing a plugin; its code blocks are plugins/tickets
 ```
 
 A plugin is a package that registers itself from `init()` and is switched on by the
@@ -57,6 +60,9 @@ A plugin that adds a column or action to another plugin's board checks
 `host.Enabled("<plugin name>")` first, so it still starts when that plugin is switched off.
 Rows are matched across plugins through the owning plugin's exported row type, for example
 `row.(pullrequests.Row).PullRequest.HeadBranch`.
+
+The guide in `docs/writing-a-plugin.md` quotes `plugins/tickets` verbatim; when you change that
+package, update the matching blocks in the guide by hand.
 
 A provider is a data source behind a plugin. The pull request plugin only talks to its
 `Provider` interface, and a provider registers with the plugin that consumes it.

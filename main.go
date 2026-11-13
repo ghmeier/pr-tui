@@ -16,6 +16,7 @@ import (
 	// Imported for their side effect of registering themselves.
 	_ "github.com/ghmeier/pr-tui/plugins/pullrequests"
 	_ "github.com/ghmeier/pr-tui/plugins/pullrequests/github"
+	_ "github.com/ghmeier/pr-tui/plugins/tickets"
 )
 
 func fail(err error) {

@@ -113,9 +113,14 @@ and runs it. The rest is split by what it knows about:
 - `plugins/pullrequests` is the plugin for the board of open pull requests, with the pull
   request types and the `Provider` interface. It has no forge-specific code.
 - `plugins/pullrequests/github` is the GitHub provider, and the only package that runs `gh`.
+- `plugins/tickets` is an example plugin with made-up tickets. It ships disabled; list
+  `tickets` in `plugins` to see it. It is the plugin that the guide in `docs` builds.
+- `docs` has the guide to writing a plugin.
 
-To add a provider, for example for GitLab, create a package under `plugins/pullrequests` that
-implements `pullrequests.Provider`, and register it from `init` with
-`pullrequests.RegisterProvider("gitlab", factory)`. The factory receives a function that decodes
-its own table, `[gitlab]`, strictly. Import the package for its side effect in `main.go`, and set
-`provider = "gitlab"` in `[pull_requests]`.
+## Extending
+
+A plugin is a Go package, compiled in, that registers boards and may add columns and keys to
+another plugin's board. It runs only when its name is in the `plugins` list. A provider is a
+data source behind a plugin: the pull request plugin reads pull requests through a
+`Provider` interface, and the GitHub provider is one implementation of it. To write either,
+read [docs/writing-a-plugin.md](docs/writing-a-plugin.md).
