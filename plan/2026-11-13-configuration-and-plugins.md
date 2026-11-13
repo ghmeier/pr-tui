@@ -1,10 +1,10 @@
 ---
 title: Configuration file and plugin system
-status: active
+status: completed
 tags: [plugins, configuration]
 created: 2026-11-13
 updated: 2026-11-13
-next_step: Add the HOMEBREW_TAP_TOKEN secret, push main, make the repository public, then tag v0.1.0 and test the brew install
+next_step: None. Follow-ups are the deferred items in the notes, to revisit with a real second plugin
 ---
 # Configuration file and plugin system
 
@@ -169,7 +169,7 @@ original setup.
   the tool never handles a token itself because it uses the `gh` login. Run `gitleaks`
   over the full history once more immediately before making the repository public.
 
-### 5. Distribution without Go — configured on `main`; first release not yet cut
+### 5. Distribution without Go — done, released as `v0.1.0`
 
 - `prs --version`.
 - GoReleaser in a GitHub Action, run on a version tag, publishing macOS (Apple silicon and
@@ -246,3 +246,8 @@ original setup.
   publish to the tap, which needs the `HOMEBREW_TAP_TOKEN` secret, a public repository,
   and a pushed tag. The owner confirmed on 2026-11-13 that history has no leaked keys and
   created `ghmeier/homebrew-tap` (public, empty).
+- `v0.1.0` released. `main` was pushed and the repository made public; the tag ran the
+  release workflow, which published four archives and wrote `Casks/prs.rb` to the (empty)
+  tap. `brew install --cask ghmeier/tap/prs` was tested on macOS on Apple silicon: it
+  installed `prs 0.1.0`, which ran without a quarantine prompt. The `HOMEBREW_TAP_TOKEN`
+  secret must live on `ghmeier/pr-tui`, where the workflow runs, not on the tap.
