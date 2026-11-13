@@ -58,20 +58,22 @@ func (example *planFixture) withBothDocs(t *testing.T) {
 	example.checkout = example.apl.newCheckout(t, example.linked.Repository.Name, example.first, example.second)
 }
 
-// startedWithPullRequests loads the pull request board, with the column added to it, and the
-// agent plans board for the fixture's checkout.
-func (example planFixture) startedWithPullRequests(t *testing.T) *plugin.Model {
+// startedWith loads the pull request board, with the column added to it, listing the open pull
+// requests, and the agent plans board for the checkouts.
+func (example planFixture) startedWith(t *testing.T, open []pullrequests.PullRequest, checkouts ...string) *plugin.Model {
 	t.Helper()
-	provider := &pullrequeststest.Provider{
-		Source: example.linked.Repository,
-		Open:   []pullrequests.PullRequest{example.linked, example.unlinked, example.elsewhere},
-	}
+	provider := &pullrequeststest.Provider{Source: example.linked.Repository, Open: open}
 	topLevel := fmt.Sprintf("plugins = [%q, %q]\n[pull_requests]\nprovider = %q\n",
 		pullrequests.BoardName, pluginName, pullrequeststest.Register(t, provider))
-	model := hostWithConfiguration(t, topLevel, plugin.Registered(), []string{example.checkout}).Model()
+	model := hostWithConfiguration(t, topLevel, plugin.Registered(), checkouts).Model()
 	plugintest.Start(t, model)
 	plugintest.Resize(t, model, 200, 30)
 	return model
+}
+
+func (example planFixture) startedWithPullRequests(t *testing.T) *plugin.Model {
+	t.Helper()
+	return example.startedWith(t, []pullrequests.PullRequest{example.linked, example.unlinked, example.elsewhere}, example.checkout)
 }
 
 func (example planFixture) callsIn(directory string) []call {
@@ -102,8 +104,9 @@ func TestPlanColumnIsEmptyForAPullRequestWhoseBranchHasNoLinkedDocument(t *testi
 
 	model := example.startedWithPullRequests(t)
 
-	if line := lineWith(model, example.unlinked.Title); strings.Contains(line, example.first.title) {
-		t.Fatalf("line = %q, expected no document title", line)
+	line := lineWith(model, example.unlinked.Title)
+	if line == "" || strings.Contains(line, example.first.title) {
+		t.Fatalf("line = %q, expected the pull request without a document title", line)
 	}
 }
 
@@ -119,15 +122,15 @@ func TestPlanColumnShowsTheFirstTitleAndCountsTheOtherDocumentsLinkedToTheBranch
 	}
 }
 
-func TestPlanColumnLeavesAPullRequestOfAnUnconfiguredRepositoryEmptyAndDoesNotRunAplForIt(t *testing.T) {
+func TestPlanColumnDoesNotRunAplOutsideTheConfiguredCheckouts(t *testing.T) {
 	example := newPlanFixture(t)
 
 	model := example.startedWithPullRequests(t)
 
 	// The board hides the pull request of a repository that is not listed in its filter, so
 	// the directories apl ran in are what shows the column skipped it.
-	if line := lineWith(model, example.linked.Title); !strings.Contains(line, example.first.title) {
-		t.Fatalf("line = %q, expected the title %q", line, example.first.title)
+	if lineWith(model, example.linked.Title) == "" {
+		t.Fatalf("the board should list %q", example.linked.Title)
 	}
 	for _, received := range example.apl.calls {
 		if received.directory != example.checkout {
@@ -139,15 +142,8 @@ func TestPlanColumnLeavesAPullRequestOfAnUnconfiguredRepositoryEmptyAndDoesNotRu
 func TestPlanColumnListsEachCheckoutWithPullRequestsOnceAndSkipsOthers(t *testing.T) {
 	example := newPlanFixture(t)
 	idle := example.apl.newCheckout(t, "warehouse")
-	provider := &pullrequeststest.Provider{
-		Source: example.linked.Repository,
-		Open:   []pullrequests.PullRequest{example.linked},
-	}
-	topLevel := fmt.Sprintf("plugins = [%q, %q]\n[pull_requests]\nprovider = %q\n",
-		pullrequests.BoardName, pluginName, pullrequeststest.Register(t, provider))
-	model := hostWithConfiguration(t, topLevel, plugin.Registered(), []string{example.checkout, idle}).Model()
 
-	plugintest.Start(t, model)
+	example.startedWith(t, []pullrequests.PullRequest{example.linked}, example.checkout, idle)
 
 	// The agent plans board lists every checkout once, and the column lists only the checkout
 	// that has a pull request.
