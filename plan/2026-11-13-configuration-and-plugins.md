@@ -4,7 +4,7 @@ status: active
 tags: [plugins, configuration]
 created: 2026-11-13
 updated: 2026-11-13
-next_step: Review, refactor, and merge step 2b (plugin-host branch), then write the plugin author guide
+next_step: Write the plugin author guide (step 3), then scrub setup-specific names (step 4)
 ---
 # Configuration file and plugin system
 
@@ -130,7 +130,7 @@ implementer, a refactor pass, and then verification with `go vet`, `go test`, an
   the provider's table.
 - 192 tests pass across the packages.
 
-### 2b. Plugin host — in progress on `plugin-host`
+### 2b. Plugin host — done, merged to `main` at `eeccc12`
 
 - `internal/plugin`: registry, `Setup(host)`, and the Board, Column, Action, Screen, and
   facet types. Plugins may register command-line flags.
@@ -142,6 +142,10 @@ implementer, a refactor pass, and then verification with `go vet`, `go test`, an
 - Acceptance test: a second plugin defined in a test adds a column and an action to the
   pull request board and registers a second board, without the pull request package
   knowing about it.
+
+Outcome: 341 tests pass, also under the race detector, and `--once` output is identical to
+before the port. An Opus review found one blocking data race and several fixes, all applied
+before merge (see the notes for 2026-11-13).
 
 ### 3. Plugin author guide — not started
 
@@ -204,3 +208,22 @@ original setup.
   `[pull_requests]`, so each provider owns its own fields.
 - The installed `~/.local/bin/prs` is not rebuilt by this work. Run `make install` from
   `main` to pick up merged steps.
+- Step 2b review fixes: `Selection.Data` reads a copy so it is safe inside a background
+  command; `OpenScreen` and `Notify` were replaced by `Selection.Run(effect)`, which routes
+  to the selection's own board; boards ignore out-of-date load and column results; a failed
+  description save always leaves a notice with the kept file's path; `Host.Enabled` lets a
+  plugin make a contribution to another plugin's board optional; pull requests carry
+  `HeadBranch` for matching tickets by branch name.
+- Changes a user sees from step 2b: number keys in the filter menu count across all facets
+  (people and bots are `5` and `6`), and the `b` hint sits beside the Authors heading.
+- Deferred until a plugin needs them, since every plugin is compiled in this repository and
+  an API change is a compile error fixed in place:
+  - Facet options built from loaded rows, and facets that read column data. A Shortcut
+    board will want owner and state facets.
+  - An effect that refreshes a board other than its own.
+  - A confirmation run from a screen is only answerable after the screen closes.
+  - The auto-merge question says "(squash)" and `v` runs `wt switch pr:<number>`; both are
+    GitHub-specific and need to come from the provider when a second provider exists.
+- `CLAUDE.md` and the `project-lead`, `implementer`, and `code-reviewer` skills, with
+  `implementer`, `refactorer` (Sonnet) and `code-reviewer` (Opus) agents, were added at
+  the commit after `eeccc12`.
