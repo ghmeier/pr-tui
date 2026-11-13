@@ -89,16 +89,17 @@ review_team = "engineering"      # optional; without it the "e" key is disabled 
 
 The viewer's username comes from the provider, not the file.
 
-### Package layout after step 2
+### Package layout
 
 ```
 main.go                          flags, configuration, wiring
 internal/config                  top-level settings, strict per-section decoding, --init
 internal/ui                      styles, segments, table helpers
 internal/shell                   runs external commands; tests replace it
-internal/plugin (step 2b)        registry, host, Board, Column, Action, Screen
+internal/plugin                  registry, host, Board, Column, Action, Screen, Facet
 plugins/pullrequests             domain types, Provider interface, board, diff, description, comments
 plugins/pullrequests/github      GitHub provider
+plugins/tickets                  example plugin from docs/writing-a-plugin.md
 ```
 
 ## Steps
@@ -174,8 +175,9 @@ original setup.
 - `prs --version`.
 - GoReleaser in a GitHub Action, run on a version tag, publishing macOS (Apple silicon and
   Intel) and Linux binaries to GitHub Releases.
-- A Homebrew tap that GoReleaser updates, with `gh` declared as a dependency, so the
-  install is `brew install ghmeier/tap/prs` followed by `prs --init`.
+- A Homebrew cask in `ghmeier/homebrew-tap` that GoReleaser updates, with `gh` declared as
+  a dependency, so the install is `brew install --cask ghmeier/tap/prs` followed by
+  `prs --init`.
 - People who only enable existing plugins need no Go. Writing a plugin still means building
   from source.
 
@@ -251,3 +253,4 @@ original setup.
   tap. `brew install --cask ghmeier/tap/prs` was tested on macOS on Apple silicon: it
   installed `prs 0.1.0`, which ran without a quarantine prompt. The `HOMEBREW_TAP_TOKEN`
   secret must live on `ghmeier/pr-tui`, where the workflow runs, not on the tap.
+- Closed out on 2026-11-13. The handoff is `handoff/2026-11-13-configuration-and-plugins.md`.
