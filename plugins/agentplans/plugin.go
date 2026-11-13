@@ -7,6 +7,7 @@ import (
 	"flag"
 
 	"github.com/ghmeier/pr-tui/internal/plugin"
+	"github.com/ghmeier/pr-tui/plugins/pullrequests"
 )
 
 const pluginName = "agent_plans"
@@ -32,5 +33,8 @@ func (*agentPlansPlugin) Setup(host *plugin.Host) error {
 	}
 	settings.editor = host.Editor()
 	host.AddBoard(board(settings))
+	if host.Enabled(pullrequests.BoardName) {
+		host.AddColumn(pullrequests.BoardName, settings.pullRequestColumn())
+	}
 	return nil
 }

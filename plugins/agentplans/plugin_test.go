@@ -22,6 +22,8 @@ import (
 // doc is what a test says about one document: apl's listing of it and the text of its file.
 type doc struct {
 	file, kind, title, status, updated, body string
+	// branches are the branches the document is linked to.
+	branches []string
 }
 
 // fakeApl stands in for the apl program: each checkout has a canned listing, and the calls it
@@ -55,7 +57,11 @@ func (apl *fakeApl) newCheckout(t *testing.T, name string, docs ...doc) string {
 		if example.status != "" {
 			meta["status"] = example.status
 		}
-		files = append(files, map[string]any{"file": example.file, "type": example.kind, "meta": meta, "links": []any{}})
+		links := []map[string]any{}
+		for _, branch := range example.branches {
+			links = append(links, map[string]any{"branch": branch})
+		}
+		files = append(files, map[string]any{"file": example.file, "type": example.kind, "meta": meta, "links": links})
 	}
 	listing, err := json.Marshal(map[string]any{"files": files})
 	if err != nil {
@@ -85,12 +91,19 @@ func installFakeApl(t *testing.T, missing bool) *fakeApl {
 
 func hostFor(t *testing.T, paths ...string) *plugin.Host {
 	t.Helper()
+	return hostWithConfiguration(t, `plugins = ["agent_plans"]`+"\n", []plugin.Plugin{&agentPlansPlugin{}}, paths)
+}
+
+// hostWithConfiguration builds a host from the given top-level configuration, followed by the
+// editor and [agent_plans] tables for the checkouts at paths.
+func hostWithConfiguration(t *testing.T, topLevel string, plugins []plugin.Plugin, paths []string) *plugin.Host {
+	t.Helper()
 	quoted := make([]string, len(paths))
 	for index, path := range paths {
 		quoted[index] = fmt.Sprintf("%q", path)
 	}
-	text := `plugins = ["agent_plans"]` + "\n[editor]\nname = \"Test Editor\"\ncommand = [\"test-editor\", \"--wait\"]\n[agent_plans]\nrepositories = [" + strings.Join(quoted, ", ") + "]\n"
-	host, err := plugin.NewHost("config.toml", configtest.Load(t, text), []plugin.Plugin{&agentPlansPlugin{}})
+	text := topLevel + "[editor]\nname = \"Test Editor\"\ncommand = [\"test-editor\", \"--wait\"]\n[agent_plans]\nrepositories = [" + strings.Join(quoted, ", ") + "]\n"
+	host, err := plugin.NewHost("config.toml", configtest.Load(t, text), plugins)
 	if err != nil {
 		t.Fatal(err)
 	}

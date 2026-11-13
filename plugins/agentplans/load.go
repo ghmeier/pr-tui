@@ -62,7 +62,8 @@ func (settings settings) load() ([]plugin.Row, error) {
 	return loaded, nil
 }
 
-func (checkout checkout) rows() ([]Row, error) {
+// docs runs apl in the checkout and reads its listing, without opening any document.
+func (checkout checkout) docs() ([]Doc, error) {
 	output, err := shell.RunIn(checkout.path, "apl", "ls", "--json")
 	if err != nil {
 		return nil, err
@@ -71,16 +72,27 @@ func (checkout checkout) rows() ([]Row, error) {
 	if err := json.Unmarshal(output, &parsed); err != nil {
 		return nil, fmt.Errorf("cannot read the output of apl ls: %w", err)
 	}
-	rows := make([]Row, len(parsed.Files))
+	docs := make([]Doc, len(parsed.Files))
 	for index, file := range parsed.Files {
-		doc := Doc{
+		docs[index] = Doc{
 			File: file.File, Type: file.Type, Title: file.Meta.Title, Status: file.Meta.Status,
 			Tags: file.Meta.Tags, Created: file.Meta.Created, Updated: file.Meta.Updated,
 		}
 		for _, link := range file.Links {
-			doc.Branches = append(doc.Branches, link.Branch)
+			docs[index].Branches = append(docs[index].Branches, link.Branch)
 		}
-		path := filepath.Join(checkout.path, ".apl", file.File)
+	}
+	return docs, nil
+}
+
+func (checkout checkout) rows() ([]Row, error) {
+	docs, err := checkout.docs()
+	if err != nil {
+		return nil, err
+	}
+	rows := make([]Row, len(docs))
+	for index, doc := range docs {
+		path := filepath.Join(checkout.path, ".apl", doc.File)
 		// A document that cannot be read still has a row, only without pull requests.
 		if body, err := os.ReadFile(path); err == nil {
 			doc.PullRequestNumbers = pullRequestNumbers(string(body))

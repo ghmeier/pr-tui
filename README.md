@@ -118,7 +118,9 @@ directory inside, and two entries cannot have the same directory name, because t
 the board tells repositories apart. The filter menu (`f`) narrows by repository, type, and
 status; it starts on plans only. `enter` reads the selected document as rendered markdown
 (front matter left out), and `v` opens its file in your configured editor, from the board or
-from the document.
+from the document. When `pull_requests` is on too, its board gets a `Plan` column with the title
+of the document linked to each pull request's branch with `apl link <document> --branch <name>`,
+and `+N` when more documents are linked.
 
 ## Extending
 
