@@ -1,10 +1,10 @@
 ---
 title: Agent plans board
-status: active
+status: completed
 tags: [plugins, agent-plans]
 created: 2026-11-13
 updated: 2026-11-13
-next_step: Step 2 (agent-plans-document-screen) is with the implementer.
+next_step: None; all steps are on main.
 ---
 # Agent plans board
 
@@ -91,13 +91,13 @@ one user.
    tests, the plugin with configuration, board, columns, facets, and pull request
    references, starter file and README. Verify: tests, and `go run . --config <tmp> --once`
    against `~/git/gazebo` and `~/git/prs`.
-2. **`agent-plans-document-screen`** from step 1. Move `renderMarkdown` to `ui`, add the
+2. **`agent-plans-document-screen`** from step 1. Done: `aac9ff8`, refactor `559ffd6`, `bc7001d`. Move `renderMarkdown` to `ui`, add the
    document screen on `enter` and the editor action on `v`. Verify with tests and a tmux
    session.
-3. **`agent-plans-pull-request-column`** from step 2. The Plan column on the pull request
+3. **`agent-plans-pull-request-column`** from step 2. Done: `eed5265`, refactor `5287d5a`, `697768b`. The Plan column on the pull request
    board. Verify with a fake provider test and by linking a doc to a branch with an open
    pull request in `prs`, then unlinking it.
-4. Guide: mention `OptionsFromRows` in `docs/writing-a-plugin.md` where facets are covered.
+4. Done in step 1. Guide: mention `OptionsFromRows` in `docs/writing-a-plugin.md` where facets are covered.
    Folded into step 1 if the guide has a facets section.
 
 ## Risks
@@ -118,3 +118,8 @@ one user.
   `/pull/123` pattern is GitHub's URL shape, accepted as a text heuristic; the Type facet's
   start on `plan` is compiled in (apl's built-in type, so neutral). Branches are chained
   locally; whether to open pull requests or fast-forward `main` is asked at the end.
+- 2026-11-13: The user chose to fast-forward `main` rather than open pull requests.
+- 2026-11-13: The markdown renderer no longer supplies "No description."; each screen words its
+  own empty state.
+- 2026-11-13: Step 3 verified against gazebo's existing links: #21260 and #21259 show
+  "Firefox extension support" in the Plan column. `main` fast-forwarded to `697768b`.
