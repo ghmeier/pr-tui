@@ -546,13 +546,13 @@ This test uses it to check what the `t` key does on a pull request:
 
 ```go
 func TestTicketKeyOnAPullRequestOpensTheMatchedTicketsAddress(t *testing.T) {
-	f := newFixture()
+	example := newFixture()
 	commands := recordShell(t)
-	model := startedWithBoth(t, f)
+	model := startedWithBoth(t, example)
 
 	plugintest.Press(t, model, "t")
 
-	expected := [][]string{{"open", defaultURLPrefix + f.ticket.ID}}
+	expected := [][]string{{"open", defaultURLPrefix + example.ticket.ID}}
 	if !reflect.DeepEqual(*commands, expected) {
 		t.Fatalf("commands = %v, expected %v", *commands, expected)
 	}

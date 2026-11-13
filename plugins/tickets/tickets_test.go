@@ -42,17 +42,17 @@ func newFixture() fixture {
 	}
 }
 
-func (f fixture) provider() *pullrequeststest.Provider {
+func (example fixture) provider() *pullrequeststest.Provider {
 	return &pullrequeststest.Provider{
-		Source: f.named.Repository,
-		Open:   []pullrequests.PullRequest{f.named, f.unrelated},
+		Source: example.named.Repository,
+		Open:   []pullrequests.PullRequest{example.named, example.unrelated},
 	}
 }
 
 // startedWith builds the host from a configuration file that enables the named plugins, and
 // loads every board. The configuration is the plugins list, and the pull request provider when
 // that plugin is enabled.
-func startedWith(t *testing.T, f fixture, enabled []string) *plugin.Model {
+func startedWith(t *testing.T, example fixture, enabled []string) *plugin.Model {
 	t.Helper()
 	quoted := make([]string, len(enabled))
 	for index, name := range enabled {
@@ -61,7 +61,7 @@ func startedWith(t *testing.T, f fixture, enabled []string) *plugin.Model {
 	text := fmt.Sprintf("plugins = [%s]\n", strings.Join(quoted, ", "))
 	for _, name := range enabled {
 		if name == pullrequests.BoardName {
-			text += fmt.Sprintf("[pull_requests]\nprovider = %q\n", pullrequeststest.Register(t, f.provider()))
+			text += fmt.Sprintf("[pull_requests]\nprovider = %q\n", pullrequeststest.Register(t, example.provider()))
 		}
 	}
 	host, err := plugin.NewHost("config.toml", configtest.Load(t, text), plugin.Registered())
@@ -74,9 +74,9 @@ func startedWith(t *testing.T, f fixture, enabled []string) *plugin.Model {
 	return model
 }
 
-func startedWithBoth(t *testing.T, f fixture) *plugin.Model {
+func startedWithBoth(t *testing.T, example fixture) *plugin.Model {
 	t.Helper()
-	return startedWith(t, f, []string{pullrequests.BoardName, "tickets"})
+	return startedWith(t, example, []string{pullrequests.BoardName, "tickets"})
 }
 
 func view(model *plugin.Model) string { return ansi.Strip(model.View()) }
@@ -107,24 +107,24 @@ func recordShell(t *testing.T) *[][]string {
 }
 
 func TestTicketColumnShowsTheTicketNamedByThePullRequestsHeadBranch(t *testing.T) {
-	f := newFixture()
+	example := newFixture()
 
-	model := startedWithBoth(t, f)
+	model := startedWithBoth(t, example)
 
 	if header := lineWith(t, model, "Review requested"); !strings.Contains(header, ticketColumnHeader) {
 		t.Fatalf("header = %q", header)
 	}
-	if line := lineWith(t, model, f.named.Title); !strings.Contains(line, f.ticket.ID) {
-		t.Fatalf("line = %q, expected the ticket %s", line, f.ticket.ID)
+	if line := lineWith(t, model, example.named.Title); !strings.Contains(line, example.ticket.ID) {
+		t.Fatalf("line = %q, expected the ticket %s", line, example.ticket.ID)
 	}
 }
 
 func TestTicketColumnIsEmptyForAPullRequestWhoseBranchNamesNoTicket(t *testing.T) {
-	f := newFixture()
+	example := newFixture()
 
-	model := startedWithBoth(t, f)
+	model := startedWithBoth(t, example)
 
-	line := lineWith(t, model, f.unrelated.Title)
+	line := lineWith(t, model, example.unrelated.Title)
 	for _, known := range exampleTickets() {
 		if strings.Contains(line, known.ID) {
 			t.Fatalf("line = %q, expected no ticket", line)
@@ -133,8 +133,8 @@ func TestTicketColumnIsEmptyForAPullRequestWhoseBranchNamesNoTicket(t *testing.T
 }
 
 func TestTicketsBoardIsASecondTabWithItsOwnRows(t *testing.T) {
-	f := newFixture()
-	model := startedWithBoth(t, f)
+	example := newFixture()
+	model := startedWithBoth(t, example)
 
 	plugintest.Press(t, model, "tab")
 
@@ -143,41 +143,41 @@ func TestTicketsBoardIsASecondTabWithItsOwnRows(t *testing.T) {
 			t.Fatalf("the tickets board does not list %q:\n%s", known.Title, view(model))
 		}
 	}
-	if strings.Contains(view(model), f.named.Title) {
+	if strings.Contains(view(model), example.named.Title) {
 		t.Fatalf("the tickets board lists a pull request:\n%s", view(model))
 	}
 }
 
 func TestStatusFilterHidesTheTicketsOfADeselectedStatus(t *testing.T) {
-	f := newFixture()
-	model := startedWithBoth(t, f)
+	example := newFixture()
+	model := startedWithBoth(t, example)
 	plugintest.Press(t, model, "tab")
 	done := exampleTickets()[2]
 
 	plugintest.Press(t, model, "f", "3", "esc")
 
-	if strings.Contains(view(model), done.Title) || !strings.Contains(view(model), f.ticket.Title) {
+	if strings.Contains(view(model), done.Title) || !strings.Contains(view(model), example.ticket.Title) {
 		t.Fatalf("view:\n%s", view(model))
 	}
 }
 
 func TestTicketKeyOnAPullRequestOpensTheMatchedTicketsAddress(t *testing.T) {
-	f := newFixture()
+	example := newFixture()
 	commands := recordShell(t)
-	model := startedWithBoth(t, f)
+	model := startedWithBoth(t, example)
 
 	plugintest.Press(t, model, "t")
 
-	expected := [][]string{{"open", defaultURLPrefix + f.ticket.ID}}
+	expected := [][]string{{"open", defaultURLPrefix + example.ticket.ID}}
 	if !reflect.DeepEqual(*commands, expected) {
 		t.Fatalf("commands = %v, expected %v", *commands, expected)
 	}
 }
 
 func TestTicketKeyOnAPullRequestWithoutATicketRunsNothingAndSaysSo(t *testing.T) {
-	f := newFixture()
+	example := newFixture()
 	commands := recordShell(t)
-	model := startedWithBoth(t, f)
+	model := startedWithBoth(t, example)
 
 	plugintest.Press(t, model, "down", "t")
 
@@ -190,9 +190,9 @@ func TestTicketKeyOnAPullRequestWithoutATicketRunsNothingAndSaysSo(t *testing.T)
 }
 
 func TestOpenKeyOnTheTicketsBoardOpensTheSelectedTicket(t *testing.T) {
-	f := newFixture()
+	example := newFixture()
 	commands := recordShell(t)
-	model := startedWithBoth(t, f)
+	model := startedWithBoth(t, example)
 
 	plugintest.Press(t, model, "tab", "down", "o")
 
@@ -204,14 +204,14 @@ func TestOpenKeyOnTheTicketsBoardOpensTheSelectedTicket(t *testing.T) {
 }
 
 func TestPluginStillStartsWithOnlyItsOwnBoardWhenPullRequestsIsDisabled(t *testing.T) {
-	f := newFixture()
+	example := newFixture()
 
-	model := startedWith(t, f, []string{"tickets"})
+	model := startedWith(t, example, []string{"tickets"})
 
-	if !strings.Contains(view(model), f.ticket.Title) {
+	if !strings.Contains(view(model), example.ticket.Title) {
 		t.Fatalf("view:\n%s", view(model))
 	}
-	if strings.Contains(view(model), "Pull requests") || strings.Contains(view(model), f.named.Title) {
+	if strings.Contains(view(model), "Pull requests") || strings.Contains(view(model), example.named.Title) {
 		t.Fatalf("the pull request board is present:\n%s", view(model))
 	}
 }
