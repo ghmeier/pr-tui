@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 const minimalConfigurationText = `
@@ -20,13 +21,17 @@ func fullConfigurationText(settings configuration) string {
 	for _, source := range settings.pullRequests.repositories {
 		repositories = append(repositories, fmt.Sprintf("%q", source.fullName()))
 	}
+	var editorCommand []string
+	for _, word := range settings.editor.command {
+		editorCommand = append(editorCommand, fmt.Sprintf("%q", word))
+	}
 	return fmt.Sprintf(`
 plugins = [%q]
 refresh_interval = %q
 
 [editor]
 name = %q
-command = %q
+command = [%s]
 
 [pull_requests]
 provider = %q
@@ -34,7 +39,7 @@ repositories = [%s]
 review_team = %q
 clone_root = %q
 `,
-		settings.plugins[0], settings.refreshInterval.String(), settings.editor.name, settings.editor.command,
+		settings.plugins[0], settings.refreshInterval.String(), settings.editor.name, strings.Join(editorCommand, ", "),
 		settings.pullRequests.provider, strings.Join(repositories, ", "), settings.pullRequests.reviewTeam,
 		settings.pullRequests.cloneRoot,
 	)
@@ -182,6 +187,64 @@ func TestLoadConfigurationRejectsADurationOfZero(t *testing.T) {
 	isolateConfigurationEnvironment(t)
 
 	assertRejected(t, `refresh_interval = "0s"`+minimalConfigurationText, "refresh_interval")
+}
+
+func TestLoadConfigurationRejectsADurationShorterThanOneSecond(t *testing.T) {
+	isolateConfigurationEnvironment(t)
+
+	assertRejected(t, `refresh_interval = "999ms"`+minimalConfigurationText, "refresh_interval")
+}
+
+func TestLoadConfigurationAcceptsADurationOfExactlyOneSecond(t *testing.T) {
+	isolateConfigurationEnvironment(t)
+
+	settings, _, err := loadText(t, `refresh_interval = "1s"`+minimalConfigurationText)
+
+	if err != nil || settings.refreshInterval != time.Second {
+		t.Fatalf("refresh interval = %v, err = %v", settings.refreshInterval, err)
+	}
+}
+
+func TestLoadConfigurationReadsAStringEditorCommandAsOneExecutableEvenWithSpaces(t *testing.T) {
+	isolateConfigurationEnvironment(t)
+	executable := "/Applications/Visual Studio Code - Insiders.app/Contents/Resources/app/bin/code"
+
+	settings, _, err := loadText(t, fmt.Sprintf("[editor]\ncommand = %q\n", executable)+minimalConfigurationText)
+
+	if err != nil || !reflect.DeepEqual(settings.editor.command, []string{executable}) {
+		t.Fatalf("editor command = %q, err = %v", settings.editor.command, err)
+	}
+}
+
+func TestLoadConfigurationReadsAListEditorCommandAsExecutableThenArguments(t *testing.T) {
+	isolateConfigurationEnvironment(t)
+	expected := []string{"code", "--reuse-window"}
+
+	settings, _, err := loadText(t, `[editor]
+command = ["code", "--reuse-window"]
+`+minimalConfigurationText)
+
+	if err != nil || !reflect.DeepEqual(settings.editor.command, expected) {
+		t.Fatalf("editor command = %q, err = %v, expected %q", settings.editor.command, err, expected)
+	}
+}
+
+func TestLoadConfigurationRejectsEditorCommandsThatCannotRun(t *testing.T) {
+	isolateConfigurationEnvironment(t)
+	rejected := map[string]string{
+		"an empty list":                    `[]`,
+		"an empty string":                  `""`,
+		"an empty first element":           `["", "--wait"]`,
+		"a list with a non-string element": `["code", 3]`,
+		"a number":                         `3`,
+		"a table":                          `{ name = "code" }`,
+	}
+
+	for description, command := range rejected {
+		t.Run(description, func(t *testing.T) {
+			assertRejected(t, "[editor]\ncommand = "+command+"\n"+minimalConfigurationText, "[editor] command")
+		})
+	}
 }
 
 func TestLoadConfigurationRejectsAnUnknownPlugin(t *testing.T) {

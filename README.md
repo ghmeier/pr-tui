@@ -22,11 +22,12 @@ path; it will not overwrite an existing file. The file is found at, in order: th
 
 ```toml
 plugins = ["pull_requests"]        # only "pull_requests" exists today
-refresh_interval = "3m"            # a Go duration; default 3m
+refresh_interval = "3m"            # a Go duration, at least 1s; default 3m
 
 [editor]
 name = "VS Code"                   # shown in the help line; default "VS Code"
-command = "code"                   # default "code"
+command = "code"                   # default "code"; a string is one executable, spaces included
+# command = ["code", "--reuse-window"]   # or a list: the executable, then its arguments
 
 [pull_requests]
 provider = "github"                # only "github" is supported; default "github"
@@ -72,7 +73,7 @@ Board keys:
 | `d` | Toggle draft / ready for review |
 | `e` | Request review from the configured team, marking a draft ready for review first |
 | `m` | Enable or disable auto-merge (squash), after a confirmation |
-| `f` | Open the filter menu: `1` to `9` toggle repositories in the order configured, `b` switches between people and bots |
+| `f` | Open the filter menu: `up`/`down` (or `k`/`j`) move over the repositories and `space` toggles the one under the cursor; `1` to `9` toggle the first nine directly; `b` switches between people and bots |
 | `r` | Refresh (also on the configured interval, every 3 minutes by default) |
 | `q` | Quit |
 

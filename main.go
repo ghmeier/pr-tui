@@ -375,11 +375,15 @@ func fetchChangedFiles(pr pullRequest) ([]string, error) {
 
 // openInEditorCommand has worktrunk find or create the pull request's worktree in the local
 // clone at <cloneRoot>/<repository>, then open that worktree and the given files in the editor.
-func (pr pullRequest) openInEditorCommand(editorCommand, cloneRoot string, files []string) []string {
+// Worktrunk passes everything after "--" straight to the program given to -x, so the editor's
+// own arguments go there too, ahead of the worktree path.
+func (pr pullRequest) openInEditorCommand(editorCommand []string, cloneRoot string, files []string) []string {
 	command := []string{
 		"wt", "-C", filepath.Join(cloneRoot, pr.repository), "switch", fmt.Sprintf("pr:%d", pr.number),
-		"--no-cd", "-x", editorCommand, "--", ".",
+		"--no-cd", "-x", editorCommand[0], "--",
 	}
+	command = append(command, editorCommand[1:]...)
+	command = append(command, ".")
 	return append(command, files...)
 }
 
@@ -810,15 +814,17 @@ func renderTable(pullRequests []pullRequest, viewer, reviewTeam string, width, s
 }
 
 // filters keys the selected repositories by full name. available is the configured
-// repositories in order, which is also the order of the number keys in the filter menu.
+// repositories in order. The first nine also have number keys in the filter menu; cursor is
+// the repository the menu is on.
 type filters struct {
 	available    []repository
 	repositories map[string]bool
 	showBots     bool
+	cursor       int
 }
 
-// maximumFilterKeys is how many repositories get a number key, as the keys are 1 to 9.
-const maximumFilterKeys = 9
+// numberKeyCount is how many repositories get a number key, as the keys are 1 to 9.
+const numberKeyCount = 9
 
 func newFilters(available []repository, selectedRepositories []string, showBots bool) filters {
 	selected := map[string]bool{}
@@ -872,14 +878,17 @@ func (f filters) summary() string {
 func (f filters) menu() string {
 	lines := []string{boldStyle.Render("Filters"), ""}
 	for index, source := range f.available {
-		key := " "
-		if index < maximumFilterKeys {
+		marker, key := " ", " "
+		if index == f.cursor {
+			marker = cursorMarker
+		}
+		if index < numberKeyCount {
 			key = keyStyle.Render(strconv.Itoa(index + 1))
 		}
-		lines = append(lines, key+"  "+f.repositoryMark(source))
+		lines = append(lines, marker+" "+key+"  "+f.repositoryMark(source))
 	}
-	lines = append(lines, "", keyStyle.Render("b")+"  authors: "+f.authors())
-	lines = append(lines, "", keyStyle.Render("esc")+"  close")
+	lines = append(lines, "", "  "+keyStyle.Render("b")+"  authors: "+f.authors())
+	lines = append(lines, "", "  "+helpLine("↑↓", "move", "space", "toggle", "esc", "close"))
 	return menuStyle.Render(strings.Join(lines, "\n"))
 }
 
@@ -1905,6 +1914,11 @@ func (m model) handleDescriptionKey(key string) (model, tea.Cmd) {
 	return m, nil
 }
 
+func (m *model) toggleRepository(index int) {
+	name := m.filters.available[index].fullName()
+	m.filters.repositories[name] = !m.filters.repositories[name]
+}
+
 func (m model) handleFilterKey(key string) model {
 	switch key {
 	case "f", "esc", "enter":
@@ -1912,11 +1926,16 @@ func (m model) handleFilterKey(key string) model {
 		return m
 	case "b":
 		m.filters.showBots = !m.filters.showBots
+	case "up", "k":
+		m.filters.cursor = max(m.filters.cursor-1, 0)
+	case "down", "j":
+		m.filters.cursor = min(m.filters.cursor+1, len(m.filters.available)-1)
+	case " ":
+		m.toggleRepository(m.filters.cursor)
 	default:
 		number, err := strconv.Atoi(key)
-		if err == nil && number >= 1 && number <= min(maximumFilterKeys, len(m.filters.available)) {
-			name := m.filters.available[number-1].fullName()
-			m.filters.repositories[name] = !m.filters.repositories[name]
+		if err == nil && number >= 1 && number <= min(numberKeyCount, len(m.filters.available)) {
+			m.toggleRepository(number - 1)
 		}
 	}
 	m.applyFilters()
@@ -1951,11 +1970,14 @@ func (m model) statusLine() string {
 	))
 }
 
-// intervalText says a refresh interval in whole minutes where it can, as in "3 minutes".
+// intervalText says a refresh interval in whole minutes where it can, as in "3 minutes". A
+// single minute or second has no number, so the status line reads "every second".
 func intervalText(interval time.Duration) string {
 	switch {
 	case interval == time.Minute:
 		return "minute"
+	case interval == time.Second:
+		return "second"
 	case interval%time.Minute == 0:
 		return fmt.Sprintf("%d minutes", interval/time.Minute)
 	}

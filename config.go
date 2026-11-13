@@ -18,14 +18,14 @@ import (
 const (
 	defaultRefreshInterval = 3 * time.Minute
 	defaultEditorName      = "VS Code"
-	defaultEditorCommand   = "code"
 	defaultProvider        = "github"
 	defaultCloneRoot       = "~/git"
 )
 
 var (
-	knownPlugins   = []string{"pull_requests"}
-	knownProviders = []string{"github"}
+	defaultEditorCommand = []string{"code"}
+	knownPlugins         = []string{"pull_requests"}
+	knownProviders       = []string{"github"}
 )
 
 // repositoryPartPattern is deliberately narrow: the owner and name are written into a
@@ -42,8 +42,9 @@ func (r repository) fullName() string {
 }
 
 type editorConfiguration struct {
-	name    string
-	command string
+	name string
+	// command is the executable followed by its arguments.
+	command []string
 }
 
 type pullRequestsConfiguration struct {
@@ -66,8 +67,9 @@ type fileConfiguration struct {
 	Plugins         []string `toml:"plugins"`
 	RefreshInterval string   `toml:"refresh_interval"`
 	Editor          struct {
-		Name    string `toml:"name"`
-		Command string `toml:"command"`
+		Name string `toml:"name"`
+		// Command is a string or a list of strings, so it is checked by editorCommandFrom.
+		Command any `toml:"command"`
 	} `toml:"editor"`
 	PullRequests struct {
 		Provider     string   `toml:"provider"`
@@ -82,13 +84,16 @@ const starterConfiguration = `# Configuration for prs, a board of open pull requ
 # Which parts of the board to show. Only "pull_requests" exists today.
 plugins = ["pull_requests"]
 
-# How often the board refreshes itself, as a Go duration such as "90s" or "5m".
+# How often the board refreshes itself, as a Go duration such as "90s" or "5m", at least "1s".
 refresh_interval = "3m"
 
 # The editor the "v" key opens a pull request's worktree in.
 [editor]
 name = "VS Code"   # shown in the help line
 command = "code"
+# The command may also be a list: the executable followed by its arguments. A single string is
+# always one executable, even if it contains spaces.
+# command = ["code", "--reuse-window"]
 
 [pull_requests]
 # Where pull requests come from. Only "github" is supported today.
@@ -158,8 +163,12 @@ func loadConfiguration(path string) (configuration, error) {
 	}
 	// Unknown keys are reported first, because a misspelt key would otherwise show up as a
 	// confusing "missing" error for the key that was meant.
-	if unknownKeys := metadata.Undecoded(); len(unknownKeys) > 0 {
-		return configuration{}, fmt.Errorf("%s: unknown key %q; check its spelling", path, unknownKeys[0].String())
+	for _, unknownKey := range metadata.Undecoded() {
+		// The contents of a malformed command are reported by validation, which names the key.
+		if slices.Equal(unknownKey[:min(len(unknownKey), 2)], []string{"editor", "command"}) {
+			continue
+		}
+		return configuration{}, fmt.Errorf("%s: unknown key %q; check its spelling", path, unknownKey.String())
 	}
 	result, err := validateConfiguration(raw)
 	if err != nil {
@@ -168,13 +177,43 @@ func loadConfiguration(path string) (configuration, error) {
 	return result, nil
 }
 
+// editorCommandFrom accepts one executable as a string, or an executable followed by its
+// arguments as a list. A string is never split on spaces, because paths contain them.
+func editorCommandFrom(value any) ([]string, error) {
+	var command []string
+	switch typed := value.(type) {
+	case nil:
+		return defaultEditorCommand, nil
+	case string:
+		command = []string{typed}
+	case []any:
+		for _, element := range typed {
+			text, isText := element.(string)
+			if !isText {
+				return nil, fmt.Errorf("[editor] command must contain only strings, found %v", element)
+			}
+			command = append(command, text)
+		}
+	default:
+		return nil, fmt.Errorf("[editor] command must be a string or a list of strings, not %v", value)
+	}
+	if len(command) == 0 || command[0] == "" {
+		return nil, errors.New("[editor] command needs an executable as its first element")
+	}
+	return command, nil
+}
+
 func validateConfiguration(raw fileConfiguration) (configuration, error) {
+	editorCommand, err := editorCommandFrom(raw.Editor.Command)
+	if err != nil {
+		return configuration{}, err
+	}
 	result := configuration{
 		plugins:         raw.Plugins,
 		refreshInterval: defaultRefreshInterval,
 		editor: editorConfiguration{
 			name:    cmp.Or(raw.Editor.Name, defaultEditorName),
-			command: cmp.Or(raw.Editor.Command, defaultEditorCommand),
+			command: editorCommand,
 		},
 		pullRequests: pullRequestsConfiguration{
 			provider:   cmp.Or(raw.PullRequests.Provider, defaultProvider),
@@ -196,8 +235,8 @@ func validateConfiguration(raw fileConfiguration) (configuration, error) {
 		if err != nil {
 			return configuration{}, fmt.Errorf(`refresh_interval %q is not a duration such as "90s" or "5m"`, raw.RefreshInterval)
 		}
-		if interval <= 0 {
-			return configuration{}, fmt.Errorf("refresh_interval %q must be longer than zero", raw.RefreshInterval)
+		if interval < time.Second {
+			return configuration{}, fmt.Errorf("refresh_interval %q must be at least one second", raw.RefreshInterval)
 		}
 		result.refreshInterval = interval
 	}

@@ -94,7 +94,7 @@ func testConfiguration() configuration {
 	return configuration{
 		plugins:         knownPlugins,
 		refreshInterval: 5 * time.Minute,
-		editor:          editorConfiguration{name: "Test Editor", command: "test-editor"},
+		editor:          editorConfiguration{name: "Test Editor", command: []string{"test-editor", "--reuse-window"}},
 		pullRequests: pullRequestsConfiguration{
 			provider: "github",
 			repositories: []repository{
@@ -282,6 +282,98 @@ func TestFilterMenuTogglesRepositoryByNumberKey(t *testing.T) {
 	m := press(t, loadedBoard(t), "f", "1")
 
 	assertLabels(t, m, "u2 #3")
+}
+
+// settingsWithRepositoryCount names repositories repository0, repository1, and so on.
+func settingsWithRepositoryCount(count int) configuration {
+	var repositories []repository
+	for index := range count {
+		repositories = append(repositories, repository{owner: "CoProcure", name: fmt.Sprintf("repository%d", index)})
+	}
+	return settingsWithRepositories(repositories...)
+}
+
+func TestFilterMenuTogglesTheRepositoryUnderTheCursorBeyondTheNumberKeys(t *testing.T) {
+	recordCommands(t)
+	settings := settingsWithRepositoryCount(11)
+	eleventh := settings.pullRequests.repositories[10]
+	tenth := settings.pullRequests.repositories[9]
+	presses := append([]string{"f"}, slices.Repeat([]string{"down"}, 10)...)
+
+	m := press(t, testBoardFor(settings), append(presses, " ")...)
+
+	if m.filters.repositories[eleventh.fullName()] || !m.filters.repositories[tenth.fullName()] {
+		t.Fatalf("selected repositories = %v after toggling %s", m.filters.repositories, eleventh.fullName())
+	}
+}
+
+func TestFilterMenuMovesTheCursorWithEitherPairOfKeys(t *testing.T) {
+	recordCommands(t)
+	settings := settingsWithRepositoryCount(3)
+
+	down := press(t, testBoardFor(settings), "f", "down", "j")
+	up := press(t, down, "up", "k")
+
+	if down.filters.cursor != 2 || up.filters.cursor != 0 {
+		t.Fatalf("cursor = %d after moving down, %d after moving back up", down.filters.cursor, up.filters.cursor)
+	}
+}
+
+func TestFilterMenuCursorStaysOnTheFirstAndLastRepository(t *testing.T) {
+	recordCommands(t)
+	settings := settingsWithRepositoryCount(3)
+	last := len(settings.pullRequests.repositories) - 1
+
+	atTop := press(t, testBoardFor(settings), "f", "up", "k")
+	atBottom := press(t, atTop, "down", "down", "down", "j")
+
+	if atTop.filters.cursor != 0 || atBottom.filters.cursor != last {
+		t.Fatalf("cursor = %d at the top, %d at the bottom, expected 0 and %d", atTop.filters.cursor, atBottom.filters.cursor, last)
+	}
+}
+
+func TestFilterMenuMarksOnlyTheRowUnderTheCursor(t *testing.T) {
+	settings := settingsWithRepositoryCount(3)
+	board := testBoardFor(settings)
+	board.filters.cursor = 1
+
+	lines := strings.Split(ansi.Strip(board.filters.menu()), "\n")
+
+	for index, source := range settings.pullRequests.repositories {
+		var row string
+		for _, line := range lines {
+			if strings.Contains(line, source.name) {
+				row = line
+			}
+		}
+		if marked := strings.Contains(row, "▌"); marked != (index == board.filters.cursor) {
+			t.Fatalf("row %q marked = %v, cursor is on row %d", row, marked, board.filters.cursor)
+		}
+	}
+}
+
+func TestFilterMenuNumbersOnlyTheFirstNineRepositories(t *testing.T) {
+	settings := settingsWithRepositoryCount(10)
+	menu := ansi.Strip(testBoardFor(settings).filters.menu())
+
+	for index, source := range settings.pullRequests.repositories {
+		numbered := strings.Contains(menu, fmt.Sprintf("%d  ● %s", index+1, source.name))
+		if numbered != (index < 9) {
+			t.Fatalf("repository %d numbered = %v:\n%s", index, numbered, menu)
+		}
+	}
+}
+
+func TestNumberShortcutsToggleRepositoriesWithoutMovingTheCursor(t *testing.T) {
+	recordCommands(t)
+	settings := settingsWithRepositoryCount(11)
+	ninth := settings.pullRequests.repositories[8]
+
+	m := press(t, testBoardFor(settings), "f", "9")
+
+	if m.filters.repositories[ninth.fullName()] || m.filters.cursor != 0 {
+		t.Fatalf("selected = %v, cursor = %d", m.filters.repositories, m.filters.cursor)
+	}
 }
 
 func TestNumberKeysDoNothingOutsideFilterMenu(t *testing.T) {
@@ -549,13 +641,29 @@ func TestEditorKeyOpensTheWorktreeAndItsChangedFilesExceptDeletedOnes(t *testing
 
 	expected := [][]string{{
 		"wt", "-C", filepath.Join(settings.pullRequests.cloneRoot, testRepository(1).name), "switch", "pr:3",
-		"--no-cd", "-x", settings.editor.command, "--", ".", "kept.py", "tests/added.py",
+		"--no-cd", "-x", settings.editor.command[0], "--", settings.editor.command[1], ".", "kept.py", "tests/added.py",
 	}}
 	if !reflect.DeepEqual(*recorded, expected) {
 		t.Fatalf("commands = %v, expected %v", *recorded, expected)
 	}
 	if m.notice != "" {
 		t.Fatalf("notice = %q after the editor opened", m.notice)
+	}
+}
+
+func TestEditorKeyPassesAStringCommandAsTheOnlyProgramWordEvenWithSpaces(t *testing.T) {
+	recorded := recordCommands(t)
+	settings := testConfiguration()
+	settings.editor.command = []string{"/Applications/Visual Studio Code - Insiders.app/Contents/Resources/app/bin/code"}
+
+	press(t, loadedBoardFor(t, settings), "down", "v")
+
+	expected := [][]string{{
+		"wt", "-C", filepath.Join(settings.pullRequests.cloneRoot, testRepository(1).name), "switch", "pr:3",
+		"--no-cd", "-x", settings.editor.command[0], "--", ".", "kept.py", "tests/added.py",
+	}}
+	if !reflect.DeepEqual(*recorded, expected) {
+		t.Fatalf("commands = %v, expected %v", *recorded, expected)
 	}
 }
 
@@ -1129,8 +1237,22 @@ func TestStatusLineShowsTheConfiguredRefreshInterval(t *testing.T) {
 	}
 }
 
+func TestStatusLineReadsEverySecondForAOneSecondInterval(t *testing.T) {
+	recordCommands(t)
+	settings := testConfiguration()
+	settings.refreshInterval = time.Second
+
+	status := ansi.Strip(loadedBoardFor(t, settings).statusLine())
+
+	if !strings.Contains(status, "refreshes every second") {
+		t.Fatalf("status = %q", status)
+	}
+}
+
 func TestIntervalTextUsesWholeMinutesWhenPossibleAndSecondsOtherwise(t *testing.T) {
 	cases := map[time.Duration]string{
+		time.Second:      "second",
+		2 * time.Second:  "2 seconds",
 		time.Minute:      "minute",
 		7 * time.Minute:  "7 minutes",
 		90 * time.Second: "90 seconds",
