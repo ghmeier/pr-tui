@@ -1,12 +1,11 @@
 package pullrequests
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/ghmeier/pr-tui/internal/config"
+	"github.com/ghmeier/pr-tui/internal/config/configtest"
 )
 
 func isolateHome(t *testing.T) string {
@@ -16,36 +15,23 @@ func isolateHome(t *testing.T) string {
 	return home
 }
 
-func loadConfigurationText(t *testing.T, text string) *config.File {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "config.toml")
-	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	file, err := config.Load(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return file
-}
-
 func TestLoadSettingsFillsDefaultsWhenTheSectionIsMissing(t *testing.T) {
 	home := isolateHome(t)
-	file := loadConfigurationText(t, "")
+	file := configtest.Load(t, "")
 
 	settings, err := LoadSettings(file)
 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if settings.ProviderName != DefaultProviderName || settings.CloneRoot != filepath.Join(home, "git") {
+	if settings.ProviderName != defaultProviderName || settings.CloneRoot != filepath.Join(home, "git") {
 		t.Fatalf("settings = %+v", settings)
 	}
 }
 
 func TestLoadSettingsTakesTheRefreshIntervalAndEditorFromTheTopOfTheFile(t *testing.T) {
 	isolateHome(t)
-	file := loadConfigurationText(t, "refresh_interval = \"90s\"\n[editor]\nname = \"Zed\"\ncommand = \"zed\"\n")
+	file := configtest.Load(t, "refresh_interval = \"90s\"\n[editor]\nname = \"Zed\"\ncommand = \"zed\"\n")
 
 	settings, err := LoadSettings(file)
 
@@ -56,7 +42,7 @@ func TestLoadSettingsTakesTheRefreshIntervalAndEditorFromTheTopOfTheFile(t *test
 
 func TestLoadSettingsReadsTheProviderName(t *testing.T) {
 	isolateHome(t)
-	file := loadConfigurationText(t, "[pull_requests]\nprovider = \"gitlab\"\n")
+	file := configtest.Load(t, "[pull_requests]\nprovider = \"gitlab\"\n")
 
 	settings, err := LoadSettings(file)
 
@@ -67,7 +53,7 @@ func TestLoadSettingsReadsTheProviderName(t *testing.T) {
 
 func TestLoadSettingsExpandsALeadingTildeInCloneRoot(t *testing.T) {
 	home := isolateHome(t)
-	file := loadConfigurationText(t, "[pull_requests]\nclone_root = \"~/code\"\n")
+	file := configtest.Load(t, "[pull_requests]\nclone_root = \"~/code\"\n")
 
 	settings, err := LoadSettings(file)
 
@@ -79,7 +65,7 @@ func TestLoadSettingsExpandsALeadingTildeInCloneRoot(t *testing.T) {
 func TestLoadSettingsLeavesAnAbsoluteCloneRootAlone(t *testing.T) {
 	isolateHome(t)
 	absolute := t.TempDir()
-	file := loadConfigurationText(t, "[pull_requests]\nclone_root = \""+absolute+"\"\n")
+	file := configtest.Load(t, "[pull_requests]\nclone_root = \""+absolute+"\"\n")
 
 	settings, err := LoadSettings(file)
 
@@ -88,16 +74,16 @@ func TestLoadSettingsLeavesAnAbsoluteCloneRootAlone(t *testing.T) {
 	}
 }
 
-func TestLoadSettingsRejectsAnUnknownKeyNamingTheFileTheSectionAndTheKey(t *testing.T) {
+func TestLoadSettingsRejectsAnUnknownKeyNamingTheSectionAndTheKey(t *testing.T) {
 	isolateHome(t)
-	file := loadConfigurationText(t, "[pull_requests]\nclone_rot = \"~/code\"\n")
+	file := configtest.Load(t, "[pull_requests]\nclone_rot = \"~/code\"\n")
 
 	_, err := LoadSettings(file)
 
 	if err == nil {
 		t.Fatal("expected an error")
 	}
-	for _, expected := range []string{file.Path, "[pull_requests]", "clone_rot"} {
+	for _, expected := range []string{"[pull_requests]", "clone_rot"} {
 		if !strings.Contains(err.Error(), expected) {
 			t.Fatalf("error %q should contain %q", err, expected)
 		}
@@ -106,7 +92,7 @@ func TestLoadSettingsRejectsAnUnknownKeyNamingTheFileTheSectionAndTheKey(t *test
 
 func TestLoadSettingsIgnoresTheTablesOfOtherPackages(t *testing.T) {
 	isolateHome(t)
-	file := loadConfigurationText(t, "[github]\nrepositories = [\"a/b\"]\n")
+	file := configtest.Load(t, "[another_package]\nsetting = 1\n")
 
 	_, err := LoadSettings(file)
 
@@ -115,13 +101,31 @@ func TestLoadSettingsIgnoresTheTablesOfOtherPackages(t *testing.T) {
 	}
 }
 
-func TestLoadSettingsAcceptsTheStarterConfiguration(t *testing.T) {
+func TestLoadSettingsSaysWhichTableTheOldProviderKeysMovedTo(t *testing.T) {
 	isolateHome(t)
-	file := loadConfigurationText(t, config.StarterConfiguration)
+	cases := map[string]string{
+		"repositories": `repositories = ["a/b"]`,
+		"review_team":  `review_team = "engineering"`,
+	}
 
-	settings, err := LoadSettings(file)
+	for key, line := range cases {
+		file := configtest.Load(t, "[pull_requests]\nprovider = \"gitlab\"\n"+line+"\n")
 
-	if err != nil || settings.ProviderName != DefaultProviderName {
-		t.Fatalf("settings = %+v, err = %v", settings, err)
+		_, err := LoadSettings(file)
+
+		if err == nil || !strings.Contains(err.Error(), "[pull_requests] "+key) || !strings.Contains(err.Error(), "[gitlab]") {
+			t.Fatalf("error = %v, expected it to say %s now belongs under [gitlab]", err, key)
+		}
+	}
+}
+
+func TestLoadSettingsNamesTheDefaultProviderTableForTheOldKeysWhenNoneIsChosen(t *testing.T) {
+	isolateHome(t)
+	file := configtest.Load(t, "[pull_requests]\nrepositories = [\"a/b\"]\n")
+
+	_, err := LoadSettings(file)
+
+	if err == nil || !strings.Contains(err.Error(), "["+defaultProviderName+"]") {
+		t.Fatalf("error = %v, expected it to name [%s]", err, defaultProviderName)
 	}
 }

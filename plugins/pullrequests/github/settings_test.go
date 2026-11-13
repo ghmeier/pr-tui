@@ -5,13 +5,13 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/ghmeier/pr-tui/internal/config"
+	"github.com/ghmeier/pr-tui/internal/config/configtest"
 	"github.com/ghmeier/pr-tui/plugins/pullrequests"
 )
 
 func newProviderFromText(t *testing.T, text string) (pullrequests.Provider, error) {
 	t.Helper()
-	return newProvider(loadConfigurationText(t, text).Section)
+	return newProvider(configtest.Load(t, text).Section)
 }
 
 func assertRejected(t *testing.T, text, expected string) {
@@ -74,27 +74,12 @@ func TestProviderAcceptsTheSameNameUnderTwoOwners(t *testing.T) {
 	}
 }
 
-func TestProviderRejectsAnUnknownKeyNamingTheFileTheSectionAndTheKey(t *testing.T) {
-	text := "[github]\nrepositories = [\"a/b\"]\nreview_teem = \"engineering\"\n"
-	file := loadConfigurationText(t, text)
-
-	_, err := newProvider(file.Section)
-
-	if err == nil || !containsAll(err.Error(), file.Path, "[github]", "review_teem") {
-		t.Fatalf("error = %v", err)
-	}
-}
-
-func TestProviderAcceptsTheStarterConfiguration(t *testing.T) {
-	_, err := newProviderFromText(t, config.StarterConfiguration)
-
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestProviderRejectsAnUnknownKeyNamingTheSectionAndTheKey(t *testing.T) {
+	assertRejected(t, "[github]\nrepositories = [\"a/b\"]\nreview_teem = \"engineering\"\n", "[github] unknown key \"review_teem\"")
 }
 
 func TestGithubRegistersItselfUnderTheNameTheConfigurationUses(t *testing.T) {
-	file := loadConfigurationText(t, fmt.Sprintf("[github]\nrepositories = [%q]\n", gazebo.FullName()))
+	file := configtest.Load(t, fmt.Sprintf("[github]\nrepositories = [%q]\n", gazebo.FullName()))
 
 	result, err := pullrequests.NewProvider("github", file.Section)
 

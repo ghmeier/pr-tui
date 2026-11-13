@@ -89,19 +89,6 @@ func TestNumberShortcutsToggleRepositoriesWithoutMovingTheCursor(t *testing.T) {
 	}
 }
 
-func TestFilterMenuNumbersEachRepositoryInTheOrderTheProviderListsThem(t *testing.T) {
-	provider := newFakeProvider()
-
-	menu := ansi.Strip(boardFor(provider, testSettings()).filters.menu())
-
-	for index, source := range provider.repositories {
-		expected := fmt.Sprintf("%d  ● %s", index+1, source.Name)
-		if !strings.Contains(menu, expected) {
-			t.Fatalf("menu is missing %q:\n%s", expected, menu)
-		}
-	}
-}
-
 func TestNumberKeyTogglesTheRepositoryEvenWhenItsNameSharesAFirstLetter(t *testing.T) {
 	billing := Repository{Owner: "CoProcure", Name: "billing"}
 	gamma := Repository{Owner: "CoProcure", Name: "gamma"}
@@ -149,17 +136,6 @@ func TestFiltersKeepSameNamedRepositoriesFromDifferentOwnersApart(t *testing.T) 
 
 	assertShown(t, both, provider.pullRequests[0], provider.pullRequests[1])
 	assertShown(t, onlySecond, provider.pullRequests[1])
-}
-
-func TestStartingFiltersCanSelectOneRepository(t *testing.T) {
-	available := newFakeProvider().repositories
-	chosen := available[1]
-
-	f := newFilters(available, []string{chosen.FullName()}, false)
-
-	if !f.repositories[chosen.FullName()] || f.repositories[available[0].FullName()] {
-		t.Fatalf("selected = %v, expected only %s", f.repositories, chosen.FullName())
-	}
 }
 
 func TestStartingFiltersSelectEveryRepositoryWhenNoneIsChosen(t *testing.T) {

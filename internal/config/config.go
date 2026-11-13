@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -18,13 +19,13 @@ import (
 )
 
 const (
-	DefaultRefreshInterval = 3 * time.Minute
-	DefaultEditorName      = "VS Code"
+	defaultRefreshInterval = 3 * time.Minute
+	defaultEditorName      = "VS Code"
 )
 
 var (
-	DefaultEditorCommand = []string{"code"}
-	KnownPlugins         = []string{"pull_requests"}
+	defaultEditorCommand = []string{"code"}
+	knownPlugins         = []string{"pull_requests"}
 )
 
 type Editor struct {
@@ -35,7 +36,6 @@ type Editor struct {
 
 // File is the validated form of the configuration file, with defaults applied.
 type File struct {
-	Path            string
 	Plugins         []string
 	RefreshInterval time.Duration
 	Editor          Editor
@@ -52,17 +52,6 @@ type rawFile struct {
 		// Command is a string or a list of strings, so it is checked by editorCommandFrom.
 		Command any `toml:"command"`
 	} `toml:"editor"`
-}
-
-// SectionError is a problem inside one section. Its message already names the file.
-type SectionError struct {
-	Path    string
-	Section string
-	Message string
-}
-
-func (problem *SectionError) Error() string {
-	return fmt.Sprintf("%s: [%s] %s", problem.Path, problem.Section, problem.Message)
 }
 
 // ResolvePath picks the configuration file: the --config flag, then $PRS_CONFIG, then the
@@ -139,23 +128,25 @@ func Load(path string) (*File, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
-	file.Path = path
 	file.sections = sections
 	return file, nil
 }
 
-// SectionNames lists the tables in the file other than [editor], in alphabetical order.
-func (file *File) SectionNames() []string {
-	names := make([]string, 0, len(file.sections))
-	for name := range file.sections {
-		names = append(names, name)
+// RejectUnknownSections fails on any table that is neither [editor] nor one of the known
+// sections, which are the tables that the caller's packages read. The error does not name
+// the file; the caller does, once, for every error it reports.
+func (file *File) RejectUnknownSections(known ...string) error {
+	for _, name := range slices.Sorted(maps.Keys(file.sections)) {
+		if !slices.Contains(known, name) {
+			return fmt.Errorf("unknown section [%s]; known sections: editor, %s", name, strings.Join(known, ", "))
+		}
 	}
-	slices.Sort(names)
-	return names
+	return nil
 }
 
 // Section decodes the named table into target, rejecting any key the target does not
 // declare. A table that is not in the file decodes as empty, leaving target untouched.
+// Errors do not name the file.
 func (file *File) Section(name string, target any) error {
 	table, present := file.sections[name]
 	if !present {
@@ -165,28 +156,16 @@ func (file *File) Section(name string, target any) error {
 	// say which keys of this section the target left unread.
 	var encoded bytes.Buffer
 	if err := toml.NewEncoder(&encoded).Encode(table); err != nil {
-		return &SectionError{Path: file.Path, Section: name, Message: err.Error()}
+		return fmt.Errorf("[%s] %w", name, err)
 	}
 	metadata, err := toml.Decode(encoded.String(), target)
 	if err != nil {
-		return &SectionError{Path: file.Path, Section: name, Message: err.Error()}
+		return fmt.Errorf("[%s] %w", name, err)
 	}
 	if undecoded := metadata.Undecoded(); len(undecoded) > 0 {
-		return &SectionError{
-			Path: file.Path, Section: name,
-			Message: fmt.Sprintf("unknown key %q; check its spelling", undecoded[0].String()),
-		}
+		return fmt.Errorf("[%s] unknown key %q; check its spelling", name, undecoded[0].String())
 	}
 	return nil
-}
-
-// Annotate names the file in an error that does not already name it.
-func (file *File) Annotate(err error) error {
-	var sectionError *SectionError
-	if errors.As(err, &sectionError) {
-		return err
-	}
-	return fmt.Errorf("%s: %w", file.Path, err)
 }
 
 // editorCommandFrom accepts one executable as a string, or an executable followed by its
@@ -195,7 +174,7 @@ func editorCommandFrom(value any) ([]string, error) {
 	var command []string
 	switch typed := value.(type) {
 	case nil:
-		return DefaultEditorCommand, nil
+		return defaultEditorCommand, nil
 	case string:
 		command = []string{typed}
 	case []any:
@@ -222,19 +201,19 @@ func validate(raw rawFile) (*File, error) {
 	}
 	result := &File{
 		Plugins:         raw.Plugins,
-		RefreshInterval: DefaultRefreshInterval,
+		RefreshInterval: defaultRefreshInterval,
 		Editor: Editor{
-			Name:    cmp.Or(raw.Editor.Name, DefaultEditorName),
+			Name:    cmp.Or(raw.Editor.Name, defaultEditorName),
 			Command: editorCommand,
 		},
 	}
 	if raw.Plugins == nil {
-		result.Plugins = KnownPlugins
+		result.Plugins = knownPlugins
 	}
 	for _, plugin := range result.Plugins {
-		if !slices.Contains(KnownPlugins, plugin) {
+		if !slices.Contains(knownPlugins, plugin) {
 			return nil, fmt.Errorf(
-				"plugins contains unknown plugin %q; known plugins: %s", plugin, strings.Join(KnownPlugins, ", "),
+				"plugins contains unknown plugin %q; known plugins: %s", plugin, strings.Join(knownPlugins, ", "),
 			)
 		}
 	}
@@ -251,9 +230,9 @@ func validate(raw rawFile) (*File, error) {
 	return result, nil
 }
 
-// StarterConfiguration is the commented file that --init writes. It shows every section, so
+// starterConfiguration is the commented file that --init writes. It shows every section, so
 // it is the one place that has to change when a section gains a key.
-const StarterConfiguration = `# Configuration for prs, a board of open pull requests.
+const starterConfiguration = `# Configuration for prs, a board of open pull requests.
 
 # Which parts of the board to show. Only "pull_requests" exists today.
 plugins = ["pull_requests"]
@@ -299,6 +278,6 @@ func WriteStarter(path string) error {
 	if err != nil {
 		return err
 	}
-	_, err = file.WriteString(StarterConfiguration)
+	_, err = file.WriteString(starterConfiguration)
 	return cmp.Or(err, file.Close())
 }

@@ -219,20 +219,29 @@ func TestCIStatesSurviveARefresh(t *testing.T) {
 	}
 }
 
+// expectedLines is how the board writes the line count that the fake provider has for its
+// first pull request.
+func expectedLines(provider *fakeProvider) string {
+	count := provider.lineCounts[provider.pullRequest(1).URL]
+	return fmt.Sprintf("+%d −%d", count.Additions, count.Deletions)
+}
+
 func TestLineCountsSurviveARefresh(t *testing.T) {
-	m := loadedBoard(t)
+	provider := newFakeProvider()
+	m := loadedBoardWith(t, provider)
 
 	next, _ := m.Update(m.load()())
 
-	if lines := linesColumn(next.(Model), 0); lines != "+12 −3" {
+	if lines := linesColumn(next.(Model), 0); lines != expectedLines(provider) {
 		t.Fatalf("lines column = %q right after a refresh", lines)
 	}
 }
 
 func TestLinesColumnShowsAdditionsAndDeletions(t *testing.T) {
-	m := loadedBoard(t)
+	provider := newFakeProvider()
+	m := loadedBoardWith(t, provider)
 
-	if lines := linesColumn(m, 0); lines != "+12 −3" {
+	if lines := linesColumn(m, 0); lines != expectedLines(provider) {
 		t.Fatalf("lines column = %q", lines)
 	}
 }

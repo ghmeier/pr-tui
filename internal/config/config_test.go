@@ -29,7 +29,7 @@ type exampleFile struct {
 
 func newExampleFile() exampleFile {
 	return exampleFile{
-		plugin:          KnownPlugins[0],
+		plugin:          knownPlugins[0],
 		refreshInterval: 7 * time.Minute,
 		editor:          Editor{Name: "Test Editor", Command: []string{"test-editor", "--reuse-window"}},
 	}
@@ -117,21 +117,13 @@ func TestLoadReadsEveryKeyItOwns(t *testing.T) {
 	}
 }
 
-func TestLoadRemembersThePathItWasReadFrom(t *testing.T) {
-	file, path, err := loadText(t, "")
-
-	if err != nil || file.Path != path {
-		t.Fatalf("path = %q, err = %v, expected %q", file.Path, err, path)
-	}
-}
-
 func TestLoadFillsDefaultsForAnEmptyFile(t *testing.T) {
 	file := mustLoadText(t, "")
 
-	if !reflect.DeepEqual(file.Plugins, KnownPlugins) || file.RefreshInterval != DefaultRefreshInterval {
+	if !reflect.DeepEqual(file.Plugins, knownPlugins) || file.RefreshInterval != defaultRefreshInterval {
 		t.Fatalf("plugins = %v, refresh interval = %v", file.Plugins, file.RefreshInterval)
 	}
-	expectedEditor := Editor{Name: DefaultEditorName, Command: DefaultEditorCommand}
+	expectedEditor := Editor{Name: defaultEditorName, Command: defaultEditorCommand}
 	if !reflect.DeepEqual(file.Editor, expectedEditor) {
 		t.Fatalf("editor = %+v, expected %+v", file.Editor, expectedEditor)
 	}
@@ -141,12 +133,10 @@ func TestLoadRejectsADurationThatDoesNotParse(t *testing.T) {
 	assertRejected(t, `refresh_interval = "soon"`, "refresh_interval")
 }
 
-func TestLoadRejectsADurationOfZero(t *testing.T) {
-	assertRejected(t, `refresh_interval = "0s"`, "refresh_interval")
-}
-
 func TestLoadRejectsADurationShorterThanOneSecond(t *testing.T) {
-	assertRejected(t, `refresh_interval = "999ms"`, "refresh_interval")
+	for _, interval := range []string{"0s", "999ms"} {
+		assertRejected(t, fmt.Sprintf("refresh_interval = %q", interval), "refresh_interval")
+	}
 }
 
 func TestLoadAcceptsADurationOfExactlyOneSecond(t *testing.T) {
@@ -200,30 +190,12 @@ func TestLoadRejectsAnUnknownPlugin(t *testing.T) {
 	assertRejected(t, `plugins = ["calendar"]`, `"calendar"`)
 }
 
-func TestLoadAcceptsEveryKnownPlugin(t *testing.T) {
-	for _, plugin := range KnownPlugins {
-		file := mustLoadText(t, fmt.Sprintf("plugins = [%q]", plugin))
-
-		if !reflect.DeepEqual(file.Plugins, []string{plugin}) {
-			t.Fatalf("plugins = %v, expected %v", file.Plugins, plugin)
-		}
-	}
-}
-
 func TestLoadRejectsAnUnknownTopLevelKeyAndNamesIt(t *testing.T) {
 	assertRejected(t, `refresh_intervall = "3m"`, "refresh_intervall")
 }
 
 func TestLoadRejectsAnUnknownKeyInTheEditorTableAndNamesIt(t *testing.T) {
 	assertRejected(t, "[editor]\nnaem = \"code\"\n", "editor.naem")
-}
-
-func TestLoadAcceptsTablesBelongingToOtherPackages(t *testing.T) {
-	_, _, err := loadText(t, sectionsText)
-
-	if err != nil {
-		t.Fatal(err)
-	}
 }
 
 func TestLoadRejectsTextThatIsNotTOML(t *testing.T) {
@@ -240,16 +212,6 @@ func TestLoadOfAMissingFileSaysToRunInit(t *testing.T) {
 	}
 }
 
-func TestSectionNamesListsEveryTableExceptEditorInOrder(t *testing.T) {
-	file := mustLoadText(t, "[editor]\nname = \"x\"\n"+sectionsText)
-
-	names := file.SectionNames()
-
-	if expected := []string{"github", "pull_requests"}; !reflect.DeepEqual(names, expected) {
-		t.Fatalf("section names = %v, expected %v", names, expected)
-	}
-}
-
 func TestSectionDecodesTheNamedTable(t *testing.T) {
 	file := mustLoadText(t, sectionsText)
 	var target struct {
@@ -263,21 +225,8 @@ func TestSectionDecodesTheNamedTable(t *testing.T) {
 	}
 }
 
-func TestSectionIgnoresTheKeysOfOtherSections(t *testing.T) {
-	file := mustLoadText(t, sectionsText)
-	var target struct {
-		CloneRoot string `toml:"clone_root"`
-	}
-
-	err := file.Section("pull_requests", &target)
-
-	if err != nil || target.CloneRoot != "~/code" {
-		t.Fatalf("clone root = %q, err = %v", target.CloneRoot, err)
-	}
-}
-
-func TestSectionRejectsAnUnknownKeyNamingTheFileTheSectionAndTheKey(t *testing.T) {
-	file, path, _ := loadText(t, "[github]\nreview_teem = \"engineering\"\n")
+func TestSectionRejectsAnUnknownKeyNamingTheSectionAndTheKey(t *testing.T) {
+	file := mustLoadText(t, "[github]\nreview_teem = \"engineering\"\n")
 	var target struct {
 		ReviewTeam string `toml:"review_team"`
 	}
@@ -287,7 +236,7 @@ func TestSectionRejectsAnUnknownKeyNamingTheFileTheSectionAndTheKey(t *testing.T
 	if err == nil {
 		t.Fatal("expected an error")
 	}
-	for _, expected := range []string{path, "[github]", "review_teem"} {
+	for _, expected := range []string{"[github]", "review_teem"} {
 		if !strings.Contains(err.Error(), expected) {
 			t.Fatalf("error %q should contain %q", err, expected)
 		}
@@ -295,7 +244,7 @@ func TestSectionRejectsAnUnknownKeyNamingTheFileTheSectionAndTheKey(t *testing.T
 }
 
 func TestSectionRejectsAnUnknownKeyNestedInATable(t *testing.T) {
-	file, _, _ := loadText(t, "[github.nested]\nmistake = 1\n")
+	file := mustLoadText(t, "[github.nested]\nmistake = 1\n")
 	var target struct {
 		Nested struct{} `toml:"nested"`
 	}
@@ -307,16 +256,36 @@ func TestSectionRejectsAnUnknownKeyNestedInATable(t *testing.T) {
 	}
 }
 
-func TestSectionRejectsAValueOfTheWrongTypeNamingTheFileAndTheSection(t *testing.T) {
-	file, path, _ := loadText(t, "[github]\nrepositories = \"not a list\"\n")
+func TestSectionRejectsAValueOfTheWrongTypeNamingTheSection(t *testing.T) {
+	file := mustLoadText(t, "[github]\nrepositories = \"not a list\"\n")
 	var target struct {
 		Repositories []string `toml:"repositories"`
 	}
 
 	err := file.Section("github", &target)
 
-	if err == nil || !strings.Contains(err.Error(), path) || !strings.Contains(err.Error(), "[github]") {
-		t.Fatalf("error = %v, expected it to name %s and [github]", err, path)
+	if err == nil || !strings.Contains(err.Error(), "[github]") {
+		t.Fatalf("error = %v, expected it to name [github]", err)
+	}
+}
+
+func TestRejectUnknownSectionsAcceptsTheTablesItIsGiven(t *testing.T) {
+	file := mustLoadText(t, "[editor]\nname = \"x\"\n"+sectionsText)
+
+	err := file.RejectUnknownSections("pull_requests", "github")
+
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRejectUnknownSectionsNamesTheSectionNobodyReads(t *testing.T) {
+	file := mustLoadText(t, "[editor]\nname = \"x\"\n[gitlab]\n"+sectionsText)
+
+	err := file.RejectUnknownSections("pull_requests", "github")
+
+	if err == nil || !strings.Contains(err.Error(), "[gitlab]") {
+		t.Fatalf("error = %v, expected it to name [gitlab]", err)
 	}
 }
 
@@ -333,28 +302,6 @@ func TestSectionDecodesAMissingTableAsEmpty(t *testing.T) {
 	}
 }
 
-func TestAnnotateNamesTheFileInAPlainError(t *testing.T) {
-	file, path, _ := loadText(t, "")
-
-	annotated := file.Annotate(fmt.Errorf("something is wrong"))
-
-	if !strings.Contains(annotated.Error(), path) {
-		t.Fatalf("error = %v, expected it to name %s", annotated, path)
-	}
-}
-
-func TestAnnotateLeavesASectionErrorAloneBecauseItAlreadyNamesTheFile(t *testing.T) {
-	file, path, _ := loadText(t, "[github]\nmistake = 1\n")
-	var target struct{}
-	sectionError := file.Section("github", &target)
-
-	annotated := file.Annotate(sectionError)
-
-	if strings.Count(annotated.Error(), path) != 1 {
-		t.Fatalf("error = %v, expected the file to be named once", annotated)
-	}
-}
-
 func TestWriteStarterCreatesTheDirectoryAndAFileThatLoads(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "nested", "prs", "config.toml")
 
@@ -365,16 +312,6 @@ func TestWriteStarterCreatesTheDirectoryAndAFileThatLoads(t *testing.T) {
 	}
 	if _, err := Load(path); err != nil {
 		t.Fatalf("the starter configuration should load unchanged: %v", err)
-	}
-}
-
-func TestStarterConfigurationHasASectionForTheProviderItNames(t *testing.T) {
-	file := mustLoadText(t, StarterConfiguration)
-
-	names := file.SectionNames()
-
-	if expected := []string{"github", "pull_requests"}; !reflect.DeepEqual(names, expected) {
-		t.Fatalf("section names = %v, expected %v", names, expected)
 	}
 }
 

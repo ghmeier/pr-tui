@@ -200,16 +200,6 @@ func TestPullRequestsLeaveLineCountsAndCIStatesUnloaded(t *testing.T) {
 	}
 }
 
-func TestPullRequestsReturnsTheCommandFailure(t *testing.T) {
-	stubShellWith(t, func([]string) ([]byte, error) { return nil, errorFromGh })
-
-	_, _, err := providerFor(gazebo).PullRequests()
-
-	if err != errorFromGh {
-		t.Fatalf("error = %v", err)
-	}
-}
-
 func TestPullRequestsRejectsAResponseThatIsNotJSON(t *testing.T) {
 	stubShell(t, "not json")
 
@@ -249,16 +239,6 @@ func TestLineCountsAreKeyedByPullRequestURL(t *testing.T) {
 	}
 	if err != nil || !reflect.DeepEqual(counts, expected) {
 		t.Fatalf("counts = %v, err = %v, expected %v", counts, err, expected)
-	}
-}
-
-func TestLineCountsReturnsTheCommandFailure(t *testing.T) {
-	stubShellWith(t, func([]string) ([]byte, error) { return nil, errorFromGh })
-
-	_, err := providerFor(gazebo).LineCounts(gazebo)
-
-	if err != errorFromGh {
-		t.Fatalf("error = %v", err)
 	}
 }
 

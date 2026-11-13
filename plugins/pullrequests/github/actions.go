@@ -2,7 +2,6 @@ package github
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -155,7 +154,6 @@ func (github *provider) SetAutoMerge(pr pullrequests.PullRequest, enabled bool) 
 }
 
 func (github *provider) RequestTeamReview(pr pullrequests.PullRequest) error {
-	endpoint := fmt.Sprintf("repos/%s/pulls/%d/requested_reviewers", pr.Repository.FullName(), pr.Number)
-	_, err := shell.Run("gh", "api", "--method", "POST", endpoint, "-f", "team_reviewers[]="+github.reviewTeam)
+	_, err := shell.Run("gh", "api", "--method", "POST", apiEndpoint(pr)+"/requested_reviewers", "-f", "team_reviewers[]="+github.reviewTeam)
 	return err
 }

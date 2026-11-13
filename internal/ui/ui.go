@@ -27,8 +27,6 @@ var (
 	RedStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
 	YellowStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
 	CyanStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
-	YouStyle      = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("3"))
-	TeamStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("5"))
 	KeyStyle      = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("3"))
 	SelectedStyle = lipgloss.NewStyle().Reverse(true)
 	CursorMarker  = KeyStyle.Render("▌")

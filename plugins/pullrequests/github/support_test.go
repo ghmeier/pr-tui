@@ -3,14 +3,12 @@ package github
 import (
 	"errors"
 	"os"
-	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/ghmeier/pr-tui/internal/config"
 	"github.com/ghmeier/pr-tui/internal/shell"
 	"github.com/ghmeier/pr-tui/plugins/pullrequests"
 )
@@ -90,19 +88,6 @@ func fixturePullRequest(repository pullrequests.Repository) pullrequests.PullReq
 		Repository: repository, Number: 7, URL: "https://example.test/" + repository.Name + "/7",
 		HeadCommit: "head-commit", UpdatedAt: time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC),
 	}
-}
-
-func loadConfigurationText(t *testing.T, text string) *config.File {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "config.toml")
-	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	file, err := config.Load(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return file
 }
 
 func containsAll(text string, parts ...string) bool {

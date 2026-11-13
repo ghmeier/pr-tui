@@ -5,8 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"slices"
-	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -24,15 +22,25 @@ func fail(err error) {
 	os.Exit(1)
 }
 
-func rejectUnknownSections(file *config.File) error {
-	for _, name := range file.SectionNames() {
-		if !slices.Contains(knownSections, name) {
-			return fmt.Errorf(
-				"%s: unknown section [%s]; known sections: editor, %s", file.Path, name, strings.Join(knownSections, ", "),
-			)
-		}
+// buildBoard loads the configuration file and builds the board from it. This is the one place
+// that names the file in an error, so every message names it exactly once.
+func buildBoard(path string, start pullrequests.StartOptions) (pullrequests.Model, error) {
+	file, err := config.Load(path)
+	if err != nil {
+		return pullrequests.Model{}, err
 	}
-	return nil
+	if err := file.RejectUnknownSections(knownSections...); err != nil {
+		return pullrequests.Model{}, fmt.Errorf("%s: %w", path, err)
+	}
+	settings, err := pullrequests.LoadSettings(file)
+	if err != nil {
+		return pullrequests.Model{}, fmt.Errorf("%s: %w", path, err)
+	}
+	provider, err := pullrequests.NewProvider(settings.ProviderName, file.Section)
+	if err != nil {
+		return pullrequests.Model{}, fmt.Errorf("%s: %w", path, err)
+	}
+	return pullrequests.NewModel(settings, provider, start)
 }
 
 func main() {
@@ -58,22 +66,7 @@ func main() {
 		fmt.Println("Wrote", path)
 		return
 	}
-	file, err := config.Load(path)
-	if err != nil {
-		fail(err)
-	}
-	if err := rejectUnknownSections(file); err != nil {
-		fail(err)
-	}
-	settings, err := pullrequests.LoadSettings(file)
-	if err != nil {
-		fail(file.Annotate(err))
-	}
-	provider, err := pullrequests.NewProvider(settings.ProviderName, file.Section)
-	if err != nil {
-		fail(file.Annotate(err))
-	}
-	board, err := pullrequests.NewModel(settings, provider, start)
+	board, err := buildBoard(path, start)
 	if err != nil {
 		fail(err)
 	}

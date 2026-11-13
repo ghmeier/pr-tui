@@ -18,6 +18,11 @@ const (
 	minimumTitle = 20
 )
 
+var (
+	viewerStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("3"))
+	reviewTeamStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("5"))
+)
+
 var columnHeaders = []string{"Repo", "#", "Title", "Author", "Lines", "State", "Review requested", "Updated"}
 
 // awaitsReviewFrom reports whether someone else's pull request has a review requested from
@@ -71,10 +76,10 @@ func (pr PullRequest) stateMarks(viewer, reviewTeam string) string {
 func (pr PullRequest) reviewSegments(viewer, reviewTeam string) []ui.Segment {
 	var reviewers []ui.Segment
 	if slices.Contains(pr.RequestedUsers, viewer) {
-		reviewers = append(reviewers, ui.Segment{Text: "you", Style: ui.YouStyle})
+		reviewers = append(reviewers, ui.Segment{Text: "you", Style: viewerStyle})
 	}
 	if pr.requestsTeam(reviewTeam) {
-		reviewers = append(reviewers, ui.Segment{Text: reviewTeam, Style: ui.TeamStyle})
+		reviewers = append(reviewers, ui.Segment{Text: reviewTeam, Style: reviewTeamStyle})
 	}
 	for _, login := range pr.RequestedUsers {
 		if login != viewer {

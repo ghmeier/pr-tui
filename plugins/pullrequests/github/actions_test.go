@@ -35,16 +35,6 @@ func TestDiffReturnsTheTextOfGhPrDiff(t *testing.T) {
 	stub.assertCommands(t, []string{"gh", "pr", "diff", pr.URL})
 }
 
-func TestDiffReturnsTheCommandFailure(t *testing.T) {
-	stubShellWith(t, func([]string) ([]byte, error) { return nil, errorFromGh })
-
-	_, err := providerFor(gazebo).Diff(fixturePullRequest(gazebo))
-
-	if err != errorFromGh {
-		t.Fatalf("error = %v", err)
-	}
-}
-
 func TestChangedFilesListsOnlyFilesThatStillExistOnTheBranch(t *testing.T) {
 	pr := fixturePullRequest(partners)
 	stub := stubShell(t, cannedChangedFiles)
@@ -80,16 +70,6 @@ func TestSaveDescriptionPatchesTheBodyThroughAJSONFileOnTheOwnersRepository(t *t
 	}
 	stub.assertCommands(t, []string{"gh", "api", "--method", "PATCH", "repos/" + partners.FullName() + "/pulls/7"})
 	stub.assertInputs(t, `{"body":"Edited \"description\""}`)
-}
-
-func TestSaveDescriptionReturnsTheCommandFailure(t *testing.T) {
-	stubShellWith(t, func([]string) ([]byte, error) { return nil, errorFromGh })
-
-	err := providerFor(gazebo).SaveDescription(fixturePullRequest(gazebo), "body")
-
-	if err != errorFromGh {
-		t.Fatalf("error = %v", err)
-	}
 }
 
 func TestCommentsReadAuthorSideAndThreading(t *testing.T) {
@@ -176,16 +156,6 @@ func TestSetDraftTrueConvertsThePullRequestBackToDraft(t *testing.T) {
 	stub.assertCommands(t, []string{"gh", "pr", "ready", pr.URL, "--undo"})
 }
 
-func TestSetDraftReturnsTheCommandFailure(t *testing.T) {
-	stubShellWith(t, func([]string) ([]byte, error) { return nil, errorFromGh })
-
-	err := providerFor(gazebo).SetDraft(fixturePullRequest(gazebo), false)
-
-	if err != errorFromGh {
-		t.Fatalf("error = %v", err)
-	}
-}
-
 func TestSetAutoMergeEnablesSquashAutoMerge(t *testing.T) {
 	pr := fixturePullRequest(gazebo)
 	stub := stubShell(t, "")
@@ -223,4 +193,30 @@ func TestRequestTeamReviewGoesToTheOwnerOfThePullRequest(t *testing.T) {
 		"gh", "api", "--method", "POST", "repos/" + partners.FullName() + "/pulls/7/requested_reviewers",
 		"-f", "team_reviewers[]=" + reviewTeamName,
 	})
+}
+
+func TestEveryMethodReturnsTheFailureOfTheCommandItRan(t *testing.T) {
+	pr := fixturePullRequest(gazebo)
+	target := pullrequests.CommentTarget{Path: "first.py", Line: 2}
+	methods := map[string]func(*provider) error{
+		"PullRequests":      func(p *provider) error { _, _, err := p.PullRequests(); return err },
+		"LineCounts":        func(p *provider) error { _, err := p.LineCounts(gazebo); return err },
+		"CIStates":          func(p *provider) error { _, err := p.CIStates(gazebo); return err },
+		"Diff":              func(p *provider) error { _, err := p.Diff(pr); return err },
+		"ChangedFiles":      func(p *provider) error { _, err := p.ChangedFiles(pr); return err },
+		"Description":       func(p *provider) error { _, err := p.Description(pr); return err },
+		"SaveDescription":   func(p *provider) error { return p.SaveDescription(pr, "body") },
+		"Comments":          func(p *provider) error { _, err := p.Comments(pr); return err },
+		"PostComment":       func(p *provider) error { return p.PostComment(pr, target, "body") },
+		"SetDraft":          func(p *provider) error { return p.SetDraft(pr, false) },
+		"SetAutoMerge":      func(p *provider) error { return p.SetAutoMerge(pr, true) },
+		"RequestTeamReview": func(p *provider) error { return p.RequestTeamReview(pr) },
+	}
+	stubShellWith(t, func([]string) ([]byte, error) { return nil, errorFromGh })
+
+	for name, call := range methods {
+		if err := call(providerFor(gazebo)); err != errorFromGh {
+			t.Errorf("%s returned %v, expected the command failure", name, err)
+		}
+	}
 }
