@@ -17,6 +17,7 @@ make install                       # builds to ~/.local/bin/prs
 go vet ./... && gofmt -l .         # both must be clean before a commit
 go test ./internal/plugin/ -run TestName   # one package or one test while iterating
 go run . --config <file> --once    # print every board and exit; read-only
+git tag v0.2.0 && git push origin v0.2.0   # release: builds binaries and updates the Homebrew tap
 ```
 
 Never run a bare `go build ./...` or `go build .` in the repository: it writes a `pr-tui`

@@ -563,11 +563,9 @@ func TestTicketKeyOnAPullRequestOpensTheMatchedTicketsAddress(t *testing.T) {
 path of a source file is not found in that file. After you change a plugin file, copy the
 changed code into the guide.
 
-Each test states one invariant and is named by subject and expected behavior. Arrange, act, and
-assert are separated by blank lines, a positive case is paired with a negative one, and
-assertions use the fixture's own values rather than retyped literals. The same file covers the
-column for a matched and an unmatched pull request, the second tab, the filter, and the plugin
-starting with `pull_requests` disabled.
+The same file covers the column for a matched and an unmatched pull request, the second
+tab, the filter, and the plugin starting with `pull_requests` disabled. `CLAUDE.md` lists the
+conventions tests follow.
 
 ## Checklist before opening a pull request
 

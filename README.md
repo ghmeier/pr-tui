@@ -1,8 +1,9 @@
-# pr-tui
+# prs
 
-A terminal board of open GitHub pull requests across the repositories you configure. It shows
-each pull request's draft or review state, CI status, lines changed, and requested
-reviewers, and lets you act on them without leaving the terminal.
+A terminal board for the work you are waiting on, built from plugins. The first board lists
+open pull requests across the repositories you configure. It shows each one's review state,
+CI status, lines changed, and requested reviewers, and lets you read diffs, comment, and act
+on them without leaving the terminal.
 
 ## Install
 
@@ -14,38 +15,12 @@ prs --init           # writes a starter configuration file to edit
 ```
 
 This also installs [`gh`](https://cli.github.com), which the GitHub provider uses. Sign in
-once with `gh auth login`. `brew upgrade --cask prs` gets a newer version, and
-`prs --version` says which one is installed.
+once with `gh auth login`. The `v` key also needs [worktrunk](https://worktrunk.dev) (`wt`);
+everything else works without it.
 
 Without Homebrew, download the archive for your machine from the
 [releases page](https://github.com/ghmeier/pr-tui/releases), put `prs` on your `PATH`, and
 install `gh` yourself.
-
-The `v` key also needs [worktrunk](https://worktrunk.dev) (`wt`). Everything else works
-without it.
-
-### From source
-
-Writing a plugin means building from source, which requires Go.
-
-```
-make install   # builds to ~/.local/bin/prs
-make test
-```
-
-### Releasing
-
-Pushing a version tag builds the binaries, publishes a GitHub release, and updates the
-Homebrew tap:
-
-```
-git tag v0.1.0
-git push origin v0.1.0
-```
-
-The release workflow needs a repository secret named `HOMEBREW_TAP_TOKEN`: a fine-grained
-personal access token with read and write access to the contents of
-`ghmeier/homebrew-tap`.
 
 ## Configuration
 
@@ -73,21 +48,22 @@ review_team = "engineering"        # optional
 ```
 
 The repositories and the review team belong to the provider, so they live in the table named
-after it. Older files that put `repositories` and `review_team` under `[pull_requests]` must
-move them to `[github]`.
+after it. Without `review_team`, the `e` key is disabled and no team is highlighted or counted
+as waiting on you.
 
-Without `review_team`, the `e` key is disabled and no team is highlighted or counted as
-waiting on you. Mistakes in the file, such as a repository not written as `owner/name` or an
-unknown key, are reported with the file, the table, and the key at startup.
+A mistake in the file, such as an unknown key or a repository not written as `owner/name`,
+is reported at startup with the file, the table, and the key.
 
 ## Use
 
 ```
 prs                    # interactive board
-prs --once             # print the table and exit
+prs --once             # print every board and exit
 prs --bots             # start on bot-authored pull requests
 prs --repo storefront  # start with only this repository selected, as a name or owner/name (repeatable)
 prs --config <path>    # use a configuration file at this path
+prs --init             # write a starter configuration file
+prs --version          # print the version
 ```
 
 The State column uses these marks:
@@ -113,7 +89,7 @@ Board keys:
 | `d` | Toggle draft / ready for review |
 | `e` | Request review from the configured team, marking a draft ready for review first |
 | `m` | Enable or disable auto-merge (squash), after a confirmation |
-| `f` | Open the filter menu: `up`/`down` (or `k`/`j`) move over the repositories and `space` toggles the one under the cursor; `1` to `9` toggle the first nine directly; `b` switches between people and bots |
+| `f` | Filter by repository and by people or bots: `j`/`k` move, `space` toggles, `1` to `9` toggle the first nine options, `b` switches people and bots |
 | `tab` / `shift+tab` | Switch boards, when plugins add more than one |
 | `r` | Refresh (also on the configured interval, every 3 minutes by default) |
 | `q` | Quit |
@@ -129,32 +105,34 @@ Diff view keys:
 | `tab` | Choose the old or new side of a split row for the comment |
 | `esc` | Back |
 
-## Code layout
-
-`main.go` reads the flags and the configuration, builds a host from the plugins the file enables,
-and runs it. The rest is split by what it knows about:
-
-- `internal/config` reads the file. It owns the top-level keys and `[editor]`; every other
-  table is a section that a plugin decodes for itself with `Host.Section`, which rejects
-  unknown keys.
-- `internal/ui` has the styles and text helpers that know nothing about boards.
-- `internal/shell` runs external commands. Tests replace `shell.Run`.
-- `internal/plugin` is the host. A plugin registers itself from `init`, and during setup
-  registers contributions with the host: boards, and columns and actions that may be added to a
-  board another plugin owns. The host owns everything generic about a board: the table, cursor,
-  filter menu, refresh, status line, confirmation, tabs, and the stack of full-screen views.
-  `internal/plugin/plugintest` drives a host's model in tests.
-- `plugins/pullrequests` is the plugin for the board of open pull requests, with the pull
-  request types and the `Provider` interface. It has no forge-specific code.
-- `plugins/pullrequests/github` is the GitHub provider, and the only package that runs `gh`.
-- `plugins/tickets` is an example plugin with made-up tickets. It ships disabled; list
-  `tickets` in `plugins` to see it. It is the plugin that the guide in `docs` builds.
-- `docs` has the guide to writing a plugin.
-
 ## Extending
 
 A plugin is a Go package, compiled in, that registers boards and may add columns and keys to
 another plugin's board. It runs only when its name is in the `plugins` list. A provider is a
 data source behind a plugin: the pull request plugin reads pull requests through a
-`Provider` interface, and the GitHub provider is one implementation of it. To write either,
-read [docs/writing-a-plugin.md](docs/writing-a-plugin.md).
+`Provider` interface, and GitHub is one implementation of it.
+
+[docs/writing-a-plugin.md](docs/writing-a-plugin.md) builds a small plugin step by step and
+covers writing a provider. Its example, `plugins/tickets`, ships disabled; add `"tickets"`
+to `plugins` to see it. `CLAUDE.md` describes the package layout and the conventions.
+
+## Development
+
+Requires Go.
+
+```
+make install   # builds to ~/.local/bin/prs
+make test
+```
+
+To release, push a version tag. The release workflow builds the binaries, publishes a
+GitHub release, and updates the Homebrew tap:
+
+```
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+The workflow needs a repository secret on this repository named `HOMEBREW_TAP_TOKEN`: a
+fine-grained personal access token with read and write access to the contents of
+`ghmeier/homebrew-tap`.
