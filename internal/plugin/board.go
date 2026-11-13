@@ -7,8 +7,8 @@ import (
 	"github.com/ghmeier/pr-tui/internal/ui"
 )
 
-// board is a registered board and everything the host keeps about it while it is shown.
-type board struct {
+// boardState is a registered board and everything the host keeps about it while it is shown.
+type boardState struct {
 	spec    Board
 	rows    []Row
 	visible []Row
@@ -22,35 +22,35 @@ type board struct {
 	notice     string
 }
 
-func (b *board) selected() (Row, bool) {
-	if b.cursor < 0 || b.cursor >= len(b.visible) {
+func (board *boardState) selected() (Row, bool) {
+	if board.cursor < 0 || board.cursor >= len(board.visible) {
 		return nil, false
 	}
-	return b.visible[b.cursor], true
+	return board.visible[board.cursor], true
 }
 
 // applyFilters recomputes the visible rows and keeps the cursor on the same row.
-func (b *board) applyFilters() {
-	selected, hadSelection := b.selected()
-	b.visible = nil
-	for _, row := range b.rows {
-		if b.matches(row) {
-			b.visible = append(b.visible, row)
+func (board *boardState) applyFilters() {
+	selected, hadSelection := board.selected()
+	board.visible = nil
+	for _, row := range board.rows {
+		if board.matches(row) {
+			board.visible = append(board.visible, row)
 		}
 	}
 	if !hadSelection {
 		return
 	}
-	for index, row := range b.visible {
+	for index, row := range board.visible {
 		if row.Key() == selected.Key() {
-			b.cursor = index
+			board.cursor = index
 			return
 		}
 	}
 }
 
-func (b *board) matches(row Row) bool {
-	for _, state := range b.facets {
+func (board *boardState) matches(row Row) bool {
+	for _, state := range board.facets {
 		if !state.matches(row) {
 			return false
 		}
@@ -58,39 +58,39 @@ func (b *board) matches(row Row) bool {
 	return true
 }
 
-func (b *board) selection() (Selection, bool) {
-	row, hasSelection := b.selected()
+func (board *boardState) selection() (Selection, bool) {
+	row, hasSelection := board.selected()
 	if !hasSelection {
 		return Selection{}, false
 	}
 	return Selection{Row: row, Data: func(header string) any {
-		index := slices.IndexFunc(b.spec.Columns, func(column Column) bool { return column.Header == header })
+		index := slices.IndexFunc(board.spec.Columns, func(column Column) bool { return column.Header == header })
 		if index < 0 {
 			return nil
 		}
-		return b.data[index][row.Key()]
+		return board.data[index][row.Key()]
 	}}, true
 }
 
-func (b *board) cells() [][][]ui.Segment {
-	cells := make([][][]ui.Segment, len(b.visible))
-	for rowIndex, row := range b.visible {
-		cells[rowIndex] = make([][]ui.Segment, len(b.spec.Columns))
-		for columnIndex, column := range b.spec.Columns {
-			cells[rowIndex][columnIndex] = column.Cell(row, b.data[columnIndex][row.Key()])
+func (board *boardState) cells() [][][]ui.Segment {
+	cells := make([][][]ui.Segment, len(board.visible))
+	for rowIndex, row := range board.visible {
+		cells[rowIndex] = make([][]ui.Segment, len(board.spec.Columns))
+		for columnIndex, column := range board.spec.Columns {
+			cells[rowIndex][columnIndex] = column.Cell(row, board.data[columnIndex][row.Key()])
 		}
 	}
 	return cells
 }
 
-func (b *board) table(width, selected, offset, rowCount int) string {
-	headers := make([]string, len(b.spec.Columns))
+func (board *boardState) table(width, selected, offset, rowCount int) string {
+	headers := make([]string, len(board.spec.Columns))
 	flexible := -1
-	for index, column := range b.spec.Columns {
+	for index, column := range board.spec.Columns {
 		headers[index] = column.Header
 		if column.Flexible {
 			flexible = index
 		}
 	}
-	return renderTable(headers, flexible, b.cells(), width, selected, offset, rowCount)
+	return renderTable(headers, flexible, board.cells(), width, selected, offset, rowCount)
 }

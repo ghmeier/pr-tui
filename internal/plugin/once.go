@@ -14,11 +14,11 @@ import (
 func (host *Host) PrintOnce(out io.Writer, width int) error {
 	model := host.Model()
 	model.width = width
-	for index, b := range model.boards {
-		rows, err := b.spec.Load()
+	for index, board := range model.boards {
+		rows, err := board.spec.Load()
 		if err != nil {
 			if len(model.boards) > 1 {
-				return fmt.Errorf("%s: %w", b.spec.Title, err)
+				return fmt.Errorf("%s: %w", board.spec.Title, err)
 			}
 			return err
 		}
@@ -35,10 +35,10 @@ func (host *Host) PrintOnce(out io.Writer, width int) error {
 			if index > 0 {
 				fmt.Fprintln(out)
 			}
-			fmt.Fprintln(out, ui.BoldStyle.Render(b.spec.Title))
+			fmt.Fprintln(out, ui.BoldStyle.Render(board.spec.Title))
 		}
-		fmt.Fprintln(out, facetSummary(b.facets))
-		fmt.Fprintln(out, b.table(width, -1, 0, len(b.visible)))
+		fmt.Fprintln(out, facetSummary(board.facets))
+		fmt.Fprintln(out, board.table(width, -1, 0, len(board.visible)))
 	}
 	return nil
 }

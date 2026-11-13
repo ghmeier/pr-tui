@@ -23,18 +23,18 @@ func (m *Model) tableRows() int {
 }
 
 func (m *Model) statusLine() string {
-	b := m.current()
+	board := m.current()
 	switch {
 	case m.mode == confirmMode:
 		return ui.KeyStyle.Render(m.question) + "  " + ui.HelpLine("y", "yes", "n", "no")
-	case b.notice != "":
-		return b.notice
-	case b.loadedAt.IsZero():
+	case board.notice != "":
+		return board.notice
+	case board.loadedAt.IsZero():
 		return ui.DimStyle.Render("Loading…")
 	}
 	return ui.DimStyle.Render(fmt.Sprintf(
 		"%d of %d %s · updated %s · refreshes every %s",
-		len(b.visible), len(b.rows), b.spec.RowNoun, b.loadedAt.Format("15:04"), intervalText(m.refreshInterval),
+		len(board.visible), len(board.rows), board.spec.RowNoun, board.loadedAt.Format("15:04"), intervalText(m.refreshInterval),
 	))
 }
 
@@ -73,11 +73,11 @@ func (m *Model) help() string {
 
 func (m *Model) tabBar() string {
 	tabs := make([]string, len(m.boards))
-	for index, b := range m.boards {
+	for index, board := range m.boards {
 		if index == m.active {
-			tabs[index] = ui.SelectedStyle.Render(" " + b.spec.Title + " ")
+			tabs[index] = ui.SelectedStyle.Render(" " + board.spec.Title + " ")
 		} else {
-			tabs[index] = ui.DimStyle.Render(" " + b.spec.Title + " ")
+			tabs[index] = ui.DimStyle.Render(" " + board.spec.Title + " ")
 		}
 	}
 	return strings.Join(tabs, " ") + "  " + ui.HelpLine("tab", "next")
@@ -87,17 +87,17 @@ func (m *Model) View() string {
 	if len(m.screens) > 0 {
 		return m.screens[len(m.screens)-1].View(m.width, m.height)
 	}
-	b := m.current()
+	board := m.current()
 	var sections []string
 	if len(m.boards) > 1 {
 		sections = append(sections, ansi.Truncate(m.tabBar(), m.width, "…"))
 	}
-	sections = append(sections, facetSummary(b.facets))
+	sections = append(sections, facetSummary(board.facets))
 	if m.mode == filterMode {
-		sections = append(sections, filterMenu(b.facets, b.menuCursor))
+		sections = append(sections, filterMenu(board.facets, board.menuCursor))
 	}
 	rows := m.tableRows()
-	table := b.table(m.width, b.cursor, b.offset, rows)
+	table := board.table(m.width, board.cursor, board.offset, rows)
 	blankLines := rows + 1 - lipgloss.Height(table)
 	sections = append(sections, table+strings.Repeat("\n", max(blankLines, 0)))
 	sections = append(sections, ansi.Truncate(m.statusLine(), m.width, "…"), ansi.Truncate(m.help(), m.width, "…"))

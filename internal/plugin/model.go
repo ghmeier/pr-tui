@@ -39,7 +39,7 @@ type (
 
 // Model is the root Bubble Tea model: the boards with their tabs, and the screens above them.
 type Model struct {
-	boards          []*board
+	boards          []*boardState
 	active          int
 	screens         []Screen
 	refreshInterval time.Duration
@@ -58,7 +58,7 @@ type Model struct {
 func (host *Host) Model() *Model {
 	model := &Model{refreshInterval: host.file.RefreshInterval, startTimer: startRefreshTimer, width: 120, height: 30}
 	for _, spec := range host.boards {
-		next := &board{spec: spec, data: make([]map[string]any, len(spec.Columns))}
+		next := &boardState{spec: spec, data: make([]map[string]any, len(spec.Columns))}
 		for index := range next.data {
 			next.data[index] = map[string]any{}
 		}
@@ -70,7 +70,7 @@ func (host *Host) Model() *Model {
 	return model
 }
 
-func (m *Model) current() *board {
+func (m *Model) current() *boardState {
 	return m.boards[m.active]
 }
 
@@ -106,13 +106,13 @@ func (m *Model) load(index int) tea.Cmd {
 // fetchCommands starts every column fetch of a board. The rows given to a column are a copy,
 // because the fetches run while the board goes on changing.
 func (m *Model) fetchCommands(index int) []tea.Cmd {
-	b := m.boards[index]
+	board := m.boards[index]
 	var commands []tea.Cmd
-	for columnIndex, column := range b.spec.Columns {
+	for columnIndex, column := range board.spec.Columns {
 		if column.Load == nil {
 			continue
 		}
-		for _, fetch := range column.Load(slices.Clone(b.rows)) {
+		for _, fetch := range column.Load(slices.Clone(board.rows)) {
 			commands = append(commands, func() tea.Msg {
 				values, err := fetch()
 				return columnLoadedMessage{board: index, column: columnIndex, values: values, err: err}
@@ -124,31 +124,31 @@ func (m *Model) fetchCommands(index int) []tea.Cmd {
 
 // finishLoad shows freshly loaded rows and returns the commands that fetch their column data.
 func (m *Model) finishLoad(index int, rows []Row) []tea.Cmd {
-	b := m.boards[index]
-	b.notice = ""
-	b.rows = rows
-	b.loadedAt = time.Now()
+	board := m.boards[index]
+	board.notice = ""
+	board.rows = rows
+	board.loadedAt = time.Now()
 	// Values for rows that are gone would only pile up.
 	keys := map[string]bool{}
 	for _, row := range rows {
 		keys[row.Key()] = true
 	}
-	for _, values := range b.data {
+	for _, values := range board.data {
 		for key := range values {
 			if !keys[key] {
 				delete(values, key)
 			}
 		}
 	}
-	b.applyFilters()
+	board.applyFilters()
 	return m.fetchCommands(index)
 }
 
 func (m *Model) keepCursorVisible() {
-	for _, b := range m.boards {
-		b.cursor = max(0, min(b.cursor, len(b.visible)-1))
-		b.offset = min(b.offset, b.cursor)
-		b.offset = max(b.offset, b.cursor-m.tableRows()+1)
+	for _, board := range m.boards {
+		board.cursor = max(0, min(board.cursor, len(board.visible)-1))
+		board.offset = min(board.offset, board.cursor)
+		board.offset = max(board.offset, board.cursor-m.tableRows()+1)
 	}
 }
 
@@ -168,9 +168,9 @@ func (m *Model) update(message tea.Msg) tea.Cmd {
 	case noticeMessage:
 		m.current().notice = message.text
 	case loadedMessage:
-		b := m.boards[message.board]
+		board := m.boards[message.board]
 		if message.err != nil {
-			b.notice = "Refresh failed: " + ui.FirstLine(message.err)
+			board.notice = "Refresh failed: " + ui.FirstLine(message.err)
 			return nil
 		}
 		return tea.Batch(m.finishLoad(message.board, message.rows)...)
@@ -178,20 +178,20 @@ func (m *Model) update(message tea.Msg) tea.Cmd {
 		if message.err != nil {
 			return nil
 		}
-		b := m.boards[message.board]
+		board := m.boards[message.board]
 		for key, value := range message.values {
-			b.data[message.column][key] = value
+			board.data[message.column][key] = value
 		}
-		b.applyFilters()
+		board.applyFilters()
 	case commandFinishedMessage:
-		b := m.boards[message.board]
+		board := m.boards[message.board]
 		switch {
 		case message.err != nil:
-			b.notice = "Failed: " + ui.FirstLine(message.err)
+			board.notice = "Failed: " + ui.FirstLine(message.err)
 		case message.refresh:
 			return m.load(message.board)
 		default:
-			b.notice = ""
+			board.notice = ""
 		}
 	case refreshTickMessage:
 		return tea.Batch(m.RefreshAll(), m.scheduleRefresh())
@@ -248,26 +248,26 @@ func (m *Model) handleKey(key string) tea.Cmd {
 		return m.handleConfirmKey(key)
 	}
 
-	b := m.current()
+	board := m.current()
 	switch key {
 	case "up", "k":
-		b.cursor--
+		board.cursor--
 	case "down", "j":
-		b.cursor++
+		board.cursor++
 	case "pgup":
-		b.cursor -= m.tableRows()
+		board.cursor -= m.tableRows()
 	case "pgdown":
-		b.cursor += m.tableRows()
+		board.cursor += m.tableRows()
 	case "home":
-		b.cursor = 0
+		board.cursor = 0
 	case "end":
-		b.cursor = len(b.visible) - 1
+		board.cursor = len(board.visible) - 1
 	case "f":
-		if len(b.facets) > 0 {
+		if len(board.facets) > 0 {
 			m.mode = filterMode
 		}
 	case "r":
-		b.notice = "Refreshing…"
+		board.notice = "Refreshing…"
 		return m.load(m.active)
 	case "tab":
 		m.active = (m.active + 1) % len(m.boards)
@@ -280,12 +280,12 @@ func (m *Model) handleKey(key string) tea.Cmd {
 }
 
 func (m *Model) runAction(key string) tea.Cmd {
-	b := m.current()
-	selection, hasSelection := b.selection()
+	board := m.current()
+	selection, hasSelection := board.selection()
 	if !hasSelection {
 		return nil
 	}
-	for _, action := range b.spec.Actions {
+	for _, action := range board.spec.Actions {
 		if action.Key != key {
 			continue
 		}
@@ -334,13 +334,13 @@ func (m *Model) handleConfirmKey(key string) tea.Cmd {
 }
 
 func (m *Model) handleFilterMenuKey(key string) {
-	b := m.current()
+	board := m.current()
 	switch key {
 	case "f", "esc", "enter":
 		m.mode = boardMode
 		return
 	}
-	if handleFilterKey(b.facets, &b.menuCursor, key) {
-		b.applyFilters()
+	if handleFilterKey(board.facets, &board.menuCursor, key) {
+		board.applyFilters()
 	}
 }
