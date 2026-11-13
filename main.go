@@ -19,6 +19,9 @@ import (
 	_ "github.com/ghmeier/pr-tui/plugins/tickets"
 )
 
+// version is set by the release build. A build from source reports "dev".
+var version = "dev"
+
 func fail(err error) {
 	fmt.Fprintln(os.Stderr, err)
 	os.Exit(1)
@@ -49,7 +52,13 @@ func main() {
 	once := flag.Bool("once", false, "print the tables and exit")
 	configurationFlag := flag.String("config", "", "path to the configuration file")
 	initialize := flag.Bool("init", false, "write a starter configuration file and exit")
+	showVersion := flag.Bool("version", false, "print the version and exit")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Println("prs", version)
+		return
+	}
 
 	path, err := config.ResolvePath(*configurationFlag)
 	if err != nil {

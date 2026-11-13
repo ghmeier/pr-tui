@@ -1,0 +1,57 @@
+version: 2
+
+project_name: prs
+
+before:
+  hooks:
+    - go vet ./...
+    - go test ./...
+
+builds:
+  - binary: prs
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+homebrew_casks:
+  - name: prs
+    binaries:
+      - prs
+    homepage: https://github.com/ghmeier/pr-tui
+    description: Terminal board for pull requests and other work, built from plugins
+    dependencies:
+      - formula: gh
+    repository:
+      owner: ghmeier
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    # The binary is not signed or notarized, so macOS would refuse to run a quarantined
+    # download. Homebrew has already verified the archive's checksum by this point.
+    hooks:
+      post:
+        install_steps: |
+          on_macos do
+            run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .StagedPath }}/prs"]
+          end

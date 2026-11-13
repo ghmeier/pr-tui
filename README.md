@@ -6,12 +6,46 @@ reviewers, and lets you act on them without leaving the terminal.
 
 ## Install
 
-Requires Go and an authenticated [`gh`](https://cli.github.com).
+With [Homebrew](https://brew.sh), on macOS or Linux:
+
+```
+brew install --cask ghmeier/tap/prs
+prs --init           # writes a starter configuration file to edit
+```
+
+This also installs [`gh`](https://cli.github.com), which the GitHub provider uses. Sign in
+once with `gh auth login`. `brew upgrade --cask prs` gets a newer version, and
+`prs --version` says which one is installed.
+
+Without Homebrew, download the archive for your machine from the
+[releases page](https://github.com/ghmeier/pr-tui/releases), put `prs` on your `PATH`, and
+install `gh` yourself.
+
+The `v` key also needs [worktrunk](https://worktrunk.dev) (`wt`). Everything else works
+without it.
+
+### From source
+
+Writing a plugin means building from source, which requires Go.
 
 ```
 make install   # builds to ~/.local/bin/prs
 make test
 ```
+
+### Releasing
+
+Pushing a version tag builds the binaries, publishes a GitHub release, and updates the
+Homebrew tap:
+
+```
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The release workflow needs a repository secret named `HOMEBREW_TAP_TOKEN`: a fine-grained
+personal access token with read and write access to the contents of
+`ghmeier/homebrew-tap`.
 
 ## Configuration
 
