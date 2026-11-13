@@ -29,7 +29,7 @@ type exampleFile struct {
 
 func newExampleFile() exampleFile {
 	return exampleFile{
-		plugin:          knownPlugins[0],
+		plugin:          "calendar",
 		refreshInterval: 7 * time.Minute,
 		editor:          Editor{Name: "Test Editor", Command: []string{"test-editor", "--reuse-window"}},
 	}
@@ -120,7 +120,7 @@ func TestLoadReadsEveryKeyItOwns(t *testing.T) {
 func TestLoadFillsDefaultsForAnEmptyFile(t *testing.T) {
 	file := mustLoadText(t, "")
 
-	if !reflect.DeepEqual(file.Plugins, knownPlugins) || file.RefreshInterval != defaultRefreshInterval {
+	if !reflect.DeepEqual(file.Plugins, defaultPlugins) || file.RefreshInterval != defaultRefreshInterval {
 		t.Fatalf("plugins = %v, refresh interval = %v", file.Plugins, file.RefreshInterval)
 	}
 	expectedEditor := Editor{Name: defaultEditorName, Command: defaultEditorCommand}
@@ -186,8 +186,12 @@ func TestLoadRejectsEditorCommandsThatCannotRun(t *testing.T) {
 	}
 }
 
-func TestLoadRejectsAnUnknownPlugin(t *testing.T) {
-	assertRejected(t, `plugins = ["calendar"]`, `"calendar"`)
+func TestLoadLeavesJudgingPluginNamesToTheHost(t *testing.T) {
+	file := mustLoadText(t, `plugins = ["calendar"]`)
+
+	if !reflect.DeepEqual(file.Plugins, []string{"calendar"}) {
+		t.Fatalf("plugins = %v", file.Plugins)
+	}
 }
 
 func TestLoadRejectsAnUnknownTopLevelKeyAndNamesIt(t *testing.T) {

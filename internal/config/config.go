@@ -25,7 +25,7 @@ const (
 
 var (
 	defaultEditorCommand = []string{"code"}
-	knownPlugins         = []string{"pull_requests"}
+	defaultPlugins       = []string{"pull_requests"}
 )
 
 type Editor struct {
@@ -208,14 +208,7 @@ func validate(raw rawFile) (*File, error) {
 		},
 	}
 	if raw.Plugins == nil {
-		result.Plugins = knownPlugins
-	}
-	for _, plugin := range result.Plugins {
-		if !slices.Contains(knownPlugins, plugin) {
-			return nil, fmt.Errorf(
-				"plugins contains unknown plugin %q; known plugins: %s", plugin, strings.Join(knownPlugins, ", "),
-			)
-		}
+		result.Plugins = defaultPlugins
 	}
 	if raw.RefreshInterval != "" {
 		interval, err := time.ParseDuration(raw.RefreshInterval)
