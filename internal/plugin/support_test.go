@@ -69,6 +69,9 @@ func (source *rowSource) load() ([]Row, error) {
 	return source.rows, source.err
 }
 
+// doNothing is an action that has no effect.
+func doNothing(Selection) Effect { return Effect{} }
+
 func plainCell(text string) []ui.Segment {
 	return []ui.Segment{{Text: text, Style: ui.PlainStyle}}
 }

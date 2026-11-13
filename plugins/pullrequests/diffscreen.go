@@ -95,6 +95,8 @@ func (board *pullRequestBoard) sendComment(pr PullRequest, target CommentTarget,
 type diffScreen struct {
 	board       *pullRequestBoard
 	pullRequest PullRequest
+	// selection is what the screen was opened from, and how it hands effects to the board.
+	selection plugin.Selection
 	// lineCount is the loaded value of the Lines column, or nil.
 	lineCount  any
 	width      int
@@ -118,8 +120,12 @@ type diffScreen struct {
 	commentError     string
 }
 
-func (board *pullRequestBoard) newDiffScreen(pr PullRequest, lineCount any) *diffScreen {
-	screen := &diffScreen{board: board, pullRequest: pr, lineCount: lineCount, splitDiff: true, width: 120, height: 30}
+func (board *pullRequestBoard) newDiffScreen(selection plugin.Selection) *diffScreen {
+	pr := pullRequestOf(selection)
+	screen := &diffScreen{
+		board: board, pullRequest: pr, selection: selection, lineCount: selection.Data(linesHeader),
+		splitDiff: true, width: 120, height: 30,
+	}
 	if files, cached := board.diffs.lookup(pr); cached {
 		screen.files = files
 	} else {
@@ -331,7 +337,7 @@ func (screen *diffScreen) update(message tea.Msg) (plugin.Screen, tea.Cmd) {
 			return screen, nil
 		}
 		if message.err != nil {
-			return nil, plugin.Notify("Diff failed: " + ui.FirstLine(message.err))
+			return nil, screen.selection.Run(plugin.Effect{Notice: "Diff failed: " + ui.FirstLine(message.err)})
 		}
 		screen.files, screen.loading = message.files, false
 	case commentPostedMessage:
@@ -407,9 +413,9 @@ func (screen *diffScreen) handleKey(key string) (plugin.Screen, tea.Cmd) {
 	case "o":
 		return screen, commandToOpenInBrowser(screen.pullRequest.URL)
 	case "v":
-		return screen, screen.board.commandToOpenInEditor(screen.pullRequest)
+		return screen, screen.board.commandToOpenInEditor(screen.selection)
 	case "p":
-		return screen, plugin.OpenScreen(screen.board.newDescriptionScreen(screen.pullRequest))
+		return screen, screen.selection.Run(plugin.Effect{Screen: screen.board.newDescriptionScreen(screen.selection)})
 	}
 	return screen, nil
 }

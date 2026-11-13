@@ -237,3 +237,74 @@ func TestSelectionDataIsNilForAColumnNotLoadedForTheSelectedRowOrNotOnTheBoard(t
 		t.Fatalf("unloaded = %v, unknown = %v", unloaded, unknown)
 	}
 }
+
+func TestColumnValueFromAnOlderLoadDoesNotReplaceOneFromANewerLoad(t *testing.T) {
+	rows := groceries()
+	model := modelForBoard(t, boardWithStock(rows, func([]Row) []Fetch { return nil }))
+	column := len(model.current().spec.Columns) - 1
+
+	plugintest.Send(t, model, columnLoadedMessage{board: 0, generation: 5, column: column, values: map[string]any{rows[0].Key(): "newer"}})
+	plugintest.Send(t, model, columnLoadedMessage{board: 0, generation: 4, column: column, values: map[string]any{rows[0].Key(): "older"}})
+
+	if stockCell(model, 0) != "newer" {
+		t.Fatalf("cell = %q", stockCell(model, 0))
+	}
+}
+
+func TestColumnValueFromANewerLoadReplacesOneFromAnOlderLoad(t *testing.T) {
+	rows := groceries()
+	model := modelForBoard(t, boardWithStock(rows, func([]Row) []Fetch { return nil }))
+	column := len(model.current().spec.Columns) - 1
+
+	plugintest.Send(t, model, columnLoadedMessage{board: 0, generation: 4, column: column, values: map[string]any{rows[0].Key(): "older"}})
+	plugintest.Send(t, model, columnLoadedMessage{board: 0, generation: 5, column: column, values: map[string]any{rows[0].Key(): "newer"}})
+
+	if stockCell(model, 0) != "newer" {
+		t.Fatalf("cell = %q", stockCell(model, 0))
+	}
+}
+
+func TestColumnValueOfAnotherRowIsKeptWhenOneRowHasANewerValue(t *testing.T) {
+	rows := groceries()
+	model := modelForBoard(t, boardWithStock(rows, func([]Row) []Fetch { return nil }))
+	column := len(model.current().spec.Columns) - 1
+
+	plugintest.Send(t, model, columnLoadedMessage{board: 0, generation: 5, column: column, values: map[string]any{rows[0].Key(): "newer"}})
+	plugintest.Send(t, model, columnLoadedMessage{board: 0, generation: 4, column: column, values: map[string]any{rows[0].Key(): "older", rows[1].Key(): "only value"}})
+
+	if stockCell(model, 0) != "newer" || stockCell(model, 1) != "only value" {
+		t.Fatalf("cells = %q, %q", stockCell(model, 0), stockCell(model, 1))
+	}
+}
+
+func TestSelectionDataReadFromACommandWhileColumnValuesArriveIsSafe(t *testing.T) {
+	rows := groceries()
+	board := boardWithStock(rows, func([]Row) []Fetch { return nil })
+	started, finished := make(chan struct{}), make(chan struct{})
+	var seen any
+	board.Actions = []Action{{Key: "x", Run: func(selection Selection) Effect {
+		return Effect{Command: func() error {
+			close(started)
+			for range 1000 {
+				seen = selection.Data("Stock")
+			}
+			close(finished)
+			return nil
+		}}
+	}}}
+	model := modelForBoard(t, board)
+	column := len(board.Columns) - 1
+	plugintest.Send(t, model, columnLoadedMessage{board: 0, column: column, values: map[string]any{rows[0].Key(): "before"}})
+
+	_, command := model.Update(plugintest.KeyMessage("x"))
+	go command()
+	<-started
+	for range 1000 {
+		model.Update(columnLoadedMessage{board: 0, column: column, values: map[string]any{rows[0].Key(): "after"}})
+	}
+	<-finished
+
+	if seen != "before" {
+		t.Fatalf("the command read %v, expected the value the row had when it was selected", seen)
+	}
+}

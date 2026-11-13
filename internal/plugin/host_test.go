@@ -254,7 +254,7 @@ func TestAddColumnToABoardThatDoesNotExistNamesThePluginAndTheBoard(t *testing.T
 
 func TestAddActionToABoardThatDoesNotExistNamesThePluginAndTheBoard(t *testing.T) {
 	adder := fakePlugin{name: "adder", setup: func(host *Host) error {
-		host.AddAction("missing-board", Action{Key: "x"})
+		host.AddAction("missing-board", Action{Key: "x", Run: doNothing})
 		return nil
 	}}
 
@@ -265,7 +265,7 @@ func TestAddActionToABoardThatDoesNotExistNamesThePluginAndTheBoard(t *testing.T
 
 func TestAddActionToABoardOfAPluginThatIsNotEnabledIsAnError(t *testing.T) {
 	adder := fakePlugin{name: "adder", setup: func(host *Host) error {
-		host.AddAction("groceries", Action{Key: "x"})
+		host.AddAction("groceries", Action{Key: "x", Run: doNothing})
 		return nil
 	}}
 	owner := boardPlugin("owner", groceryBoard(newRowSource()))
@@ -275,11 +275,92 @@ func TestAddActionToABoardOfAPluginThatIsNotEnabledIsAnError(t *testing.T) {
 	assertRejectedNamingTheFileOnce(t, err, `"adder"`, `"groceries"`)
 }
 
-func TestTwoActionsOnOneBoardCannotShareAKey(t *testing.T) {
+func TestAnActionWithoutARunFunctionIsRejectedNamingTheBoardAndKey(t *testing.T) {
 	board := groceryBoard(newRowSource())
 	board.Actions = []Action{{Key: "x"}}
+
+	_, err := buildHost(t, `plugins = ["owner"]`, boardPlugin("owner", board))
+
+	assertRejectedNamingTheFileOnce(t, err, `"groceries"`, `"x"`, "Run")
+}
+
+func TestEnabledIsTrueOnlyForPluginsTheFileLists(t *testing.T) {
+	var seen = map[string]bool{}
+	probe := fakePlugin{name: "probe", setup: func(host *Host) error {
+		for _, name := range []string{"probe", "listed", "unlisted"} {
+			seen[name] = host.Enabled(name)
+		}
+		return nil
+	}}
+
+	_, err := buildHost(t, `plugins = ["probe", "listed"]`, probe, fakePlugin{name: "listed"}, fakePlugin{name: "unlisted"})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !seen["probe"] || !seen["listed"] || seen["unlisted"] {
+		t.Fatalf("Enabled answered %v", seen)
+	}
+}
+
+func TestEnabledAnswersTheSameWhateverTheSetupOrder(t *testing.T) {
+	for _, plugins := range []string{`["probe", "listed"]`, `["listed", "probe"]`} {
+		var listedWasEnabled bool
+		probe := fakePlugin{name: "probe", setup: func(host *Host) error {
+			listedWasEnabled = host.Enabled("listed")
+			return nil
+		}}
+
+		_, err := buildHost(t, "plugins = "+plugins, probe, fakePlugin{name: "listed"})
+
+		if err != nil || !listedWasEnabled {
+			t.Fatalf("plugins = %s: error %v, listed enabled = %v", plugins, err, listedWasEnabled)
+		}
+	}
+}
+
+// columnForGroceriesIfEnabled is a plugin that adds a column to the grocery board only when the plugin that owns
+// that board is enabled.
+func columnForGroceriesIfEnabled() fakePlugin {
+	return fakePlugin{name: "adder", setup: func(host *Host) error {
+		if host.Enabled("owner") {
+			host.AddColumn("groceries", stockColumn(nil))
+		}
+		return nil
+	}}
+}
+
+func TestPluginGuardingItsColumnWithEnabledStartsCleanlyWhenTheBoardsPluginIsOff(t *testing.T) {
+	owner := boardPlugin("owner", groceryBoard(newRowSource()))
+
+	host, err := buildHost(t, `plugins = ["adder"]`, columnForGroceriesIfEnabled(), owner)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(host.boards) != 0 {
+		t.Fatalf("boards = %v", host.boards)
+	}
+}
+
+func TestPluginGuardingItsColumnWithEnabledAddsItWhenTheBoardsPluginIsOn(t *testing.T) {
+	owner := boardPlugin("owner", groceryBoard(newRowSource()))
+
+	host, err := buildHost(t, `plugins = ["adder", "owner"]`, columnForGroceriesIfEnabled(), owner)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if columns := host.boards[0].Columns; columns[len(columns)-1].Header != stockColumn(nil).Header {
+		t.Fatalf("columns = %v", columns)
+	}
+}
+
+func TestTwoActionsOnOneBoardCannotShareAKey(t *testing.T) {
+	board := groceryBoard(newRowSource())
+	board.Actions = []Action{{Key: "x", Run: doNothing}}
 	adder := fakePlugin{name: "adder", setup: func(host *Host) error {
-		host.AddAction("groceries", Action{Key: "x"})
+		host.AddAction("groceries", Action{Key: "x", Run: doNothing})
 		return nil
 	}}
 
@@ -291,7 +372,7 @@ func TestTwoActionsOnOneBoardCannotShareAKey(t *testing.T) {
 func TestActionsOnDifferentBoardsMayShareAKey(t *testing.T) {
 	first, second := groceryBoard(newRowSource()), groceryBoard(newRowSource())
 	second.Name = "other"
-	first.Actions, second.Actions = []Action{{Key: "x"}}, []Action{{Key: "x"}}
+	first.Actions, second.Actions = []Action{{Key: "x", Run: doNothing}}, []Action{{Key: "x", Run: doNothing}}
 
 	_, err := buildHost(t, `plugins = ["one", "two"]`, boardPlugin("one", first), boardPlugin("two", second))
 
@@ -303,7 +384,7 @@ func TestActionsOnDifferentBoardsMayShareAKey(t *testing.T) {
 func TestAnActionCannotClaimAKeyTheHostUses(t *testing.T) {
 	for _, key := range reservedKeys {
 		board := groceryBoard(newRowSource())
-		board.Actions = []Action{{Key: key}}
+		board.Actions = []Action{{Key: key, Run: doNothing}}
 
 		_, err := buildHost(t, `plugins = ["owner"]`, boardPlugin("owner", board))
 

@@ -64,22 +64,38 @@ type Column struct {
 	// most one column of a board is flexible.
 	Flexible bool
 	// Cell draws the column for a row. The data is nil until a fetch from Load has delivered
-	// a value for the row.
+	// a value for the row. It runs on the update loop, so it must return quickly.
 	Cell func(row Row, data any) []ui.Segment
 	// Load is optional. It returns independent fetches that run in the background after each
 	// refresh, each delivering values keyed by Row.Key. Delivered values survive later
-	// refreshes.
+	// refreshes. Load itself runs on the update loop and must return quickly without
+	// blocking; the work belongs in the fetches it returns.
 	Load func(rows []Row) []Fetch
 }
 
 // Fetch is one background lookup of column data. A fetch that fails leaves its cells unloaded.
+// Fetches run on background goroutines, several at once.
 type Fetch func() (map[string]any, error)
 
-// Selection is the row an action was invoked on.
+// Selection is the row an action was invoked on, and the way for a screen or a background
+// command to hand an effect back to the board that row belongs to.
 type Selection struct {
 	Row Row
-	// Data is the loaded value of the column with the given header for this row, or nil.
+	// Data is the loaded value of the column with the given header for this row, or nil. It
+	// reads a copy made when the selection was built, so it is safe to call from any
+	// goroutine, including an Effect.Command.
 	Data func(columnHeader string) any
+
+	boardIndex int
+}
+
+// Run has the host carry out an effect for this selection's board, from a screen or a
+// background command. The effect applies to the board the selection came from, whichever
+// board is in view when it arrives.
+func (selection Selection) Run(effect Effect) tea.Cmd {
+	return func() tea.Msg {
+		return effectMessage{board: selection.boardIndex, effect: effect}
+	}
 }
 
 // Action is a key that does something to the selected row.
@@ -87,7 +103,9 @@ type Action struct {
 	Key string
 	// Label is shown in the help line. An empty label hides the action there.
 	Label string
-	Run   func(selection Selection) Effect
+	// Run describes what the key does. It runs on the update loop, so it must return quickly
+	// without blocking; slow work belongs in the returned Effect's Command.
+	Run func(selection Selection) Effect
 }
 
 // Effect describes what an action does, so that the host can show notices, ask, and refresh.
@@ -97,7 +115,8 @@ type Effect struct {
 	// Confirm, when set, is a question the host asks before doing anything else: y or enter
 	// accepts it, n or esc declines it.
 	Confirm string
-	// Command runs in the background. A failure shows "Failed: " and its first line.
+	// Command runs on a background goroutine. A failure shows "Failed: " and its first line.
+	// State that it shares with a function that runs on the update loop needs a lock.
 	Command func() error
 	// Refresh reloads the board after Command succeeds.
 	Refresh bool
@@ -115,21 +134,6 @@ type Screen interface {
 	View(width, height int) string
 }
 
-type openScreenMessage struct{ screen Screen }
-
-// OpenScreen lets one screen open another on top of itself.
-func OpenScreen(screen Screen) tea.Cmd {
-	return func() tea.Msg { return openScreenMessage{screen: screen} }
-}
-
-type noticeMessage struct{ text string }
-
-// Notify sets the status line notice of the board under the screens, for a screen that closes
-// itself and has something to say about it.
-func Notify(text string) tea.Cmd {
-	return func() tea.Msg { return noticeMessage{text: text} }
-}
-
 // FacetOption is one choice of a facet.
 type FacetOption struct {
 	Value string
@@ -140,7 +144,8 @@ type FacetOption struct {
 type Facet struct {
 	Title   string
 	Options []FacetOption
-	// Value is the option value a row has for this facet.
+	// Value is the option value a row has for this facet. It runs on the update loop, so it
+	// must return quickly.
 	Value func(row Row) string
 	// Single means exactly one option is selected at a time.
 	Single bool
@@ -160,6 +165,8 @@ type Board struct {
 	Title string
 	// RowNoun says what the rows are, such as "open pull requests", for the status line.
 	RowNoun string
+	// Load fetches the rows. It runs on a background goroutine. State that it shares with a
+	// function that runs on the update loop, such as Cell or Action.Run, needs a lock.
 	Load    func() ([]Row, error)
 	Columns []Column
 	Actions []Action

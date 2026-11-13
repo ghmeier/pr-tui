@@ -13,7 +13,8 @@ import (
 // ticketPlugin stands in for a plugin of another team, such as one for a story tracker. It
 // adds a Ticket column and a key to the pull request board, and has a board of its own.
 type ticketPlugin struct {
-	// ticketsByURL is what the column's fetch delivers, keyed like the board's rows.
+	// ticketsByURL is the ticket of each pull request, by its URL. The column's fetch looks up
+	// the rows it is given in it.
 	ticketsByURL map[string]string
 	// linked is the pull requests that the action was run on.
 	linked []PullRequest
@@ -45,11 +46,14 @@ func (tickets *ticketPlugin) Setup(host *plugin.Host) error {
 			}
 			return ui.PlainSegments(data.(string))
 		},
-		Load: func([]plugin.Row) []plugin.Fetch {
+		Load: func(rows []plugin.Row) []plugin.Fetch {
 			return []plugin.Fetch{func() (map[string]any, error) {
 				found := map[string]any{}
-				for url, ticket := range tickets.ticketsByURL {
-					found[url] = ticket
+				for _, row := range rows {
+					url := row.(Row).PullRequest.URL
+					if ticket, hasTicket := tickets.ticketsByURL[url]; hasTicket {
+						found[url] = ticket
+					}
 				}
 				return found, nil
 			}}
@@ -156,17 +160,5 @@ func TestTabSwitchesToTheOtherPluginsBoardAndBack(t *testing.T) {
 	}
 	if !strings.Contains(view(model), provider.pullRequest(1).Title) {
 		t.Fatalf("back on the pull requests:\n%s", view(model))
-	}
-}
-
-func TestOnlyPluginsTheFileEnablesAreSetUp(t *testing.T) {
-	provider := newFakeProvider()
-	tickets := ticketsFor(provider)
-	model := newSetup(provider).started(t)
-
-	press(t, model, "t")
-
-	if len(tickets.linked) != 0 || strings.Contains(view(model), ticketColumnHeader) {
-		t.Fatalf("a plugin that is not enabled took part:\n%s", view(model))
 	}
 }

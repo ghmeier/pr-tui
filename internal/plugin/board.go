@@ -1,7 +1,6 @@
 package plugin
 
 import (
-	"slices"
 	"time"
 
 	"github.com/ghmeier/pr-tui/internal/ui"
@@ -9,17 +8,27 @@ import (
 
 // boardState is a registered board and everything the host keeps about it while it is shown.
 type boardState struct {
-	spec    Board
+	spec Board
+	// index is the board's position among the host's boards, which messages from background
+	// work carry back to find it.
+	index   int
 	rows    []Row
 	visible []Row
 	// data holds, for each column, the values its fetches delivered, by row key.
-	data       []map[string]any
-	facets     []facetState
-	menuCursor int
-	loadedAt   time.Time
-	cursor     int
-	offset     int
-	notice     string
+	data []map[string]any
+	// dataGenerations holds the load generation that each value in data came from, so that a
+	// value from an older load never replaces one from a newer load.
+	dataGenerations []map[string]int
+	// loadGeneration counts the loads started. rowsGeneration is the generation of the load
+	// whose rows are shown.
+	loadGeneration int
+	rowsGeneration int
+	facets         []facetState
+	menuCursor     int
+	loadedAt       time.Time
+	cursor         int
+	offset         int
+	notice         string
 }
 
 func (board *boardState) selected() (Row, bool) {
@@ -58,18 +67,24 @@ func (board *boardState) matches(row Row) bool {
 	return true
 }
 
+// selection copies the selected row's loaded values, because an action's command reads them
+// on a background goroutine while column results keep arriving on the update loop.
 func (board *boardState) selection() (Selection, bool) {
 	row, hasSelection := board.selected()
 	if !hasSelection {
 		return Selection{}, false
 	}
-	return Selection{Row: row, Data: func(header string) any {
-		index := slices.IndexFunc(board.spec.Columns, func(column Column) bool { return column.Header == header })
-		if index < 0 {
-			return nil
+	loaded := map[string]any{}
+	for index, column := range board.spec.Columns {
+		if value, found := board.data[index][row.Key()]; found {
+			loaded[column.Header] = value
 		}
-		return board.data[index][row.Key()]
-	}}, true
+	}
+	return Selection{
+		Row:        row,
+		Data:       func(header string) any { return loaded[header] },
+		boardIndex: board.index,
+	}, true
 }
 
 func (board *boardState) cells() [][][]ui.Segment {

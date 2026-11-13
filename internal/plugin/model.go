@@ -18,16 +18,26 @@ const (
 )
 
 type (
+	// The generation of a load orders it among the loads of its board, so that a result that
+	// arrives after a newer one can be recognised and dropped.
 	loadedMessage struct {
-		board int
-		rows  []Row
-		err   error
+		board      int
+		generation int
+		rows       []Row
+		err        error
 	}
 	columnLoadedMessage struct {
+		board      int
+		generation int
+		column     int
+		values     map[string]any
+		err        error
+	}
+	// effectMessage asks the host to carry out an effect for a board, as an action's effect
+	// would be.
+	effectMessage struct {
 		board  int
-		column int
-		values map[string]any
-		err    error
+		effect Effect
 	}
 	commandFinishedMessage struct {
 		board   int
@@ -50,17 +60,25 @@ type Model struct {
 	height     int
 	mode       mode
 	question   string
-	// pending is the effect waiting for an answer to its question.
-	pending Effect
+	// pending is the effect waiting for an answer to its question, and pendingBoard the board
+	// it applies to.
+	pending      Effect
+	pendingBoard int
 }
 
 // Model builds the interactive program for the boards the plugins registered.
 func (host *Host) Model() *Model {
 	model := &Model{refreshInterval: host.file.RefreshInterval, startTimer: startRefreshTimer, width: 120, height: 30}
-	for _, spec := range host.boards {
-		next := &boardState{spec: spec, data: make([]map[string]any, len(spec.Columns))}
-		for index := range next.data {
-			next.data[index] = map[string]any{}
+	for index, spec := range host.boards {
+		next := &boardState{
+			spec:            spec,
+			index:           index,
+			data:            make([]map[string]any, len(spec.Columns)),
+			dataGenerations: make([]map[string]int, len(spec.Columns)),
+		}
+		for column := range next.data {
+			next.data[column] = map[string]any{}
+			next.dataGenerations[column] = map[string]int{}
 		}
 		for _, facet := range spec.Facets {
 			next.facets = append(next.facets, newFacetState(facet))
@@ -96,16 +114,20 @@ func (m *Model) scheduleRefresh() tea.Cmd {
 }
 
 func (m *Model) load(index int) tea.Cmd {
-	load := m.boards[index].spec.Load
+	board := m.boards[index]
+	board.loadGeneration++
+	generation := board.loadGeneration
+	load := board.spec.Load
 	return func() tea.Msg {
 		rows, err := load()
-		return loadedMessage{board: index, rows: rows, err: err}
+		return loadedMessage{board: index, generation: generation, rows: rows, err: err}
 	}
 }
 
-// fetchCommands starts every column fetch of a board. The rows given to a column are a copy,
-// because the fetches run while the board goes on changing.
-func (m *Model) fetchCommands(index int) []tea.Cmd {
+// fetchCommands starts every column fetch of a board for the rows that the given load
+// produced. The rows given to a column are a copy, because the fetches run while the board
+// goes on changing.
+func (m *Model) fetchCommands(index, generation int) []tea.Cmd {
 	board := m.boards[index]
 	var commands []tea.Cmd
 	for columnIndex, column := range board.spec.Columns {
@@ -115,7 +137,7 @@ func (m *Model) fetchCommands(index int) []tea.Cmd {
 		for _, fetch := range column.Load(slices.Clone(board.rows)) {
 			commands = append(commands, func() tea.Msg {
 				values, err := fetch()
-				return columnLoadedMessage{board: index, column: columnIndex, values: values, err: err}
+				return columnLoadedMessage{board: index, generation: generation, column: columnIndex, values: values, err: err}
 			})
 		}
 	}
@@ -123,25 +145,27 @@ func (m *Model) fetchCommands(index int) []tea.Cmd {
 }
 
 // finishLoad shows freshly loaded rows and returns the commands that fetch their column data.
-func (m *Model) finishLoad(index int, rows []Row) []tea.Cmd {
+func (m *Model) finishLoad(index int, rows []Row, generation int) []tea.Cmd {
 	board := m.boards[index]
 	board.notice = ""
 	board.rows = rows
+	board.rowsGeneration = generation
 	board.loadedAt = time.Now()
 	// Values for rows that are gone would only pile up.
 	keys := map[string]bool{}
 	for _, row := range rows {
 		keys[row.Key()] = true
 	}
-	for _, values := range board.data {
+	for column, values := range board.data {
 		for key := range values {
 			if !keys[key] {
 				delete(values, key)
+				delete(board.dataGenerations[column], key)
 			}
 		}
 	}
 	board.applyFilters()
-	return m.fetchCommands(index)
+	return m.fetchCommands(index, generation)
 }
 
 func (m *Model) keepCursorVisible() {
@@ -162,25 +186,30 @@ func (m *Model) update(message tea.Msg) tea.Cmd {
 	switch message := message.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = message.Width, message.Height
-	case openScreenMessage:
-		m.screens = append(m.screens, message.screen)
-		return message.screen.Init()
-	case noticeMessage:
-		m.current().notice = message.text
+	case effectMessage:
+		return m.applyEffect(message.board, message.effect)
 	case loadedMessage:
 		board := m.boards[message.board]
+		if message.generation < board.rowsGeneration {
+			return nil
+		}
 		if message.err != nil {
 			board.notice = "Refresh failed: " + ui.FirstLine(message.err)
 			return nil
 		}
-		return tea.Batch(m.finishLoad(message.board, message.rows)...)
+		return tea.Batch(m.finishLoad(message.board, message.rows, message.generation)...)
 	case columnLoadedMessage:
 		if message.err != nil {
 			return nil
 		}
 		board := m.boards[message.board]
+		generations := board.dataGenerations[message.column]
 		for key, value := range message.values {
+			if stored, found := generations[key]; found && message.generation < stored {
+				continue
+			}
 			board.data[message.column][key] = value
+			generations[key] = message.generation
 		}
 		board.applyFilters()
 	case commandFinishedMessage:
@@ -289,14 +318,19 @@ func (m *Model) runAction(key string) tea.Cmd {
 		if action.Key != key {
 			continue
 		}
-		effect := action.Run(selection)
-		if effect.Confirm != "" {
-			m.mode, m.question, m.pending = confirmMode, effect.Confirm, effect
-			return nil
-		}
-		return m.execute(m.active, effect)
+		return m.applyEffect(m.active, action.Run(selection))
 	}
 	return nil
+}
+
+// applyEffect asks the effect's question first, if it has one, and otherwise carries it out.
+// The question is shown once no screen covers the board.
+func (m *Model) applyEffect(index int, effect Effect) tea.Cmd {
+	if effect.Confirm != "" {
+		m.mode, m.question, m.pending, m.pendingBoard = confirmMode, effect.Confirm, effect, index
+		return nil
+	}
+	return m.execute(index, effect)
 }
 
 // execute carries out an effect, with its confirmation already answered.
@@ -321,12 +355,12 @@ func (m *Model) execute(index int, effect Effect) tea.Cmd {
 func (m *Model) handleConfirmKey(key string) tea.Cmd {
 	switch key {
 	case "y", "enter":
-		effect := m.pending
+		effect, index := m.pending, m.pendingBoard
 		m.mode, m.question, m.pending = boardMode, "", Effect{}
 		if effect.Notice == "" {
 			effect.Notice = "Working…"
 		}
-		return m.execute(m.active, effect)
+		return m.execute(index, effect)
 	case "n", "esc":
 		m.mode, m.question, m.pending = boardMode, "", Effect{}
 	}

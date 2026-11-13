@@ -22,7 +22,8 @@ func (host *Host) PrintOnce(out io.Writer, width int) error {
 			}
 			return err
 		}
-		commands := model.finishLoad(index, rows)
+		board.loadGeneration++
+		commands := model.finishLoad(index, rows, board.loadGeneration)
 		messages := make(chan tea.Msg, len(commands))
 		for _, command := range commands {
 			go func() { messages <- command() }()

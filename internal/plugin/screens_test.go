@@ -10,6 +10,17 @@ import (
 	"github.com/ghmeier/pr-tui/internal/plugin/plugintest"
 )
 
+// boardOpeningScreen is a board whose action on "x" opens the screen and keeps the selection
+// it was given, so that the screen can run effects for it.
+func boardOpeningScreen(selection *Selection, screen Screen) Board {
+	board := groceryBoard(newRowSource(groceries()...))
+	board.Actions = []Action{{Key: "x", Run: func(given Selection) Effect {
+		*selection = given
+		return Effect{Screen: screen}
+	}}}
+	return board
+}
+
 // modelWithScreen opens the screen from an action on "x".
 func modelWithScreen(t *testing.T, screen Screen) *Model {
 	t.Helper()
@@ -18,7 +29,7 @@ func modelWithScreen(t *testing.T, screen Screen) *Model {
 	return model
 }
 
-func TestOpenScreenShowsTheScreenInPlaceOfTheBoardAndPassesTheWindowSize(t *testing.T) {
+func TestScreenShowsInPlaceOfTheBoardAndIsPassedTheWindowSize(t *testing.T) {
 	screen := &fakeScreen{title: "details"}
 	model := modelWithScreen(t, screen)
 
@@ -95,10 +106,12 @@ func TestScreenReplacedByItsUpdateStaysOnTheStackInPlace(t *testing.T) {
 func TestScreenCanOpenAnotherScreenOnTopOfItselfAndReturnToIt(t *testing.T) {
 	top := &fakeScreen{title: "top"}
 	bottom := &fakeScreen{title: "bottom"}
+	var selection Selection
+	model := modelForBoard(t, boardOpeningScreen(&selection, bottom))
+	plugintest.Press(t, model, "x")
 	bottom.onKey = func(key string) (Screen, tea.Cmd, bool) {
-		return bottom, OpenScreen(top), key == "p"
+		return bottom, selection.Run(Effect{Screen: top}), key == "p"
 	}
-	model := modelWithScreen(t, bottom)
 
 	plugintest.Press(t, model, "p")
 	opened := screenText(model)
@@ -117,7 +130,7 @@ func TestOpenedScreenRunsItsInit(t *testing.T) {
 	}}
 	model := modelForBoard(t, groceryBoard(newRowSource(groceries()...)))
 
-	plugintest.Send(t, model, openScreenMessage{screen: top})
+	plugintest.Send(t, model, effectMessage{board: 0, effect: Effect{Screen: top}})
 
 	if !started || len(model.screens) != 1 {
 		t.Fatalf("init ran = %v, screens = %d", started, len(model.screens))
@@ -143,7 +156,7 @@ func TestMessageTheHostDoesNotKnowReachesEveryScreenTopFirst(t *testing.T) {
 	bottom := &orderedScreen{fakeScreen: fakeScreen{title: "bottom"}, order: &order}
 	top := &orderedScreen{fakeScreen: fakeScreen{title: "top"}, order: &order}
 	model := modelWithScreen(t, bottom)
-	plugintest.Send(t, model, openScreenMessage{screen: top})
+	plugintest.Send(t, model, effectMessage{board: 0, effect: Effect{Screen: top}})
 
 	plugintest.Send(t, model, screenMessage{})
 
@@ -155,7 +168,7 @@ func TestMessageTheHostDoesNotKnowReachesEveryScreenTopFirst(t *testing.T) {
 func TestScreenBelowTheTopOneClosesItselfWhenItsOwnMessageArrives(t *testing.T) {
 	top := &fakeScreen{title: "top"}
 	model := modelWithScreen(t, &closingOnMessageScreen{})
-	plugintest.Send(t, model, openScreenMessage{screen: top})
+	plugintest.Send(t, model, effectMessage{board: 0, effect: Effect{Screen: top}})
 
 	plugintest.Send(t, model, bottomClosesMessage{})
 
@@ -205,15 +218,101 @@ func TestScreenCommandsRunAndTheirMessagesReturnToTheScreen(t *testing.T) {
 	}
 }
 
-func TestNotifyShowsANoticeOnTheBoardOnceTheScreenIsGone(t *testing.T) {
+func TestScreenNoticeShowsOnTheBoardOnceTheScreenIsGone(t *testing.T) {
 	notice := "Diff failed: it broke"
+	var selection Selection
 	screen := &fakeScreen{title: "details"}
-	screen.onKey = func(key string) (Screen, tea.Cmd, bool) { return nil, Notify(notice), key == "n" }
-	model := modelWithScreen(t, screen)
+	screen.onKey = func(key string) (Screen, tea.Cmd, bool) {
+		return nil, selection.Run(Effect{Notice: notice}), key == "n"
+	}
+	model := modelForBoard(t, boardOpeningScreen(&selection, screen))
+	plugintest.Press(t, model, "x")
 
 	plugintest.Press(t, model, "n")
 
 	if !strings.Contains(statusLine(model), notice) {
+		t.Fatalf("status = %q", statusLine(model))
+	}
+}
+
+func TestNoticeRunFromAScreensCommandAppearsOnTheScreensBoardAfterSwitchingTabs(t *testing.T) {
+	notice := "Failed: editor broke"
+	var selection Selection
+	var slowCommand tea.Cmd
+	screen := &fakeScreen{title: "details"}
+	screen.onKey = func(key string) (Screen, tea.Cmd, bool) {
+		slowCommand = selection.Run(Effect{Notice: notice})
+		return screen, nil, key == "v"
+	}
+	first := boardOpeningScreen(&selection, screen)
+	second := groceryBoard(newRowSource(groceries()...))
+	second.Name, second.Title = "pantry", "Pantry"
+	model := modelFor(t, boardPlugin("shop", first), boardPlugin("larder", second))
+	plugintest.Press(t, model, "x", "v", "esc", "tab")
+
+	plugintest.Settle(t, model, slowCommand)
+
+	if model.boards[0].notice != notice || model.boards[1].notice != "" {
+		t.Fatalf("notice of the first board = %q, of the second board = %q", model.boards[0].notice, model.boards[1].notice)
+	}
+}
+
+// modelWithScreenRunning opens a screen from the action on "x" that runs the effect when "g"
+// is pressed.
+func modelWithScreenRunning(t *testing.T, source *rowSource, effect Effect) *Model {
+	t.Helper()
+	var selection Selection
+	screen := &fakeScreen{title: "details"}
+	screen.onKey = func(key string) (Screen, tea.Cmd, bool) {
+		return screen, selection.Run(effect), key == "g"
+	}
+	board := boardOpeningScreen(&selection, screen)
+	board.Load = source.load
+	model := modelForBoard(t, board)
+	plugintest.Press(t, model, "x")
+	return model
+}
+
+func TestScreenCanRunAnEffectThatAsksFirstAndThenRunsItsCommandAndRefreshes(t *testing.T) {
+	source := newRowSource(groceries()...)
+	count := &counter{}
+	question := "Really?"
+	model := modelWithScreenRunning(t, source, Effect{Confirm: question, Command: count.command, Refresh: true})
+	loadsBefore := source.loadCount()
+
+	plugintest.Press(t, model, "g", "esc")
+	asked := statusLine(model)
+	ranBeforeAnswer := count.runs
+	plugintest.Press(t, model, "y")
+
+	if !strings.Contains(asked, question) || ranBeforeAnswer != 0 {
+		t.Fatalf("status = %q, command runs before the answer = %d", asked, ranBeforeAnswer)
+	}
+	if count.runs != 1 || source.loadCount() != loadsBefore+1 {
+		t.Fatalf("command runs = %d, reloads = %d", count.runs, source.loadCount()-loadsBefore)
+	}
+}
+
+func TestScreenEffectThatIsDeclinedRunsNothing(t *testing.T) {
+	source := newRowSource(groceries()...)
+	count := &counter{}
+	model := modelWithScreenRunning(t, source, Effect{Confirm: "Really?", Command: count.command, Refresh: true})
+	loadsBefore := source.loadCount()
+
+	plugintest.Press(t, model, "g", "esc", "n")
+
+	if count.runs != 0 || source.loadCount() != loadsBefore {
+		t.Fatalf("command runs = %d, reloads = %d", count.runs, source.loadCount()-loadsBefore)
+	}
+}
+
+func TestScreenEffectCommandFailureShowsFailedOnTheBoard(t *testing.T) {
+	count := &counter{err: errorForTests}
+	model := modelWithScreenRunning(t, newRowSource(groceries()...), Effect{Command: count.command})
+
+	plugintest.Press(t, model, "g", "esc")
+
+	if !strings.Contains(statusLine(model), "Failed: "+errorForTests.Error()) {
 		t.Fatalf("status = %q", statusLine(model))
 	}
 }

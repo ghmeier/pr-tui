@@ -324,9 +324,9 @@ func TestQuitKeyAndCtrlCQuit(t *testing.T) {
 
 func TestHelpListsActionsInRegistrationOrderThenFiltersRefreshAndQuit(t *testing.T) {
 	board := groceryBoard(newRowSource(groceries()...))
-	board.Actions = []Action{{Key: "x", Label: "first"}, {Key: "y", Label: "second"}}
+	board.Actions = []Action{{Key: "x", Label: "first", Run: doNothing}, {Key: "y", Label: "second", Run: doNothing}}
 	late := fakePlugin{name: "late", setup: func(host *Host) error {
-		host.AddAction("groceries", Action{Key: "z", Label: "third"})
+		host.AddAction("groceries", Action{Key: "z", Label: "third", Run: doNothing})
 		return nil
 	}}
 	model := modelFor(t, boardPlugin("owner", board), late)

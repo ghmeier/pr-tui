@@ -152,6 +152,9 @@ func validateBoard(board Board, owner string) error {
 	}
 	var keys []string
 	for _, action := range board.Actions {
+		if action.Run == nil {
+			return fmt.Errorf("board %q has an action on %q without a Run function", board.Name, action.Key)
+		}
 		if slices.Contains(reservedKeys, action.Key) {
 			return fmt.Errorf("board %q has an action on %q, a key the board uses itself", board.Name, action.Key)
 		}
@@ -178,6 +181,13 @@ func (host *Host) Section(name string, target any) error {
 		host.sections = append(host.sections, name)
 	}
 	return host.file.Section(name, target)
+}
+
+// Enabled says whether the configuration file's plugins list contains the named plugin. The
+// answer does not depend on the order the plugins are set up in, so a plugin can use it to
+// offer a contribution only when another plugin is there to receive it.
+func (host *Host) Enabled(pluginName string) bool {
+	return slices.Contains(host.file.Plugins, pluginName)
 }
 
 func (host *Host) Editor() config.Editor { return host.file.Editor }

@@ -228,6 +228,63 @@ func TestEditingTheDescriptionKeepsTheEditWhenTheProviderRefusesIt(t *testing.T)
 	}
 }
 
+// keptEdit is the path of the one temporary file an edit left in the directory.
+func keptEdit(t *testing.T, temporaryDirectory string) string {
+	t.Helper()
+	kept, err := filepath.Glob(filepath.Join(temporaryDirectory, "prs-description-*.md"))
+	if err != nil || len(kept) != 1 {
+		t.Fatalf("kept files = %v, error = %v", kept, err)
+	}
+	return kept[0]
+}
+
+func TestFailedSaveOfTheDescriptionLeavesANoticeWithTheKeptPathOnTheBoardAfterTheScreenCloses(t *testing.T) {
+	provider := newFakeProvider()
+	provider.fail("SaveDescription", errorForTests)
+	temporaryDirectory := editorWrites(t, "Edited description\n")
+	model := loadedBoardWith(t, provider)
+	plugintest.Resize(t, model, 400, 30)
+
+	press(t, model, "p", "e", "esc")
+
+	expected := "your edit is kept at " + keptEdit(t, temporaryDirectory)
+	if shown := view(model); !strings.Contains(shown, errorForTests.Error()) || !strings.Contains(shown, expected) {
+		t.Fatalf("view:\n%s", shown)
+	}
+}
+
+func TestFailedSaveOfTheDescriptionAfterTheScreenWasClosedLeavesANoticeWithTheKeptPath(t *testing.T) {
+	provider := newFakeProvider()
+	provider.fail("SaveDescription", errorForTests)
+	temporaryDirectory := editorWrites(t, "Edited description\n")
+	model := loadedBoardWith(t, provider)
+	plugintest.Resize(t, model, 400, 30)
+	press(t, model, "p")
+	_, editing := model.Update(keyMessage("e"))
+	_, saving := model.Update(editing())
+
+	model.Update(keyMessage("esc"))
+	plugintest.Settle(t, model, saving)
+
+	expected := "your edit is kept at " + keptEdit(t, temporaryDirectory)
+	if shown := view(model); !strings.Contains(shown, errorForTests.Error()) || !strings.Contains(shown, expected) {
+		t.Fatalf("view:\n%s", shown)
+	}
+}
+
+func TestSuccessfulSaveOfTheDescriptionLeavesNoNoticeAndNoKeptFile(t *testing.T) {
+	provider := newFakeProvider()
+	temporaryDirectory := editorWrites(t, "Edited description\n")
+	model := loadedBoardWith(t, provider)
+
+	press(t, model, "p", "e", "esc")
+
+	kept, _ := filepath.Glob(filepath.Join(temporaryDirectory, "prs-description-*.md"))
+	if shown := view(model); strings.Contains(shown, "your edit is kept at") || len(kept) != 0 {
+		t.Fatalf("kept files = %v, view:\n%s", kept, shown)
+	}
+}
+
 func TestClosingTheEditorWithoutChangesUpdatesNothing(t *testing.T) {
 	provider := newFakeProvider()
 	editorWrites(t, "")

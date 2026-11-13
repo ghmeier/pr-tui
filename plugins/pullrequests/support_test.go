@@ -449,9 +449,12 @@ func assertCommands(t *testing.T, recorded *[][]string, expected ...[]string) {
 	}
 }
 
-// editorWrites replaces the editor with one that saves the given text.
-func editorWrites(t *testing.T, text string) {
+// editorWrites replaces the editor with one that saves the given text. Temporary files go to a
+// directory that the test removes, and that directory is returned.
+func editorWrites(t *testing.T, text string) string {
 	t.Helper()
+	temporaryDirectory := t.TempDir()
+	t.Setenv("TMPDIR", temporaryDirectory)
 	original := editInEditor
 	editInEditor = func(path string, finished func(error) tea.Msg) tea.Cmd {
 		return func() tea.Msg {
@@ -462,6 +465,7 @@ func editorWrites(t *testing.T, text string) {
 		}
 	}
 	t.Cleanup(func() { editInEditor = original })
+	return temporaryDirectory
 }
 
 func providerWithRepositories(repositories ...Repository) *fakeProvider {

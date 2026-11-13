@@ -8,7 +8,6 @@ import (
 
 	"github.com/ghmeier/pr-tui/internal/plugin"
 	"github.com/ghmeier/pr-tui/internal/shell"
-	"github.com/ghmeier/pr-tui/internal/ui"
 )
 
 // actions are listed in the order the help line shows them. Requesting a team review is
@@ -32,11 +31,11 @@ func pullRequestOf(selection plugin.Selection) PullRequest {
 }
 
 func (board *pullRequestBoard) showDiff(selection plugin.Selection) plugin.Effect {
-	return plugin.Effect{Screen: board.newDiffScreen(pullRequestOf(selection), selection.Data(linesHeader))}
+	return plugin.Effect{Screen: board.newDiffScreen(selection)}
 }
 
 func (board *pullRequestBoard) showDescription(selection plugin.Selection) plugin.Effect {
-	return plugin.Effect{Screen: board.newDescriptionScreen(pullRequestOf(selection))}
+	return plugin.Effect{Screen: board.newDescriptionScreen(selection)}
 }
 
 func (board *pullRequestBoard) openInBrowser(selection plugin.Selection) plugin.Effect {
@@ -140,13 +139,9 @@ func commandToOpenInBrowser(url string) tea.Cmd {
 	}
 }
 
-// commandToOpenInEditor is for the screens, which cannot return an Effect. It reports a
-// failure on the board, which shows once the screens are closed.
-func (board *pullRequestBoard) commandToOpenInEditor(pr PullRequest) tea.Cmd {
-	return func() tea.Msg {
-		if err := board.runEditor(pr); err != nil {
-			return plugin.Notify("Failed: " + ui.FirstLine(err))()
-		}
-		return plugin.Notify("")()
-	}
+// commandToOpenInEditor is for the screens. A failure shows on the selection's board as
+// "Failed: ", which is there to read once the screens are closed.
+func (board *pullRequestBoard) commandToOpenInEditor(selection plugin.Selection) tea.Cmd {
+	pr := pullRequestOf(selection)
+	return selection.Run(plugin.Effect{Command: func() error { return board.runEditor(pr) }})
 }

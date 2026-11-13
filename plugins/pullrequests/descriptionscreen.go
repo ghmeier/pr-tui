@@ -65,15 +65,26 @@ func (board *pullRequestBoard) loadDescription(pr PullRequest) tea.Cmd {
 }
 
 // updateDescription removes the edit's temporary file once it is saved, here rather than when
-// the message arrives, because the screen may have been closed by then.
-func (board *pullRequestBoard) updateDescription(pr PullRequest, body, path string) tea.Cmd {
+// the message arrives, because the screen may have been closed by then. A failure is also put
+// on the board as a notice, for the same reason: the screen that would have shown where the
+// edit was kept may be gone.
+func (board *pullRequestBoard) updateDescription(selection plugin.Selection, body, path string) tea.Cmd {
+	pr := pullRequestOf(selection)
 	return func() tea.Msg {
 		err := board.provider.SaveDescription(pr, body)
+		saved := func() tea.Msg {
+			return descriptionSavedMessage{pullRequest: pr, body: body, path: path, err: err}
+		}
 		if err == nil {
 			os.Remove(path)
+			return saved()
 		}
-		return descriptionSavedMessage{pullRequest: pr, body: body, path: path, err: err}
+		return tea.BatchMsg{saved, selection.Run(plugin.Effect{Notice: keptEditNotice(err, path)})}
 	}
+}
+
+func keptEditNotice(err error, path string) string {
+	return "Failed: " + ui.FirstLine(err) + " · your edit is kept at " + path
 }
 
 // descriptionScreen shows a pull request's description as rendered markdown, and lets it be
@@ -81,10 +92,12 @@ func (board *pullRequestBoard) updateDescription(pr PullRequest, body, path stri
 type descriptionScreen struct {
 	board       *pullRequestBoard
 	pullRequest PullRequest
-	width       int
-	height      int
-	body        string
-	lines       []string
+	// selection is what the screen was opened from, and how it hands effects to the board.
+	selection plugin.Selection
+	width     int
+	height    int
+	body      string
+	lines     []string
 	// renderedWidth is the width the lines were wrapped for.
 	renderedWidth int
 	loading       bool
@@ -92,8 +105,10 @@ type descriptionScreen struct {
 	offset        int
 }
 
-func (board *pullRequestBoard) newDescriptionScreen(pr PullRequest) *descriptionScreen {
-	return &descriptionScreen{board: board, pullRequest: pr, width: 120, height: 30, loading: true}
+func (board *pullRequestBoard) newDescriptionScreen(selection plugin.Selection) *descriptionScreen {
+	return &descriptionScreen{
+		board: board, pullRequest: pullRequestOf(selection), selection: selection, width: 120, height: 30, loading: true,
+	}
 }
 
 func (screen *descriptionScreen) Init() tea.Cmd {
@@ -149,7 +164,7 @@ func (screen *descriptionScreen) finishEditing(message descriptionEditedMessage)
 		return nil
 	}
 	screen.notice = "Updating description…"
-	return screen.board.updateDescription(message.pullRequest, body, message.path)
+	return screen.board.updateDescription(screen.selection, body, message.path)
 }
 
 // Update ignores messages about other pull requests, because screens are given every message
@@ -182,7 +197,7 @@ func (screen *descriptionScreen) update(message tea.Msg) (plugin.Screen, tea.Cmd
 			return screen, nil
 		}
 		if message.err != nil {
-			screen.notice = "Failed: " + ui.FirstLine(message.err) + " · your edit is kept at " + message.path
+			screen.notice = keptEditNotice(message.err, message.path)
 			return screen, nil
 		}
 		screen.notice = "Description updated."
@@ -216,7 +231,7 @@ func (screen *descriptionScreen) handleKey(key string) (plugin.Screen, tea.Cmd) 
 	case "o":
 		return screen, commandToOpenInBrowser(screen.pullRequest.URL)
 	case "v":
-		return screen, screen.board.commandToOpenInEditor(screen.pullRequest)
+		return screen, screen.board.commandToOpenInEditor(screen.selection)
 	}
 	return screen, nil
 }
