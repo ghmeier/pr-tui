@@ -21,7 +21,7 @@ path; it will not overwrite an existing file. The file is found at, in order: th
 `~/.config/prs/config.toml`.
 
 ```toml
-plugins = ["pull_requests"]        # only "pull_requests" exists today
+plugins = ["pull_requests"]        # the plugins to enable, in order; default ["pull_requests"]
 refresh_interval = "3m"            # a Go duration, at least 1s; default 3m
 
 [editor]
@@ -80,6 +80,7 @@ Board keys:
 | `e` | Request review from the configured team, marking a draft ready for review first |
 | `m` | Enable or disable auto-merge (squash), after a confirmation |
 | `f` | Open the filter menu: `up`/`down` (or `k`/`j`) move over the repositories and `space` toggles the one under the cursor; `1` to `9` toggle the first nine directly; `b` switches between people and bots |
+| `tab` / `shift+tab` | Switch boards, when plugins add more than one |
 | `r` | Refresh (also on the configured interval, every 3 minutes by default) |
 | `q` | Quit |
 
@@ -96,20 +97,25 @@ Diff view keys:
 
 ## Code layout
 
-`main.go` reads the flags and the configuration, builds a provider and the board, and runs it.
-The rest is split by what it knows about:
+`main.go` reads the flags and the configuration, builds a host from the plugins the file enables,
+and runs it. The rest is split by what it knows about:
 
 - `internal/config` reads the file. It owns the top-level keys and `[editor]`; every other
-  table is a section that another package decodes for itself with `File.Section`, which
-  rejects unknown keys.
-- `internal/ui` has the styles and text helpers that know nothing about pull requests.
+  table is a section that a plugin decodes for itself with `Host.Section`, which rejects
+  unknown keys.
+- `internal/ui` has the styles and text helpers that know nothing about boards.
 - `internal/shell` runs external commands. Tests replace `shell.Run`.
-- `plugins/pullrequests` has the pull request types, the `Provider` interface, and the board.
-  It has no forge-specific code.
+- `internal/plugin` is the host. A plugin registers itself from `init`, and during setup
+  registers contributions with the host: boards, and columns and actions that may be added to a
+  board another plugin owns. The host owns everything generic about a board: the table, cursor,
+  filter menu, refresh, status line, confirmation, tabs, and the stack of full-screen views.
+  `internal/plugin/plugintest` drives a host's model in tests.
+- `plugins/pullrequests` is the plugin for the board of open pull requests, with the pull
+  request types and the `Provider` interface. It has no forge-specific code.
 - `plugins/pullrequests/github` is the GitHub provider, and the only package that runs `gh`.
 
 To add a provider, for example for GitLab, create a package under `plugins/pullrequests` that
 implements `pullrequests.Provider`, and register it from `init` with
 `pullrequests.RegisterProvider("gitlab", factory)`. The factory receives a function that decodes
-its own table, `[gitlab]`, strictly. Import the package for its side effect in `main.go`, add
-the table name to `knownSections` there, and set `provider = "gitlab"` in `[pull_requests]`.
+its own table, `[gitlab]`, strictly. Import the package for its side effect in `main.go`, and set
+`provider = "gitlab"` in `[pull_requests]`.

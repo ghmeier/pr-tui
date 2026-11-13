@@ -1,56 +1,51 @@
-// prs is a terminal board of open pull requests across a configured set of repositories.
+// prs is a terminal board of open pull requests across a configured set of repositories, and
+// of whatever other boards its plugins add.
 package main
 
 import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"golang.org/x/term"
 
 	"github.com/ghmeier/pr-tui/internal/config"
-	"github.com/ghmeier/pr-tui/plugins/pullrequests"
-	// Imported for its side effect of registering the provider.
+	"github.com/ghmeier/pr-tui/internal/plugin"
+	// Imported for their side effect of registering themselves.
+	_ "github.com/ghmeier/pr-tui/plugins/pullrequests"
 	_ "github.com/ghmeier/pr-tui/plugins/pullrequests/github"
 )
-
-// knownSections are the tables, besides [editor], that some package reads.
-var knownSections = []string{"pull_requests", "github"}
 
 func fail(err error) {
 	fmt.Fprintln(os.Stderr, err)
 	os.Exit(1)
 }
 
-// buildBoard loads the configuration file and builds the board from it. This is the one place
-// that names the file in an error, so every message names it exactly once.
-func buildBoard(path string, start pullrequests.StartOptions) (pullrequests.Model, error) {
+// buildHost loads the configuration file and sets up the plugins it enables. The host is
+// what names the file in an error, so every message names it exactly once.
+func buildHost(path string) (*plugin.Host, error) {
 	file, err := config.Load(path)
 	if err != nil {
-		return pullrequests.Model{}, err
+		return nil, err
 	}
-	if err := file.RejectUnknownSections(knownSections...); err != nil {
-		return pullrequests.Model{}, fmt.Errorf("%s: %w", path, err)
+	return plugin.NewHost(path, file, plugin.Registered())
+}
+
+func terminalWidth() int {
+	if columns, err := strconv.Atoi(os.Getenv("COLUMNS")); err == nil && columns > 0 {
+		return columns
 	}
-	settings, err := pullrequests.LoadSettings(file)
-	if err != nil {
-		return pullrequests.Model{}, fmt.Errorf("%s: %w", path, err)
+	if width, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil {
+		return width
 	}
-	provider, err := pullrequests.NewProvider(settings.ProviderName, file.Section)
-	if err != nil {
-		return pullrequests.Model{}, fmt.Errorf("%s: %w", path, err)
-	}
-	return pullrequests.NewModel(settings, provider, start)
+	return 120
 }
 
 func main() {
-	var start pullrequests.StartOptions
-	flag.Func("repo", "start with only this repository selected, as a name or owner/name (repeatable)", func(value string) error {
-		start.Repositories = append(start.Repositories, value)
-		return nil
-	})
-	flag.BoolVar(&start.ShowBots, "bots", false, "start on bot-authored pull requests")
-	once := flag.Bool("once", false, "print the table and exit")
+	plugin.RegisterFlags(plugin.Registered(), flag.CommandLine)
+	once := flag.Bool("once", false, "print the tables and exit")
 	configurationFlag := flag.String("config", "", "path to the configuration file")
 	initialize := flag.Bool("init", false, "write a starter configuration file and exit")
 	flag.Parse()
@@ -66,15 +61,15 @@ func main() {
 		fmt.Println("Wrote", path)
 		return
 	}
-	board, err := buildBoard(path, start)
+	host, err := buildHost(path)
 	if err != nil {
 		fail(err)
 	}
 
 	if *once {
-		err = board.PrintOnce()
+		err = host.PrintOnce(os.Stdout, terminalWidth())
 	} else {
-		_, err = tea.NewProgram(board, tea.WithAltScreen()).Run()
+		_, err = tea.NewProgram(host.Model(), tea.WithAltScreen()).Run()
 	}
 	if err != nil {
 		fail(err)

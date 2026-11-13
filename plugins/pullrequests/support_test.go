@@ -2,19 +2,23 @@ package pullrequests
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"os"
 	"reflect"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 
-	"github.com/ghmeier/pr-tui/internal/config"
+	"github.com/ghmeier/pr-tui/internal/config/configtest"
+	"github.com/ghmeier/pr-tui/internal/plugin"
+	"github.com/ghmeier/pr-tui/internal/plugin/plugintest"
 	"github.com/ghmeier/pr-tui/internal/shell"
-	"github.com/ghmeier/pr-tui/internal/ui"
 )
 
 // testReviewTeam is the team slug that the fixture's third pull request requests a review from.
@@ -87,10 +91,13 @@ type fakeProvider struct {
 	pullRequests []PullRequest
 	lineCounts   map[string]LineCount
 	ciStates     map[string]CIState
-	comments     []ReviewComment
-	changedFiles []string
-	description  string
-	diff         string
+	// lineCountRequests and ciStateRequests count the calls made for each repository.
+	lineCountRequests map[string]int
+	ciStateRequests   map[string]int
+	comments          []ReviewComment
+	changedFiles      []string
+	description       string
+	diff              string
 	// failures maps a method name to the error it returns.
 	failures    map[string]error
 	calls       []recordedCall
@@ -132,6 +139,9 @@ func newFakeProvider() *fakeProvider {
 		description:  "Original description\n\nSecond paragraph",
 		diff:         fixtureDiff,
 		failures:     map[string]error{},
+
+		lineCountRequests: map[string]int{},
+		ciStateRequests:   map[string]int{},
 	}
 }
 
@@ -184,18 +194,20 @@ func (fake *fakeProvider) PullRequests() ([]PullRequest, string, error) {
 	return slices.Clone(fake.pullRequests), testViewer, nil
 }
 
-func (fake *fakeProvider) LineCounts(Repository) (map[string]LineCount, error) {
+func (fake *fakeProvider) LineCounts(source Repository) (map[string]LineCount, error) {
 	fake.mutex.Lock()
 	defer fake.mutex.Unlock()
+	fake.lineCountRequests[source.FullName()]++
 	if err := fake.failures["LineCounts"]; err != nil {
 		return nil, err
 	}
 	return fake.lineCounts, nil
 }
 
-func (fake *fakeProvider) CIStates(Repository) (map[string]CIState, error) {
+func (fake *fakeProvider) CIStates(source Repository) (map[string]CIState, error) {
 	fake.mutex.Lock()
 	defer fake.mutex.Unlock()
+	fake.ciStateRequests[source.FullName()]++
 	if err := fake.failures["CIStates"]; err != nil {
 		return nil, err
 	}
@@ -253,33 +265,153 @@ func (fake *fakeProvider) RequestTeamReview(pr PullRequest) error {
 	return fake.change("RequestTeamReview", recordedCall{url: pr.URL})
 }
 
-func testSettings() Settings {
-	return Settings{
-		ProviderName:    "fake",
-		CloneRoot:       "/clones",
-		RefreshInterval: 5 * time.Minute,
-		Editor:          config.Editor{Name: "Test Editor", Command: []string{"test-editor", "--reuse-window"}},
+const (
+	testCloneRoot  = "/clones"
+	testEditorName = "Test Editor"
+)
+
+var testEditorCommand = []string{"test-editor", "--reuse-window"}
+
+// setup describes how a test builds the board: with which provider, editor, and command-line
+// arguments, and next to which other plugins.
+type setup struct {
+	provider      *fakeProvider
+	editorCommand []string
+	arguments     []string
+	others        []plugin.Plugin
+}
+
+func newSetup(provider *fakeProvider) setup {
+	return setup{provider: provider, editorCommand: testEditorCommand}
+}
+
+func (s setup) withArguments(arguments ...string) setup {
+	s.arguments = arguments
+	return s
+}
+
+func (s setup) withEditorCommand(command ...string) setup {
+	s.editorCommand = command
+	return s
+}
+
+func (s setup) alongside(others ...plugin.Plugin) setup {
+	s.others = others
+	return s
+}
+
+func (s setup) configurationText() string {
+	enabled := []string{fmt.Sprintf("%q", pluginName)}
+	for _, other := range s.others {
+		enabled = append(enabled, fmt.Sprintf("%q", other.Name()))
 	}
+	var command []string
+	for _, word := range s.editorCommand {
+		command = append(command, fmt.Sprintf("%q", word))
+	}
+	return fmt.Sprintf(`
+plugins = [%s]
+refresh_interval = "5m"
+
+[editor]
+name = %q
+command = [%s]
+
+[pull_requests]
+provider = %q
+clone_root = %q
+`, strings.Join(enabled, ", "), testEditorName, strings.Join(command, ", "), s.providerName(), testCloneRoot)
 }
 
-func boardFor(provider Provider, settings Settings) Model {
-	return newModel(settings, provider, newFilters(provider.Repositories(), nil, false))
+// providerName is unique to the fake provider, so that one test can build two boards.
+func (s setup) providerName() string {
+	return fmt.Sprintf("fake-%p", s.provider)
 }
 
-func loadedBoardFor(t *testing.T, provider Provider, settings Settings) Model {
+// host sets up the pull request plugin, with the command-line arguments parsed the way main
+// parses them, and the other plugins after it.
+func (s setup) host(t *testing.T) (*plugin.Host, error) {
 	t.Helper()
-	board := boardFor(provider, settings)
-	return settle(t, board, board.load())
+	registerTestProvider(t, s.providerName(), func(SectionDecoder) (Provider, error) { return s.provider, nil })
+	pullRequests := &pullRequestsPlugin{}
+	flags := flag.NewFlagSet("test", flag.ContinueOnError)
+	pullRequests.Flags(flags)
+	if err := flags.Parse(s.arguments); err != nil {
+		t.Fatal(err)
+	}
+	file := configtest.Load(t, s.configurationText())
+	return plugin.NewHost("config.toml", file, append([]plugin.Plugin{pullRequests}, s.others...))
 }
 
-func loadedBoardWith(t *testing.T, provider Provider) Model {
+// newHostFromText sets up the plugins with a configuration file of the given text.
+func newHostFromText(t *testing.T, text string, plugins ...plugin.Plugin) (*plugin.Host, error) {
 	t.Helper()
-	return loadedBoardFor(t, provider, testSettings())
+	return plugin.NewHost("config.toml", configtest.Load(t, text), plugins)
 }
 
-func loadedBoard(t *testing.T) Model {
+// started builds the board and loads it, including the slow columns.
+func (s setup) started(t *testing.T) *plugin.Model {
+	t.Helper()
+	host, err := s.host(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := host.Model()
+	plugintest.Start(t, model)
+	return model
+}
+
+func loadedBoardWith(t *testing.T, provider *fakeProvider) *plugin.Model {
+	t.Helper()
+	return newSetup(provider).started(t)
+}
+
+func loadedBoard(t *testing.T) *plugin.Model {
 	t.Helper()
 	return loadedBoardWith(t, newFakeProvider())
+}
+
+func keyMessage(key string) tea.KeyMsg {
+	return plugintest.KeyMessage(key)
+}
+
+func press(t *testing.T, model *plugin.Model, keys ...string) {
+	t.Helper()
+	plugintest.Press(t, model, keys...)
+}
+
+// view is what the model shows, without styling.
+func view(model *plugin.Model) string {
+	return ansi.Strip(model.View())
+}
+
+// helpLine is the last line of the view, which is where the board lists its keys.
+func helpLine(model *plugin.Model) string {
+	lines := strings.Split(view(model), "\n")
+	return lines[len(lines)-1]
+}
+
+// lineWith is the line of the view that contains the text.
+func lineWith(t *testing.T, model *plugin.Model, text string) string {
+	t.Helper()
+	for _, line := range strings.Split(view(model), "\n") {
+		if strings.Contains(line, text) {
+			return line
+		}
+	}
+	t.Fatalf("no line contains %q:\n%s", text, view(model))
+	return ""
+}
+
+// assertShown checks which of the provider's pull requests the board lists, by their titles.
+func assertShown(t *testing.T, model *plugin.Model, provider *fakeProvider, shown ...PullRequest) {
+	t.Helper()
+	for _, pr := range provider.pullRequests {
+		listed := strings.Contains(view(model), pr.Title)
+		if expected := slices.ContainsFunc(shown, func(other PullRequest) bool { return other.URL == pr.URL }); listed != expected {
+			t.Fatalf("%q listed = %v, expected %v:\n%s", pr.Title, listed, expected, view(model))
+		}
+	}
 }
 
 // recordShell replaces shell.Run so that no test opens the browser or an editor, and
@@ -294,72 +426,6 @@ func recordShell(t *testing.T) *[][]string {
 	}
 	t.Cleanup(func() { shell.Run = original })
 	return recorded
-}
-
-func settle(t *testing.T, m Model, command tea.Cmd) Model {
-	t.Helper()
-	if command == nil {
-		return m
-	}
-	message := command()
-	if batch, isBatch := message.(tea.BatchMsg); isBatch {
-		for _, batched := range batch {
-			m = settle(t, m, batched)
-		}
-		return m
-	}
-	if message == nil {
-		return m
-	}
-	next, nextCommand := m.Update(message)
-	return settle(t, next.(Model), nextCommand)
-}
-
-func keyMessage(key string) tea.KeyMsg {
-	switch key {
-	case "enter":
-		return tea.KeyMsg{Type: tea.KeyEnter}
-	case "esc":
-		return tea.KeyMsg{Type: tea.KeyEsc}
-	case "down":
-		return tea.KeyMsg{Type: tea.KeyDown}
-	case "up":
-		return tea.KeyMsg{Type: tea.KeyUp}
-	case "tab":
-		return tea.KeyMsg{Type: tea.KeyTab}
-	case "ctrl+s":
-		return tea.KeyMsg{Type: tea.KeyCtrlS}
-	}
-	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(key)}
-}
-
-func press(t *testing.T, m Model, keys ...string) Model {
-	t.Helper()
-	for _, key := range keys {
-		next, command := m.Update(keyMessage(key))
-		m = settle(t, next.(Model), command)
-	}
-	return m
-}
-
-func visibleLabels(m Model) []string {
-	labels := []string{}
-	for _, pr := range m.visible {
-		labels = append(labels, pr.label())
-	}
-	return labels
-}
-
-// assertShown checks which pull requests the board lists, in order.
-func assertShown(t *testing.T, m Model, expected ...PullRequest) {
-	t.Helper()
-	expectedLabels := []string{}
-	for _, pr := range expected {
-		expectedLabels = append(expectedLabels, pr.label())
-	}
-	if labels := visibleLabels(m); !reflect.DeepEqual(labels, expectedLabels) {
-		t.Fatalf("visible pull requests = %v, expected %v", labels, expectedLabels)
-	}
 }
 
 func assertCalls(t *testing.T, provider *fakeProvider, expected ...recordedCall) {
@@ -398,15 +464,6 @@ func editorWrites(t *testing.T, text string) {
 	t.Cleanup(func() { editInEditor = original })
 }
 
-// repositoriesNamed names repositories repository0, repository1, and so on.
-func repositoriesNamed(count int) []Repository {
-	var repositories []Repository
-	for index := range count {
-		repositories = append(repositories, Repository{Owner: "CoProcure", Name: fmt.Sprintf("repository%d", index)})
-	}
-	return repositories
-}
-
 func providerWithRepositories(repositories ...Repository) *fakeProvider {
 	provider := newFakeProvider()
 	provider.repositories = repositories
@@ -421,13 +478,4 @@ func failShell(t *testing.T, err error) {
 	original := shell.Run
 	shell.Run = func(...string) ([]byte, error) { return nil, err }
 	t.Cleanup(func() { shell.Run = original })
-}
-
-// linesColumn is the plain text of the Lines cell of the board's row at the given index.
-func linesColumn(m Model, row int) string {
-	return ui.PlainText(m.visible[row].columns(m.viewer, m.reviewTeam())[4])
-}
-
-func filePlainText(file diffFile) string {
-	return ui.PlainText(file.listSegments(80))
 }

@@ -190,16 +190,6 @@ func TestPullRequestsSeparateRequestedUsersFromRequestedTeamsAndSkipEmptyRequest
 	}
 }
 
-func TestPullRequestsLeaveLineCountsAndCIStatesUnloaded(t *testing.T) {
-	pullRequests, _, _ := loadCannedPullRequests(t)
-
-	for _, pr := range pullRequests {
-		if pr.LineCount != nil || pr.CIState != nil {
-			t.Fatalf("pull request %d has a line count or CI state before they were asked for", pr.Number)
-		}
-	}
-}
-
 func TestPullRequestsRejectsAResponseThatIsNotJSON(t *testing.T) {
 	stubShell(t, "not json")
 

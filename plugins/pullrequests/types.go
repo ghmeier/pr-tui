@@ -14,8 +14,7 @@ func (repository Repository) FullName() string {
 	return repository.Owner + "/" + repository.Name
 }
 
-// CIState is the combined result of a pull request's checks. A pull request whose state has
-// not been loaded yet has no CIState at all, which is why PullRequest.CIState is a pointer.
+// CIState is the combined result of a pull request's checks.
 type CIState int
 
 const (
@@ -49,9 +48,7 @@ type PullRequest struct {
 	HeadCommit     string
 	AutoMerge      bool
 	InMergeQueue   bool
-	LineCount      *LineCount
 	ReviewDecision ReviewDecision
-	CIState        *CIState
 	UpdatedAt      time.Time
 	RequestedUsers []string
 	RequestedTeams []string

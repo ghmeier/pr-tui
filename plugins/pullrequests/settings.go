@@ -3,7 +3,6 @@ package pullrequests
 import (
 	"cmp"
 	"fmt"
-	"time"
 
 	"github.com/ghmeier/pr-tui/internal/config"
 )
@@ -16,15 +15,12 @@ const (
 // Settings is what the board needs besides its provider.
 type Settings struct {
 	// ProviderName selects the provider; the provider reads its own table of the file.
-	ProviderName    string
-	CloneRoot       string
-	RefreshInterval time.Duration
-	Editor          config.Editor
+	ProviderName string
+	CloneRoot    string
 }
 
-// LoadSettings reads the [pull_requests] table, and takes the refresh interval and editor
-// from the top level of the file.
-func LoadSettings(file *config.File) (Settings, error) {
+// loadSettings reads the [pull_requests] table.
+func loadSettings(decodeSection SectionDecoder) (Settings, error) {
 	var section struct {
 		Provider  string `toml:"provider"`
 		CloneRoot string `toml:"clone_root"`
@@ -33,7 +29,7 @@ func LoadSettings(file *config.File) (Settings, error) {
 		Repositories any `toml:"repositories"`
 		ReviewTeam   any `toml:"review_team"`
 	}
-	if err := file.Section("pull_requests", &section); err != nil {
+	if err := decodeSection(pluginName, &section); err != nil {
 		return Settings{}, err
 	}
 	providerName := cmp.Or(section.Provider, defaultProviderName)
@@ -45,16 +41,11 @@ func LoadSettings(file *config.File) (Settings, error) {
 	}
 	cloneRoot, err := config.ExpandHome(cmp.Or(section.CloneRoot, defaultCloneRoot))
 	if err != nil {
-		return Settings{}, fmt.Errorf("[pull_requests] clone_root: %w", err)
+		return Settings{}, fmt.Errorf("[%s] clone_root: %w", pluginName, err)
 	}
-	return Settings{
-		ProviderName:    providerName,
-		CloneRoot:       cloneRoot,
-		RefreshInterval: file.RefreshInterval,
-		Editor:          file.Editor,
-	}, nil
+	return Settings{ProviderName: providerName, CloneRoot: cloneRoot}, nil
 }
 
 func movedKeyError(key, providerName string) error {
-	return fmt.Errorf("[pull_requests] %s now belongs under [%s], the table named after the provider", key, providerName)
+	return fmt.Errorf("[%s] %s now belongs under [%s], the table named after the provider", pluginName, key, providerName)
 }

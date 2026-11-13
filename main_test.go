@@ -7,18 +7,17 @@ import (
 	"testing"
 
 	"github.com/ghmeier/pr-tui/internal/config"
-	"github.com/ghmeier/pr-tui/plugins/pullrequests"
 )
 
-// buildBoardFromText writes the text as a configuration file and builds the board from it,
+// buildHostFromText writes the text as a configuration file and builds the host from it,
 // returning the file's path so that error tests can check the message names it.
-func buildBoardFromText(t *testing.T, text string) (string, error) {
+func buildHostFromText(t *testing.T, text string) (string, error) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "config.toml")
 	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	_, err := buildBoard(path, pullrequests.StartOptions{})
+	_, err := buildHost(path)
 	return path, err
 }
 
@@ -26,7 +25,7 @@ func buildBoardFromText(t *testing.T, text string) (string, error) {
 // every one of the given parts.
 func assertRejectedNamingTheFileOnce(t *testing.T, text string, parts ...string) {
 	t.Helper()
-	path, err := buildBoardFromText(t, text)
+	path, err := buildHostFromText(t, text)
 	if err == nil {
 		t.Fatalf("expected an error containing %q", parts)
 	}
@@ -40,33 +39,40 @@ func assertRejectedNamingTheFileOnce(t *testing.T, text string, parts ...string)
 	}
 }
 
-func TestBuildBoardAcceptsTheStarterConfiguration(t *testing.T) {
+// validGithubTable is a [github] table that its provider accepts.
+const validGithubTable = "[github]\nrepositories = [\"a/b\"]\n"
+
+func TestBuildHostAcceptsTheStarterConfiguration(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.toml")
 	if err := config.WriteStarter(path); err != nil {
 		t.Fatal(err)
 	}
 
-	_, err := buildBoard(path, pullrequests.StartOptions{})
+	_, err := buildHost(path)
 
 	if err != nil {
 		t.Fatal(err)
 	}
 }
 
-func TestBuildBoardRejectsASectionNoPackageReads(t *testing.T) {
-	assertRejectedNamingTheFileOnce(t, "[gitlab]\nrepositories = [\"a/b\"]\n", "[gitlab]")
+func TestBuildHostRejectsASectionNoPluginReads(t *testing.T) {
+	assertRejectedNamingTheFileOnce(t, validGithubTable+"[gitlab]\nrepositories = [\"a/b\"]\n", "[gitlab]")
 }
 
-func TestBuildBoardRejectsAnUnknownKeyInASectionNamingTheSectionAndTheKey(t *testing.T) {
+func TestBuildHostRejectsAnUnknownKeyInASectionNamingTheSectionAndTheKey(t *testing.T) {
 	assertRejectedNamingTheFileOnce(t, "[github]\nrepositories = [\"a/b\"]\nreview_teem = \"x\"\n", "[github]", "review_teem")
-	assertRejectedNamingTheFileOnce(t, "[pull_requests]\nclone_rot = \"~/code\"\n", "[pull_requests]", "clone_rot")
+	assertRejectedNamingTheFileOnce(t, "[pull_requests]\nclone_rot = \"~/code\"\n"+validGithubTable, "[pull_requests]", "clone_rot")
 }
 
-func TestBuildBoardRejectsAProviderThatIsNotRegistered(t *testing.T) {
+func TestBuildHostRejectsAPluginThatIsNotRegisteredAndListsTheRegisteredOnes(t *testing.T) {
+	assertRejectedNamingTheFileOnce(t, `plugins = ["calendar"]`, `"calendar"`, "pull_requests")
+}
+
+func TestBuildHostRejectsAProviderThatIsNotRegistered(t *testing.T) {
 	assertRejectedNamingTheFileOnce(t, "[pull_requests]\nprovider = \"gitlab\"\n", `"gitlab"`)
 }
 
-func TestBuildBoardRejectsTheOldShapeWhereRepositoriesLiveInPullRequests(t *testing.T) {
+func TestBuildHostRejectsTheOldShapeWhereRepositoriesLiveInPullRequests(t *testing.T) {
 	assertRejectedNamingTheFileOnce(t, "[pull_requests]\nrepositories = [\"a/b\"]\n", "repositories", "[github]")
 	assertRejectedNamingTheFileOnce(t, "[pull_requests]\nreview_team = \"x\"\n", "review_team", "[github]")
 }
