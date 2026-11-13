@@ -32,21 +32,21 @@ func (settings settings) pullRequestColumn() plugin.Column {
 		// Load runs on the update loop, so it only reads names and branches off the rows. Each
 		// fetch lists one checkout's documents on a background goroutine.
 		Load: func(rows []plugin.Row) []plugin.Fetch {
-			branchesByKey := map[string]map[string]string{}
+			branchesByRepository := map[string]map[string]string{}
 			for _, row := range rows {
 				pullRequestRow, isPullRequest := row.(pullrequests.Row)
 				if !isPullRequest {
 					continue
 				}
 				name := pullRequestRow.PullRequest.Repository.Name
-				if branchesByKey[name] == nil {
-					branchesByKey[name] = map[string]string{}
+				if branchesByRepository[name] == nil {
+					branchesByRepository[name] = map[string]string{}
 				}
-				branchesByKey[name][row.Key()] = pullRequestRow.PullRequest.HeadBranch
+				branchesByRepository[name][row.Key()] = pullRequestRow.PullRequest.HeadBranch
 			}
 			var fetches []plugin.Fetch
 			for _, checkout := range settings.checkouts {
-				if branches := branchesByKey[checkout.name]; len(branches) > 0 {
+				if branches := branchesByRepository[checkout.name]; len(branches) > 0 {
 					fetches = append(fetches, checkout.fetchLinkedDocs(branches))
 				}
 			}
