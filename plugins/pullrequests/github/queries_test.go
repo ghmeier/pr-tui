@@ -13,11 +13,11 @@ import (
 const cannedPullRequests = `{"data": {
   "viewer": {"login": "viewer"},
   "repository0": {"pullRequests": {"nodes": [
-    {"number": 1, "title": "Draft from a person", "url": "https://example.test/gazebo/1", "isDraft": true, "headRefOid": "first-commit",
+    {"number": 1, "title": "Draft from a person", "url": "https://example.test/gazebo/1", "isDraft": true, "headRefOid": "first-commit", "headRefName": "feature/first",
      "updatedAt": "2026-11-10T10:00:00Z", "reviewDecision": null,
      "author": {"login": "person", "__typename": "User"},
      "reviewRequests": {"nodes": []}},
-    {"number": 2, "title": "Dependency update", "url": "https://example.test/gazebo/2", "isDraft": false,
+    {"number": 2, "title": "Dependency update", "url": "https://example.test/gazebo/2", "isDraft": false, "headRefName": "renovate/dependency",
      "updatedAt": "2026-11-10T11:00:00Z", "reviewDecision": "APPROVED",
      "author": {"login": "renovate", "__typename": "Bot"},
      "reviewRequests": {"nodes": []}}
@@ -127,10 +127,20 @@ func TestPullRequestsReadDraftHeadCommitAndAuthor(t *testing.T) {
 
 	expected := pullrequests.PullRequest{
 		Repository: gazebo, Number: 1, Title: "Draft from a person", URL: "https://example.test/gazebo/1",
-		Author: "person", IsDraft: true, HeadCommit: "first-commit", UpdatedAt: time.Date(2026, 11, 10, 10, 0, 0, 0, time.UTC),
+		Author: "person", IsDraft: true, HeadCommit: "first-commit", HeadBranch: "feature/first", UpdatedAt: time.Date(2026, 11, 10, 10, 0, 0, 0, time.UTC),
 	}
 	if !reflect.DeepEqual(draft, expected) {
 		t.Fatalf("pull request = %+v, expected %+v", draft, expected)
+	}
+}
+
+func TestPullRequestsReadTheHeadBranchOfEachPullRequest(t *testing.T) {
+	pullRequests, _, _ := loadCannedPullRequests(t)
+
+	first, second := pullRequestNumbered(t, pullRequests, 1), pullRequestNumbered(t, pullRequests, 2)
+
+	if first.HeadBranch != "feature/first" || second.HeadBranch != "renovate/dependency" {
+		t.Fatalf("head branches = %q and %q", first.HeadBranch, second.HeadBranch)
 	}
 }
 

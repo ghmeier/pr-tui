@@ -20,6 +20,7 @@ fragment pullRequestFields on Repository {
       url
       isDraft
       headRefOid
+      headRefName
       autoMergeRequest { enabledAt }
       isInMergeQueue
       updatedAt
@@ -63,6 +64,7 @@ type pullRequestNode struct {
 	URL              string `json:"url"`
 	IsDraft          bool
 	HeadRefOid       string
+	HeadRefName      string
 	AutoMergeRequest *struct{ EnabledAt string }
 	IsInMergeQueue   bool
 	UpdatedAt        time.Time
@@ -113,6 +115,7 @@ func (node pullRequestNode) pullRequest(source pullrequests.Repository) pullrequ
 		Author:         "ghost",
 		IsDraft:        node.IsDraft,
 		HeadCommit:     node.HeadRefOid,
+		HeadBranch:     node.HeadRefName,
 		AutoMerge:      node.AutoMergeRequest != nil,
 		InMergeQueue:   node.IsInMergeQueue,
 		ReviewDecision: reviewDecisionFrom(node.ReviewDecision),

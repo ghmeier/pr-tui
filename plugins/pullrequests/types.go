@@ -38,14 +38,17 @@ type LineCount struct {
 }
 
 type PullRequest struct {
-	Repository     Repository
-	Number         int
-	Title          string
-	URL            string
-	Author         string
-	IsBot          bool
-	IsDraft        bool
-	HeadCommit     string
+	Repository Repository
+	Number     int
+	Title      string
+	URL        string
+	Author     string
+	IsBot      bool
+	IsDraft    bool
+	HeadCommit string
+	// HeadBranch is the name of the branch the pull request comes from, which other plugins
+	// can match their own rows against.
+	HeadBranch     string
 	AutoMerge      bool
 	InMergeQueue   bool
 	ReviewDecision ReviewDecision
