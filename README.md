@@ -31,14 +31,20 @@ command = "code"                   # default "code"; a string is one executable,
 
 [pull_requests]
 provider = "github"                # only "github" is supported; default "github"
+clone_root = "~/git"               # default "~/git"; a clone lives at <clone_root>/<name>
+
+[github]                           # the settings of the provider named above
 repositories = ["CoProcure/gazebo", "CoProcure/u2"]   # required; owners may differ
 review_team = "engineering"        # optional
-clone_root = "~/git"               # default "~/git"; a clone lives at <clone_root>/<name>
 ```
+
+The repositories and the review team belong to the provider, so they live in the table named
+after it. Older files that put `repositories` and `review_team` under `[pull_requests]` must
+move them to `[github]`.
 
 Without `review_team`, the `e` key is disabled and no team is highlighted or counted as
 waiting on you. Mistakes in the file, such as a repository not written as `owner/name` or an
-unknown key, are reported with the file and the key at startup.
+unknown key, are reported with the file, the table, and the key at startup.
 
 ## Use
 
@@ -87,3 +93,23 @@ Diff view keys:
 | `c` | Comment on the line under the cursor, or reply to the thread under it (`ctrl+s` posts) |
 | `tab` | Choose the old or new side of a split row for the comment |
 | `esc` | Back |
+
+## Code layout
+
+`main.go` reads the flags and the configuration, builds a provider and the board, and runs it.
+The rest is split by what it knows about:
+
+- `internal/config` reads the file. It owns the top-level keys and `[editor]`; every other
+  table is a section that another package decodes for itself with `File.Section`, which
+  rejects unknown keys.
+- `internal/ui` has the styles and text helpers that know nothing about pull requests.
+- `internal/shell` runs external commands. Tests replace `shell.Run`.
+- `plugins/pullrequests` has the pull request types, the `Provider` interface, and the board.
+  It has no forge-specific code.
+- `plugins/pullrequests/github` is the GitHub provider, and the only package that runs `gh`.
+
+To add a provider, for example for GitLab, create a package under `plugins/pullrequests` that
+implements `pullrequests.Provider`, and register it from `init` with
+`pullrequests.RegisterProvider("gitlab", factory)`. The factory receives a function that decodes
+its own table, `[gitlab]`, strictly. Import the package for its side effect in `main.go`, add
+the table name to `knownSections` there, and set `provider = "gitlab"` in `[pull_requests]`.
