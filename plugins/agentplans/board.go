@@ -26,21 +26,11 @@ func board(settings settings) plugin.Board {
 		RowNoun: "docs",
 		Load:    settings.load,
 		Columns: []plugin.Column{
-			{Header: "Repository", Cell: func(row plugin.Row, _ any) []ui.Segment {
-				return ui.PlainSegments(row.(Row).Repository)
-			}},
-			{Header: "Type", Cell: func(row plugin.Row, _ any) []ui.Segment {
-				return ui.PlainSegments(row.(Row).Doc.Type)
-			}},
-			{Header: "Title", Flexible: true, Cell: func(row plugin.Row, _ any) []ui.Segment {
-				return ui.PlainSegments(row.(Row).Doc.Title)
-			}},
-			{Header: "Status", Cell: func(row plugin.Row, _ any) []ui.Segment {
-				return ui.PlainSegments(row.(Row).Doc.Status)
-			}},
-			{Header: "Updated", Cell: func(row plugin.Row, _ any) []ui.Segment {
-				return ui.PlainSegments(row.(Row).Doc.Updated)
-			}},
+			textColumn("Repository", false, func(row Row) string { return row.Repository }),
+			textColumn("Type", false, func(row Row) string { return row.Doc.Type }),
+			textColumn("Title", true, func(row Row) string { return row.Doc.Title }),
+			textColumn("Status", false, func(row Row) string { return row.Doc.Status }),
+			textColumn("Updated", false, func(row Row) string { return row.Doc.Updated }),
 			{Header: "Pull requests", Cell: func(row plugin.Row, _ any) []ui.Segment {
 				return pullRequestSegments(row.(Row).Doc.PullRequestNumbers)
 			}},
@@ -69,6 +59,12 @@ func board(settings settings) plugin.Board {
 			},
 		},
 	}
+}
+
+func textColumn(header string, flexible bool, text func(row Row) string) plugin.Column {
+	return plugin.Column{Header: header, Flexible: flexible, Cell: func(row plugin.Row, _ any) []ui.Segment {
+		return ui.PlainSegments(text(row.(Row)))
+	}}
 }
 
 // pullRequestSegments spells out the largest numbers and counts the others.

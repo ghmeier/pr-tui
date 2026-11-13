@@ -39,10 +39,10 @@ func newFacetState(facet Facet) facetState {
 	return facetState{facet: facet, selected: selected, fixedOptions: facet.Options}
 }
 
-// addOptionsFromRows replaces the options found in rows by those of the given rows. An option
-// seen for the first time starts selected unless the plugin named an initial selection, and
-// one that was seen before keeps its selection even while no row has it.
-func (state *facetState) addOptionsFromRows(rows []Row) {
+// refreshOptionsFromRows rebuilds the options from the fixed ones and the values of the given
+// rows. An option seen for the first time starts selected unless the plugin named an initial
+// selection, and one seen before keeps its selection even while no row has it.
+func (state *facetState) refreshOptionsFromRows(rows []Row) {
 	if !state.facet.OptionsFromRows {
 		return
 	}

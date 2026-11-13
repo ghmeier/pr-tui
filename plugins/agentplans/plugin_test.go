@@ -181,22 +181,31 @@ func TestADocumentWhoseFileCannotBeReadKeepsItsRowWithoutPullRequests(t *testing
 	}
 }
 
-func TestTypeFacetStartsOnPlansOnlyAndTheOtherTypesCanBeSelected(t *testing.T) {
+func typeFacetModel(t *testing.T) *plugin.Model {
+	t.Helper()
 	apl := installFakeApl(t, false)
 	checkout := apl.newCheckout(t, "storefront",
 		doc{file: "plan/p.md", kind: "plan", title: "A plan", updated: "2026-11-12"},
 		doc{file: "research/r.md", kind: "research", title: "A research note", updated: "2026-11-11"})
+	return startedModel(t, checkout)
+}
 
-	model := startedModel(t, checkout)
-	plansOnly := lineWith(model, "A plan") != "" && lineWith(model, "A research note") == ""
+func TestTypeFacetStartsOnPlansOnly(t *testing.T) {
+	model := typeFacetModel(t)
+
+	if lineWith(model, "A plan") == "" || lineWith(model, "A research note") != "" {
+		t.Fatalf("only the plan should be shown:\n%s", strings.Join(screenLines(model), "\n"))
+	}
+}
+
+func TestTypeFacetShowsAnotherTypeOnceItIsSelected(t *testing.T) {
+	model := typeFacetModel(t)
+
 	// The repository facet has one option, so the type facet's options are numbers 2 and 3.
 	plugintest.Press(t, model, "f", "3", "esc")
 
-	if !plansOnly {
-		t.Fatalf("the research note is shown before it is selected:\n%s", strings.Join(screenLines(model), "\n"))
-	}
 	if lineWith(model, "A research note") == "" || lineWith(model, "A plan") == "" {
-		t.Fatalf("both types should be shown once research is selected:\n%s", strings.Join(screenLines(model), "\n"))
+		t.Fatalf("both types should be shown:\n%s", strings.Join(screenLines(model), "\n"))
 	}
 }
 
