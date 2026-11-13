@@ -4,7 +4,7 @@ status: active
 tags: [plugins, configuration]
 created: 2026-11-13
 updated: 2026-11-13
-next_step: Step 5 (distribution). Needs a ghmeier/homebrew-tap repository and the repository made public; run gitleaks over history first
+next_step: Add the HOMEBREW_TAP_TOKEN secret, push main, make the repository public, then tag v0.1.0 and test the brew install
 ---
 # Configuration file and plugin system
 
@@ -169,7 +169,7 @@ original setup.
   the tool never handles a token itself because it uses the `gh` login. Run `gitleaks`
   over the full history once more immediately before making the repository public.
 
-### 5. Distribution without Go — not started
+### 5. Distribution without Go — configured on `main`; first release not yet cut
 
 - `prs --version`.
 - GoReleaser in a GitHub Action, run on a version tag, publishing macOS (Apple silicon and
@@ -238,3 +238,11 @@ original setup.
   collide silently; a cell cannot tell "still loading" from "loaded, nothing found";
   provider registrations cannot be removed, so the exported test fake registers under a
   generated name; there is no shared helper that builds a host from configuration text.
+- Step 5: `prs --version`, `.goreleaser.yaml`, and `.github/workflows/release.yml` are in
+  place. GoReleaser now publishes Homebrew casks rather than formulas, so the install is
+  `brew install --cask ghmeier/tap/prs`; the cask covers macOS and Linux, depends on `gh`,
+  and clears the quarantine attribute because the binary is not signed. A local snapshot
+  release built all four archives and generated the cask. Not yet exercised: the real
+  publish to the tap, which needs the `HOMEBREW_TAP_TOKEN` secret, a public repository,
+  and a pushed tag. The owner confirmed on 2026-11-13 that history has no leaked keys and
+  created `ghmeier/homebrew-tap` (public, empty).
