@@ -4,7 +4,7 @@ status: active
 tags: [plugins, configuration]
 created: 2026-11-13
 updated: 2026-11-13
-next_step: Review and merge step 2a (provider-split), then brief step 2b (plugin host)
+next_step: Review, refactor, and merge step 2b (plugin-host branch), then write the plugin author guide
 ---
 # Configuration file and plugin system
 
@@ -117,7 +117,7 @@ implementer, a refactor pass, and then verification with `go vet`, `go test`, an
   no limit on the number of repositories.
 - 113 tests pass.
 
-### 2a. Package split and Provider — in progress on `provider-split`
+### 2a. Package split and Provider — done, merged to `main` at `ebde709`
 
 - Split package `main` into the layout above (without `internal/plugin`).
 - Move every `gh` call behind `Provider`. Replace GitHub's raw strings for CI state, review
@@ -126,9 +126,11 @@ implementer, a refactor pass, and then verification with `go vet`, `go test`, an
 - Redistribute tests: the GitHub package asserts `gh` argument lists, and the pull request
   package uses a fake provider.
 - No visible change other than the configuration shape.
-- After merge: update `~/.config/prs/config.toml` to the new shape.
+- A file in the old shape gets an error saying `repositories` and `review_team` moved to
+  the provider's table.
+- 192 tests pass across the packages.
 
-### 2b. Plugin host — not started
+### 2b. Plugin host — in progress on `plugin-host`
 
 - `internal/plugin`: registry, `Setup(host)`, and the Board, Column, Action, Screen, and
   facet types. Plugins may register command-line flags.
