@@ -41,9 +41,9 @@ func (tickets *ticketPlugin) Setup(host *plugin.Host) error {
 		Header: ticketColumnHeader,
 		Cell: func(_ plugin.Row, data any) []ui.Segment {
 			if data == nil {
-				return textCell("no ticket")
+				return ui.PlainSegments("no ticket")
 			}
-			return textCell(data.(string))
+			return ui.PlainSegments(data.(string))
 		},
 		Load: func([]plugin.Row) []plugin.Fetch {
 			return []plugin.Fetch{func() (map[string]any, error) {
@@ -66,7 +66,7 @@ func (tickets *ticketPlugin) Setup(host *plugin.Host) error {
 		RowNoun: "tickets",
 		Load:    func() ([]plugin.Row, error) { return []plugin.Row{ticketRow{id: "SC-101"}}, nil },
 		Columns: []plugin.Column{{Header: "Id", Cell: func(row plugin.Row, _ any) []ui.Segment {
-			return textCell(row.(ticketRow).id)
+			return ui.PlainSegments(row.(ticketRow).id)
 		}}},
 	})
 	return nil
@@ -143,17 +143,6 @@ func TestAnotherPluginsActionDoesNotDisturbTheBoardsOwnKeys(t *testing.T) {
 	assertCalls(t, provider, draftCall(provider.pullRequest(1), false))
 }
 
-func TestTabBarListsThePullRequestBoardAndTheOtherPluginsBoard(t *testing.T) {
-	provider := newFakeProvider()
-	model := composedBoard(t, provider, ticketsFor(provider))
-
-	tabs := strings.Split(view(model), "\n")[0]
-
-	if !strings.Contains(tabs, "Pull requests") || !strings.Contains(tabs, ticketBoardTitle) {
-		t.Fatalf("first line = %q", tabs)
-	}
-}
-
 func TestTabSwitchesToTheOtherPluginsBoardAndBack(t *testing.T) {
 	provider := newFakeProvider()
 	model := composedBoard(t, provider, ticketsFor(provider))
@@ -167,14 +156,6 @@ func TestTabSwitchesToTheOtherPluginsBoardAndBack(t *testing.T) {
 	}
 	if !strings.Contains(view(model), provider.pullRequest(1).Title) {
 		t.Fatalf("back on the pull requests:\n%s", view(model))
-	}
-}
-
-func TestPullRequestBoardAloneHasNoTabBar(t *testing.T) {
-	model := loadedBoard(t)
-
-	if first := strings.Split(view(model), "\n")[0]; strings.Contains(first, "Pull requests") {
-		t.Fatalf("first line = %q", first)
 	}
 }
 

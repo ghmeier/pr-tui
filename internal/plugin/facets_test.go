@@ -303,36 +303,21 @@ func TestCycleKeyDoesNotChangeAMultipleFacet(t *testing.T) {
 	}
 }
 
-func TestBoardActionsRunAgainOnceTheMenuIsClosed(t *testing.T) {
+func TestBoardActionsAreIgnoredWhileTheMenuIsOpenAndRunAgainOnceItIsClosed(t *testing.T) {
 	board := groceryBoard(newRowSource(groceries()...))
-	ran := false
+	runs := 0
 	board.Actions = []Action{{Key: "x", Run: func(Selection) Effect {
-		ran = true
+		runs++
 		return Effect{}
 	}}}
 	model := modelForBoard(t, board)
 
 	plugintest.Press(t, model, "f", "x")
+	whileOpen := runs
 	plugintest.Press(t, model, "esc", "x")
 
-	if !ran {
-		t.Fatalf("the action should run once the menu is closed")
-	}
-}
-
-func TestBoardActionsAreIgnoredWhileTheMenuIsOpen(t *testing.T) {
-	board := groceryBoard(newRowSource(groceries()...))
-	ran := false
-	board.Actions = []Action{{Key: "x", Run: func(Selection) Effect {
-		ran = true
-		return Effect{}
-	}}}
-	model := modelForBoard(t, board)
-
-	plugintest.Press(t, model, "f", "x")
-
-	if ran {
-		t.Fatalf("the action ran while the menu was open")
+	if whileOpen != 0 || runs != 1 {
+		t.Fatalf("the action ran %d times while the menu was open and %d times after closing it", whileOpen, runs)
 	}
 }
 

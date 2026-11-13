@@ -8,17 +8,6 @@ import (
 	"github.com/ghmeier/pr-tui/internal/plugin/plugintest"
 )
 
-func TestBoardActionsAreIgnoredWhileTheFilterMenuIsOpen(t *testing.T) {
-	provider := newFakeProvider()
-	commands := recordShell(t)
-	model := loadedBoardWith(t, provider)
-
-	press(t, model, "f", "d", "o", "e")
-
-	assertCalls(t, provider)
-	assertCommands(t, commands)
-}
-
 func TestOpenRunsOpenWithTheSelectedUrl(t *testing.T) {
 	provider := newFakeProvider()
 	commands := recordShell(t)

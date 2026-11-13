@@ -1,14 +1,10 @@
 package plugin
 
 import (
-	"fmt"
 	"slices"
-	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/x/ansi"
 
 	"github.com/ghmeier/pr-tui/internal/ui"
 )
@@ -41,21 +37,6 @@ type (
 	refreshTickMessage struct{}
 )
 
-// board is a registered board and everything the host keeps about it while it is shown.
-type board struct {
-	spec    Board
-	rows    []Row
-	visible []Row
-	// data holds, for each column, the values its fetches delivered, by row key.
-	data       []map[string]any
-	facets     []facetState
-	menuCursor int
-	loadedAt   time.Time
-	cursor     int
-	offset     int
-	notice     string
-}
-
 // Model is the root Bubble Tea model: the boards with their tabs, and the screens above them.
 type Model struct {
 	boards          []*board
@@ -75,7 +56,7 @@ type Model struct {
 
 // Model builds the interactive program for the boards the plugins registered.
 func (host *Host) Model() *Model {
-	model := &Model{refreshInterval: host.RefreshInterval(), startTimer: startRefreshTimer, width: 120, height: 30}
+	model := &Model{refreshInterval: host.file.RefreshInterval, startTimer: startRefreshTimer, width: 120, height: 30}
 	for _, spec := range host.boards {
 		next := &board{spec: spec, data: make([]map[string]any, len(spec.Columns))}
 		for index := range next.data {
@@ -161,90 +142,6 @@ func (m *Model) finishLoad(index int, rows []Row) []tea.Cmd {
 	}
 	b.applyFilters()
 	return m.fetchCommands(index)
-}
-
-func (b *board) selected() (Row, bool) {
-	if b.cursor < 0 || b.cursor >= len(b.visible) {
-		return nil, false
-	}
-	return b.visible[b.cursor], true
-}
-
-// applyFilters recomputes the visible rows and keeps the cursor on the same row.
-func (b *board) applyFilters() {
-	selected, hadSelection := b.selected()
-	b.visible = nil
-	for _, row := range b.rows {
-		if b.matches(row) {
-			b.visible = append(b.visible, row)
-		}
-	}
-	if !hadSelection {
-		return
-	}
-	for index, row := range b.visible {
-		if row.Key() == selected.Key() {
-			b.cursor = index
-			return
-		}
-	}
-}
-
-func (b *board) matches(row Row) bool {
-	for _, state := range b.facets {
-		if !state.matches(row) {
-			return false
-		}
-	}
-	return true
-}
-
-func (b *board) selection() (Selection, bool) {
-	row, hasSelection := b.selected()
-	if !hasSelection {
-		return Selection{}, false
-	}
-	return Selection{Row: row, Data: func(header string) any {
-		index := slices.IndexFunc(b.spec.Columns, func(column Column) bool { return column.Header == header })
-		if index < 0 {
-			return nil
-		}
-		return b.data[index][row.Key()]
-	}}, true
-}
-
-func (b *board) cells() [][][]ui.Segment {
-	cells := make([][][]ui.Segment, len(b.visible))
-	for rowIndex, row := range b.visible {
-		cells[rowIndex] = make([][]ui.Segment, len(b.spec.Columns))
-		for columnIndex, column := range b.spec.Columns {
-			cells[rowIndex][columnIndex] = column.Cell(row, b.data[columnIndex][row.Key()])
-		}
-	}
-	return cells
-}
-
-func (b *board) table(width, selected, offset, rowCount int) string {
-	headers := make([]string, len(b.spec.Columns))
-	flexible := -1
-	for index, column := range b.spec.Columns {
-		headers[index] = column.Header
-		if column.Flexible {
-			flexible = index
-		}
-	}
-	return renderTable(headers, flexible, b.cells(), width, selected, offset, rowCount)
-}
-
-func (m *Model) tableRows() int {
-	rows := m.height - 4
-	if len(m.boards) > 1 {
-		rows--
-	}
-	if m.mode == filterMode {
-		rows -= lipgloss.Height(filterMenu(m.current().facets, m.current().menuCursor))
-	}
-	return max(rows, 1)
 }
 
 func (m *Model) keepCursorVisible() {
@@ -446,86 +343,4 @@ func (m *Model) handleFilterMenuKey(key string) {
 	if handleFilterKey(b.facets, &b.menuCursor, key) {
 		b.applyFilters()
 	}
-}
-
-func (m *Model) statusLine() string {
-	b := m.current()
-	switch {
-	case m.mode == confirmMode:
-		return ui.KeyStyle.Render(m.question) + "  " + ui.HelpLine("y", "yes", "n", "no")
-	case b.notice != "":
-		return b.notice
-	case b.loadedAt.IsZero():
-		return ui.DimStyle.Render("Loading…")
-	}
-	return ui.DimStyle.Render(fmt.Sprintf(
-		"%d of %d %s · updated %s · refreshes every %s",
-		len(b.visible), len(b.rows), b.spec.RowNoun, b.loadedAt.Format("15:04"), intervalText(m.refreshInterval),
-	))
-}
-
-// intervalText says a refresh interval in whole minutes where it can, as in "3 minutes". A
-// single minute or second has no number, so the status line reads "every second".
-func intervalText(interval time.Duration) string {
-	switch {
-	case interval == time.Minute:
-		return "minute"
-	case interval == time.Second:
-		return "second"
-	case interval%time.Minute == 0:
-		return fmt.Sprintf("%d minutes", interval/time.Minute)
-	}
-	return fmt.Sprintf("%d seconds", int(interval.Round(time.Second)/time.Second))
-}
-
-func (m *Model) help() string {
-	switch m.mode {
-	case filterMode:
-		return ui.HelpLine("esc", "close filters", "q", "quit")
-	case confirmMode:
-		return ""
-	}
-	var keysAndLabels []string
-	for _, action := range m.current().spec.Actions {
-		if action.Label != "" {
-			keysAndLabels = append(keysAndLabels, action.Key, action.Label)
-		}
-	}
-	if len(m.current().facets) > 0 {
-		keysAndLabels = append(keysAndLabels, "f", "filters")
-	}
-	return ui.HelpLine(append(keysAndLabels, "r", "refresh", "q", "quit")...)
-}
-
-func (m *Model) tabBar() string {
-	tabs := make([]string, len(m.boards))
-	for index, b := range m.boards {
-		if index == m.active {
-			tabs[index] = ui.SelectedStyle.Render(" " + b.spec.Title + " ")
-		} else {
-			tabs[index] = ui.DimStyle.Render(" " + b.spec.Title + " ")
-		}
-	}
-	return strings.Join(tabs, " ") + "  " + ui.HelpLine("tab", "next")
-}
-
-func (m *Model) View() string {
-	if len(m.screens) > 0 {
-		return m.screens[len(m.screens)-1].View(m.width, m.height)
-	}
-	b := m.current()
-	var sections []string
-	if len(m.boards) > 1 {
-		sections = append(sections, ansi.Truncate(m.tabBar(), m.width, "…"))
-	}
-	sections = append(sections, facetSummary(b.facets))
-	if m.mode == filterMode {
-		sections = append(sections, filterMenu(b.facets, b.menuCursor))
-	}
-	rows := m.tableRows()
-	table := b.table(m.width, b.cursor, b.offset, rows)
-	blankLines := rows + 1 - lipgloss.Height(table)
-	sections = append(sections, table+strings.Repeat("\n", max(blankLines, 0)))
-	sections = append(sections, ansi.Truncate(m.statusLine(), m.width, "…"), ansi.Truncate(m.help(), m.width, "…"))
-	return strings.Join(sections, "\n")
 }

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/ghmeier/pr-tui/internal/config"
 )
@@ -180,8 +179,6 @@ func (host *Host) Section(name string, target any) error {
 	}
 	return host.file.Section(name, target)
 }
-
-func (host *Host) RefreshInterval() time.Duration { return host.file.RefreshInterval }
 
 func (host *Host) Editor() config.Editor { return host.file.Editor }
 

@@ -10,7 +10,7 @@ import (
 
 // settingsFrom loads the text as a configuration file and reads the pull request settings
 // from it.
-func settingsFrom(t *testing.T, text string) (Settings, error) {
+func settingsFrom(t *testing.T, text string) (boardSettings, error) {
 	t.Helper()
 	return loadSettings(configtest.Load(t, text).Section)
 }

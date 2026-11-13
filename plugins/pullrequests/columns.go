@@ -125,68 +125,59 @@ func (pr PullRequest) age() string {
 	return ui.AgeText(pr.UpdatedAt)
 }
 
-func textCell(text string) []ui.Segment {
-	return []ui.Segment{{Text: text, Style: ui.PlainStyle}}
-}
-
 // columns are the board's own columns. Lines and State load slowly, so each fetches one
 // repository at a time and the table shows the pull requests without waiting for them.
 func (board *pullRequestBoard) columns() []plugin.Column {
 	return []plugin.Column{
 		{Header: "Repo", Cell: func(row plugin.Row, _ any) []ui.Segment {
-			return textCell(row.(Row).PullRequest.Repository.Name)
+			return ui.PlainSegments(row.(Row).PullRequest.Repository.Name)
 		}},
 		{Header: "#", Cell: func(row plugin.Row, _ any) []ui.Segment {
-			return textCell(strconv.Itoa(row.(Row).PullRequest.Number))
+			return ui.PlainSegments(strconv.Itoa(row.(Row).PullRequest.Number))
 		}},
 		{Header: "Title", Flexible: true, Cell: func(row plugin.Row, _ any) []ui.Segment {
-			return textCell(row.(Row).PullRequest.Title)
+			return ui.PlainSegments(row.(Row).PullRequest.Title)
 		}},
 		{Header: "Author", Cell: func(row plugin.Row, _ any) []ui.Segment {
 			pr := row.(Row).PullRequest
 			if pr.IsBot {
 				return []ui.Segment{{Text: pr.Author, Style: ui.DimStyle}}
 			}
-			return textCell(pr.Author)
+			return ui.PlainSegments(pr.Author)
 		}},
 		{Header: linesHeader, Cell: func(_ plugin.Row, data any) []ui.Segment {
 			return lineCountCellSegments(data)
 		}, Load: board.loadLineCounts},
 		{Header: stateHeader, Cell: func(row plugin.Row, data any) []ui.Segment {
-			return textCell(row.(Row).stateMarks(board.reviewTeam, data))
+			return ui.PlainSegments(row.(Row).stateMarks(board.reviewTeam, data))
 		}, Load: board.loadCIStates},
 		{Header: "Review requested", Cell: func(row plugin.Row, _ any) []ui.Segment {
 			return row.(Row).reviewSegments(board.reviewTeam)
 		}},
 		{Header: "Updated", Cell: func(row plugin.Row, _ any) []ui.Segment {
-			return textCell(row.(Row).PullRequest.age())
+			return ui.PlainSegments(row.(Row).PullRequest.age())
 		}},
 	}
 }
 
 func (board *pullRequestBoard) loadLineCounts([]plugin.Row) []plugin.Fetch {
-	var fetches []plugin.Fetch
-	for _, source := range board.provider.Repositories() {
-		fetches = append(fetches, func() (map[string]any, error) {
-			counts, err := board.provider.LineCounts(source)
-			values := make(map[string]any, len(counts))
-			for url, count := range counts {
-				values[url] = count
-			}
-			return values, err
-		})
-	}
-	return fetches
+	return fetchPerRepository(board.provider, Provider.LineCounts)
 }
 
 func (board *pullRequestBoard) loadCIStates([]plugin.Row) []plugin.Fetch {
+	return fetchPerRepository(board.provider, Provider.CIStates)
+}
+
+// fetchPerRepository makes one fetch for each repository, so that a slow repository does not
+// hold up the others.
+func fetchPerRepository[Value any](provider Provider, byURL func(Provider, Repository) (map[string]Value, error)) []plugin.Fetch {
 	var fetches []plugin.Fetch
-	for _, source := range board.provider.Repositories() {
+	for _, source := range provider.Repositories() {
 		fetches = append(fetches, func() (map[string]any, error) {
-			states, err := board.provider.CIStates(source)
-			values := make(map[string]any, len(states))
-			for url, state := range states {
-				values[url] = state
+			found, err := byURL(provider, source)
+			values := make(map[string]any, len(found))
+			for url, value := range found {
+				values[url] = value
 			}
 			return values, err
 		})

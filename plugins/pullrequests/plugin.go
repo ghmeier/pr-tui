@@ -39,7 +39,7 @@ func (pullRequests *pullRequestsPlugin) Flags(flags *flag.FlagSet) {
 // is fixed once the board is set up, because they run on different goroutines.
 type pullRequestBoard struct {
 	provider   Provider
-	settings   Settings
+	settings   boardSettings
 	editor     config.Editor
 	reviewTeam string
 	diffs      *diffCache

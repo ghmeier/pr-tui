@@ -40,6 +40,11 @@ type Segment struct {
 	Style lipgloss.Style
 }
 
+// PlainSegments is text in the default style, as a one-segment cell.
+func PlainSegments(text string) []Segment {
+	return []Segment{{Text: text, Style: PlainStyle}}
+}
+
 func PlainText(segments []Segment) string {
 	var text strings.Builder
 	for _, part := range segments {

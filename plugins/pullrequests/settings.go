@@ -12,15 +12,15 @@ const (
 	defaultCloneRoot    = "~/git"
 )
 
-// Settings is what the board needs besides its provider.
-type Settings struct {
+// boardSettings is what the board needs besides its provider.
+type boardSettings struct {
 	// ProviderName selects the provider; the provider reads its own table of the file.
 	ProviderName string
 	CloneRoot    string
 }
 
 // loadSettings reads the [pull_requests] table.
-func loadSettings(decodeSection SectionDecoder) (Settings, error) {
+func loadSettings(decodeSection SectionDecoder) (boardSettings, error) {
 	var section struct {
 		Provider  string `toml:"provider"`
 		CloneRoot string `toml:"clone_root"`
@@ -30,20 +30,20 @@ func loadSettings(decodeSection SectionDecoder) (Settings, error) {
 		ReviewTeam   any `toml:"review_team"`
 	}
 	if err := decodeSection(pluginName, &section); err != nil {
-		return Settings{}, err
+		return boardSettings{}, err
 	}
 	providerName := cmp.Or(section.Provider, defaultProviderName)
 	if section.Repositories != nil {
-		return Settings{}, movedKeyError("repositories", providerName)
+		return boardSettings{}, movedKeyError("repositories", providerName)
 	}
 	if section.ReviewTeam != nil {
-		return Settings{}, movedKeyError("review_team", providerName)
+		return boardSettings{}, movedKeyError("review_team", providerName)
 	}
 	cloneRoot, err := config.ExpandHome(cmp.Or(section.CloneRoot, defaultCloneRoot))
 	if err != nil {
-		return Settings{}, fmt.Errorf("[%s] clone_root: %w", pluginName, err)
+		return boardSettings{}, fmt.Errorf("[%s] clone_root: %w", pluginName, err)
 	}
-	return Settings{ProviderName: providerName, CloneRoot: cloneRoot}, nil
+	return boardSettings{ProviderName: providerName, CloneRoot: cloneRoot}, nil
 }
 
 func movedKeyError(key, providerName string) error {

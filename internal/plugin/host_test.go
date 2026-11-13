@@ -5,7 +5,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/ghmeier/pr-tui/internal/config"
 	"github.com/ghmeier/pr-tui/internal/config/configtest"
@@ -187,19 +186,18 @@ func TestNewHostDoesNotNameTheFileForAMistakeOnTheCommandLine(t *testing.T) {
 	}
 }
 
-func TestHostReportsTheRefreshIntervalAndEditorOfTheFile(t *testing.T) {
-	file := configtest.Load(t, "refresh_interval = \"90s\"\n[editor]\nname = \"Zed\"\ncommand = \"zed\"\n")
-	var interval time.Duration
+func TestHostReportsTheEditorOfTheFile(t *testing.T) {
+	file := configtest.Load(t, "[editor]\nname = \"Zed\"\ncommand = \"zed\"\n")
 	var editor config.Editor
 	reading := fakePlugin{name: "pull_requests", setup: func(host *Host) error {
-		interval, editor = host.RefreshInterval(), host.Editor()
+		editor = host.Editor()
 		return nil
 	}}
 
 	_, err := NewHost("config.toml", file, []Plugin{reading})
 
-	if err != nil || interval != file.RefreshInterval || !reflect.DeepEqual(editor, file.Editor) {
-		t.Fatalf("interval = %v, editor = %+v, err = %v", interval, editor, err)
+	if err != nil || !reflect.DeepEqual(editor, file.Editor) {
+		t.Fatalf("editor = %+v, err = %v", editor, err)
 	}
 }
 

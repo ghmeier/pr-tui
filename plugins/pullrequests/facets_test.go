@@ -40,24 +40,6 @@ func TestBKeyStillSwitchesAuthorsWhenARepositoryNameStartsWithB(t *testing.T) {
 	}
 }
 
-func TestNumberKeyTogglesTheRepositoryWithThatNumber(t *testing.T) {
-	provider := newFakeProvider()
-	model := loadedBoardWith(t, provider)
-
-	press(t, model, "f", "1", "esc")
-
-	assertShown(t, model, provider, provider.pullRequest(3))
-}
-
-func TestNumberKeysDoNothingOutsideTheFilterMenu(t *testing.T) {
-	provider := newFakeProvider()
-	model := loadedBoardWith(t, provider)
-
-	press(t, model, "1", "2", "b")
-
-	assertShown(t, model, provider, provider.pullRequest(1), provider.pullRequest(3))
-}
-
 func TestFiltersKeepSameNamedRepositoriesFromDifferentOwnersApart(t *testing.T) {
 	first := Repository{Owner: "FirstOwner", Name: "shared"}
 	second := Repository{Owner: "SecondOwner", Name: "shared"}

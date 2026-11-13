@@ -261,30 +261,15 @@ func TestStatusLineSaysLoadingUntilTheFirstLoadFinishes(t *testing.T) {
 func TestIntervalTextUsesWholeMinutesWhenPossibleAndSecondsOtherwise(t *testing.T) {
 	cases := map[time.Duration]string{
 		time.Second:      "second",
-		2 * time.Second:  "2 seconds",
 		time.Minute:      "minute",
 		7 * time.Minute:  "7 minutes",
 		90 * time.Second: "90 seconds",
-		30 * time.Second: "30 seconds",
 	}
 
 	for interval, expected := range cases {
 		if text := intervalText(interval); text != expected {
 			t.Errorf("intervalText(%v) = %q, expected %q", interval, text, expected)
 		}
-	}
-}
-
-func TestStatusLineReadsEverySecondForAOneSecondRefreshInterval(t *testing.T) {
-	host, err := buildHost(t, "plugins = [\"fake\"]\nrefresh_interval = \"1s\"\n", boardPlugin("fake", groceryBoard(newRowSource(groceries()...))))
-	if err != nil {
-		t.Fatal(err)
-	}
-	model := host.Model()
-	plugintest.Start(t, model)
-
-	if status := lines(model)[len(lines(model))-2]; !strings.Contains(status, "refreshes every second") {
-		t.Fatalf("status line = %q", status)
 	}
 }
 

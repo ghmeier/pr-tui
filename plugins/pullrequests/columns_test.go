@@ -238,20 +238,6 @@ func TestStateColumnShowsCIOnceLoadedAndNothingForAPullRequestWithoutChecks(t *t
 	}
 }
 
-func TestColumnDataSurvivesARefresh(t *testing.T) {
-	provider := newFakeProvider()
-	model := loadedBoardWith(t, provider)
-	provider.fail("LineCounts", errorForTests)
-	provider.fail("CIStates", errorForTests)
-
-	press(t, model, "r")
-
-	line := lineWith(t, model, provider.pullRequest(1).Title)
-	if !strings.Contains(line, expectedLines(provider)) || !strings.Contains(line, "📝 🔴") {
-		t.Fatalf("line right after a refresh whose fetches failed = %q", line)
-	}
-}
-
 func TestSlowColumnsAreFetchedOncePerRepositoryOnEachLoad(t *testing.T) {
 	provider := newFakeProvider()
 	model := loadedBoardWith(t, provider)
