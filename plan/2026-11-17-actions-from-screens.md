@@ -5,7 +5,7 @@ status: active
 tags: [plugins]
 created: 2026-11-17
 updated: 2026-11-17
-next_step: Step 0, apl set in ~/git/agent-plan; step 1 in parallel
+next_step: Step 2, plan-status from main, after apl set is merged and released
 ---
 # Pull request actions from screens, approval, and plan status
 
@@ -93,7 +93,7 @@ No configuration changes.
    plugin skill say to use it instead of editing `status:` by hand. Verified with
    `bun test`, `bun run typecheck`, `bun run lint`. Lands as a pull request the user merges;
    then I push the `v0.9.0` tag.
-1. **`screen-actions`**, from `main`. Host: `RunAction`, screen boards, status line and
+1. **`screen-actions`**, from `main`. Done: merged locally at c116860. Host: `RunAction`, screen boards, status line and
    questions beneath screens. Pull requests: `a` approve with `Provider.Approve`, `e` to `t`,
    and the screens' `d`, `t`, `m`, `a`. README key list updated.
    Verified by host tests with fake boards and screens, plugin tests with the fake provider,
