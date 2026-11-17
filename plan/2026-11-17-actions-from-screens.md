@@ -123,3 +123,8 @@ No configuration changes.
   from `apl types --json` in each checkout.
 - 2026-11-17: The approve action stays in the help line on the viewer's own pull requests,
   because actions are fixed per board; pressing it there only explains why it does nothing.
+- 2026-11-17: Step 1 built on `screen-actions` (d7e22a8, refactor c116860), verified with vet,
+  gofmt, 450 tests, and a `--once` run. The example tickets plugin used `t` on the pull
+  request board, so its key moved to `i`, with the guide updated. The screens' help lines and
+  keys come from the board's own actions (`screenActions`), so labels cannot drift. A stale
+  board notice such as "Refresh failed" shows beneath screens until the next load, as expected.
