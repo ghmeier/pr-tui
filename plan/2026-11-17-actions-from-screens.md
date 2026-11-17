@@ -1,11 +1,11 @@
 ---
 title: Pull request actions from screens, approval, and plan status
 type: plan
-status: active
+status: completed
 tags: [plugins]
 created: 2026-11-17
 updated: 2026-11-17
-next_step: Step 2, plan-status from main, after apl set is merged and released
+next_step: Done
 ---
 # Pull request actions from screens, approval, and plan status
 
@@ -84,7 +84,7 @@ No configuration changes.
 
 ## Steps
 
-0. **`apl set`**, in `~/git/agent-plan`, branch `set-status` from `main`.
+0. **`apl set`**, in `~/git/agent-plan`. Done: agent-plan#9, released as v0.9.0 (a65f7a1).
    `apl set <doc> --status <status>` sets the doc's status and stamps `updated:` (and
    `created:` when missing) with `setFrontmatterFields` and `stampTimestamps`, so no other line
    changes. It takes the store lock and resolves the doc with `resolveDocPath`, as `link`
@@ -98,7 +98,7 @@ No configuration changes.
    and the screens' `d`, `t`, `m`, `a`. README key list updated.
    Verified by host tests with fake boards and screens, plugin tests with the fake provider,
    a GitHub provider test for the exact `gh pr review` command, and a `--once` run.
-2. **`plan-status`**, from step 1, after step 0 is merged. Host: `Effect.Choice`. Agent plans:
+2. **`plan-status`**. Done: merged locally at 09ecf35. Host: `Effect.Choice`. Agent plans:
    `Row.Statuses`, the `s` action on the board and document screen running `apl set`.
    Verified by host tests for choosing, cancelling, and a choice over a screen; plugin tests
    that replace `shell.Run` and assert the exact `apl set` command; a `--once` run.
@@ -128,3 +128,7 @@ No configuration changes.
   request board, so its key moved to `i`, with the guide updated. The screens' help lines and
   keys come from the board's own actions (`screenActions`), so labels cannot drift. A stale
   board notice such as "Refresh failed" shows beneath screens until the next load, as expected.
+- 2026-11-17: Step 2 merged locally at 09ecf35. `apl types --json` runs once per checkout per
+  load, and a failure fails that load. Every apl that prs supports has `types`. An apl older
+  than 0.9.0 is recognised by "unknown command" in its error and reported as needing 0.9.0.
+  Options past the ninth in a Choice are hidden, which no type comes near.
