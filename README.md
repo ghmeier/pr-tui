@@ -51,7 +51,7 @@ repositories = ["~/git/storefront", "~/git/billing"]   # required; checkouts tha
 ```
 
 The repositories and the review team belong to the provider, so they live in the table named
-after it. Without `review_team`, the `e` key is disabled and no team is highlighted or counted
+after it. Without `review_team`, the `t` key is disabled and no team is highlighted or counted
 as waiting on you.
 
 A mistake in the file, such as an unknown key or a repository not written as `owner/name`,
@@ -90,8 +90,9 @@ Board keys:
 | `o` | Open in the browser |
 | `v` | Check out the branch with `wt switch` and open it, with its changed files, in the configured editor |
 | `d` | Toggle draft / ready for review |
-| `e` | Request review from the configured team, marking a draft ready for review first |
+| `t` | Request review from the configured team, marking a draft ready for review first |
 | `m` | Enable or disable auto-merge (squash), after a confirmation |
+| `a` | Approve someone else's pull request, after a confirmation |
 | `f` | Filter by repository and by people or bots: `j`/`k` move, `space` toggles, `1` to `9` toggle the first nine options, `b` switches people and bots |
 | `tab` / `shift+tab` | Switch boards, when plugins add more than one |
 | `r` | Refresh (also on the configured interval, every 3 minutes by default) |
@@ -106,6 +107,22 @@ Diff view keys:
 | `s` | Toggle split and unified layouts |
 | `c` | Comment on the line under the cursor, or reply to the thread under it (`ctrl+s` posts) |
 | `tab` | Choose the old or new side of a split row for the comment |
+| `d` | Toggle draft / ready for review |
+| `t` | Request review from the configured team, as on the board |
+| `m` | Enable or disable auto-merge (squash), after a confirmation |
+| `a` | Approve someone else's pull request, after a confirmation |
+| `esc` | Back |
+
+Description view keys:
+
+| Key | Action |
+| --- | --- |
+| `↑` / `↓`, `space` / `b` | Scroll by a line or a page |
+| `e` | Edit the description |
+| `d` | Toggle draft / ready for review |
+| `t` | Request review from the configured team, as on the board |
+| `m` | Enable or disable auto-merge (squash), after a confirmation |
+| `a` | Approve someone else's pull request, after a confirmation |
 | `esc` | Back |
 
 ## Agent plans

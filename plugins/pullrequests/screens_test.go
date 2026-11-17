@@ -524,3 +524,138 @@ func TestDiffViewFollowsTheTerminalSize(t *testing.T) {
 		}
 	}
 }
+
+// screenOpeners are the keys that open each screen from the board.
+var screenOpeners = map[string][]string{
+	"diff screen":        {"enter"},
+	"description screen": {"p"},
+}
+
+func TestDraftKeyOnAScreenUsesTheRefreshedPullRequestTheSecondTime(t *testing.T) {
+	for name, opener := range screenOpeners {
+		t.Run(name, func(t *testing.T) {
+			provider := newFakeProvider()
+			model := loadedBoardWith(t, provider)
+			selected := provider.pullRequest(1)
+			press(t, model, opener...)
+
+			press(t, model, "d", "d")
+
+			assertCalls(t, provider, draftCall(selected, false), draftCall(selected, true))
+		})
+	}
+}
+
+func TestAutoMergeKeyOnAScreenAsksBeforeToggling(t *testing.T) {
+	for name, opener := range screenOpeners {
+		t.Run(name, func(t *testing.T) {
+			provider := newFakeProvider()
+			model := loadedBoardWith(t, provider)
+			selected := provider.pullRequest(1)
+			press(t, model, opener...)
+
+			press(t, model, "m")
+			asked := view(model)
+			callsWhileAsking := provider.recorded()
+			press(t, model, "y")
+
+			if !strings.Contains(asked, selected.toggleAutoMergeQuestion()) || len(callsWhileAsking) != 0 {
+				t.Fatalf("view while asking:\n%s\ncalls = %v", asked, callsWhileAsking)
+			}
+			assertCalls(t, provider, autoMergeCall(selected, true))
+		})
+	}
+}
+
+func TestApproveKeyOnAScreenAsksThenApproves(t *testing.T) {
+	for name, opener := range screenOpeners {
+		t.Run(name, func(t *testing.T) {
+			provider := newFakeProvider()
+			model := loadedBoardWith(t, provider)
+			selected := provider.pullRequest(1)
+			press(t, model, opener...)
+
+			press(t, model, "a")
+			asked := view(model)
+			press(t, model, "y")
+
+			if !strings.Contains(asked, selected.approveQuestion()) {
+				t.Fatalf("view while asking:\n%s", asked)
+			}
+			assertCalls(t, provider, approveCall(selected))
+		})
+	}
+}
+
+func TestReviewKeyOnAScreenRequestsTheTeam(t *testing.T) {
+	for name, opener := range screenOpeners {
+		t.Run(name, func(t *testing.T) {
+			provider := newFakeProvider()
+			model := loadedBoardWith(t, provider)
+			selected := provider.pullRequest(1)
+			press(t, model, opener...)
+
+			press(t, model, "t")
+
+			assertCalls(t, provider, draftCall(selected, false), teamReviewCall(selected))
+		})
+	}
+}
+
+func TestReviewKeyOnAScreenDoesNothingWithoutAReviewTeam(t *testing.T) {
+	for name, opener := range screenOpeners {
+		t.Run(name, func(t *testing.T) {
+			provider := newFakeProvider()
+			provider.reviewTeam = ""
+			model := loadedBoardWith(t, provider)
+			press(t, model, opener...)
+
+			press(t, model, "t")
+
+			assertCalls(t, provider)
+		})
+	}
+}
+
+func TestScreenHelpOffersTheBoardsChangeKeysBeforeBack(t *testing.T) {
+	for name, opener := range screenOpeners {
+		t.Run(name, func(t *testing.T) {
+			model := loadedBoard(t)
+			plugintest.Resize(t, model, 300, 30)
+			press(t, model, opener...)
+
+			help := helpLine(model)
+
+			expected := "d draft / ready · t request " + testReviewTeam + " · m auto-merge · a approve · esc back"
+			if !strings.Contains(help, expected) {
+				t.Fatalf("help = %q, expected it to contain %q", help, expected)
+			}
+		})
+	}
+}
+
+func TestDescriptionScreenKeepsEForEditing(t *testing.T) {
+	provider := newFakeProvider()
+	model := loadedBoardWith(t, provider)
+	press(t, model, "p")
+
+	press(t, model, "e")
+
+	assertCalls(t, provider)
+	if strings.Contains(view(model), "Approve") {
+		t.Fatalf("view:\n%s", view(model))
+	}
+}
+
+func TestChangeKeysTypedIntoACommentDoNotRunActions(t *testing.T) {
+	provider := newFakeProvider()
+	model := loadedBoardWith(t, provider)
+	press(t, model, append(pressToTheAddedLine(), "c")...)
+
+	press(t, model, "d", "t", "m", "a", "y")
+
+	assertCalls(t, provider)
+	if !strings.Contains(view(model), "dtmay") {
+		t.Fatalf("the keys should be in the comment:\n%s", view(model))
+	}
+}

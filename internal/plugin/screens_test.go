@@ -280,8 +280,8 @@ func TestScreenCanRunAnEffectThatAsksFirstAndThenRunsItsCommandAndRefreshes(t *t
 	model := modelWithScreenRunning(t, source, Effect{Confirm: question, Command: count.command, Refresh: true})
 	loadsBefore := source.loadCount()
 
-	plugintest.Press(t, model, "g", "esc")
-	asked := statusLine(model)
+	plugintest.Press(t, model, "g")
+	asked := lastLine(model)
 	ranBeforeAnswer := count.runs
 	plugintest.Press(t, model, "y")
 
@@ -299,7 +299,7 @@ func TestScreenEffectThatIsDeclinedRunsNothing(t *testing.T) {
 	model := modelWithScreenRunning(t, source, Effect{Confirm: "Really?", Command: count.command, Refresh: true})
 	loadsBefore := source.loadCount()
 
-	plugintest.Press(t, model, "g", "esc", "n")
+	plugintest.Press(t, model, "g", "n")
 
 	if count.runs != 0 || source.loadCount() != loadsBefore {
 		t.Fatalf("command runs = %d, reloads = %d", count.runs, source.loadCount()-loadsBefore)
@@ -314,5 +314,178 @@ func TestScreenEffectCommandFailureShowsFailedOnTheBoard(t *testing.T) {
 
 	if !strings.Contains(statusLine(model), "Failed: "+errorForTests.Error()) {
 		t.Fatalf("status = %q", statusLine(model))
+	}
+}
+
+func lastLine(model *Model) string {
+	return lines(model)[len(lines(model))-1]
+}
+
+// screenRunningAction is a screen that runs the board's action with the key whenever it
+// receives "g".
+func screenRunningAction(selection *Selection, key string) *fakeScreen {
+	screen := &fakeScreen{title: "details"}
+	screen.onKey = func(pressed string) (Screen, tea.Cmd, bool) {
+		return screen, selection.RunAction(key), pressed == "g"
+	}
+	return screen
+}
+
+// modelWithScreenRunningAction opens, from the action on "x", a screen whose "g" runs the
+// board's action on "t", which returns the effect built for the row it ran on.
+func modelWithScreenRunningAction(t *testing.T, source *rowSource, effect func(row fakeRow) Effect) (*Model, *fakeScreen) {
+	t.Helper()
+	var selection Selection
+	screen := screenRunningAction(&selection, "t")
+	board := boardOpeningScreen(&selection, screen)
+	board.Load = source.load
+	board.Actions = append(board.Actions, Action{Key: "t", Run: func(given Selection) Effect {
+		return effect(given.Row.(fakeRow))
+	}})
+	model := modelForBoard(t, board)
+	plugintest.Press(t, model, "x")
+	return model, screen
+}
+
+func TestRunActionRunsTheActionOnTheBoardsCurrentRowAfterAReload(t *testing.T) {
+	source := newRowSource(groceries()...)
+	var ranOn []fakeRow
+	model, _ := modelWithScreenRunningAction(t, source, func(row fakeRow) Effect {
+		ranOn = append(ranOn, row)
+		return Effect{}
+	})
+	renamed := fruit("apple-key", "green apple")
+	source.set(renamed, vegetable("broccoli-key", "broccoli"))
+	plugintest.Settle(t, model, model.RefreshAll())
+
+	plugintest.Press(t, model, "g")
+
+	if len(ranOn) != 1 || ranOn[0] != renamed {
+		t.Fatalf("the action ran on %v, expected the reloaded row %v", ranOn, renamed)
+	}
+}
+
+func TestRunActionRunsTheActionOnTheOriginalRowWhenTheBoardNoLongerHasIt(t *testing.T) {
+	source := newRowSource(groceries()...)
+	original := groceries()[0].(fakeRow)
+	var ranOn []fakeRow
+	model, _ := modelWithScreenRunningAction(t, source, func(row fakeRow) Effect {
+		ranOn = append(ranOn, row)
+		return Effect{}
+	})
+	source.set(vegetable("broccoli-key", "broccoli"))
+	plugintest.Settle(t, model, model.RefreshAll())
+
+	plugintest.Press(t, model, "g")
+
+	if len(ranOn) != 1 || ranOn[0] != original {
+		t.Fatalf("the action ran on %v, expected the original row %v", ranOn, original)
+	}
+}
+
+func TestRunActionFindsARowThatTheFiltersHide(t *testing.T) {
+	source := newRowSource(groceries()...)
+	renamed := fruit("apple-key", "green apple")
+	var ranOn []fakeRow
+	model, _ := modelWithScreenRunningAction(t, source, func(row fakeRow) Effect {
+		ranOn = append(ranOn, row)
+		return Effect{}
+	})
+	model.boards[0].facets[0].selected["fruit"] = false
+	model.boards[0].applyFilters()
+	source.set(renamed)
+	plugintest.Settle(t, model, model.RefreshAll())
+
+	plugintest.Press(t, model, "g")
+
+	if len(ranOn) != 1 || ranOn[0] != renamed {
+		t.Fatalf("the action ran on %v, expected the hidden row %v", ranOn, renamed)
+	}
+}
+
+func TestRunActionWithAKeyTheBoardHasNoActionForDoesNothing(t *testing.T) {
+	var selection Selection
+	screen := screenRunningAction(&selection, "unbound")
+	model := modelForBoard(t, boardOpeningScreen(&selection, screen))
+	plugintest.Press(t, model, "x")
+
+	plugintest.Press(t, model, "g")
+
+	if model.mode != boardMode || lastLine(model) != "screen "+screen.title || len(model.screens) != 1 {
+		t.Fatalf("view = %q, mode = %v", screenText(model), model.mode)
+	}
+}
+
+func TestQuestionFromRunActionShowsBeneathTheScreenAndYCarriesItOut(t *testing.T) {
+	count := &counter{}
+	question := "Really?"
+	model, screen := modelWithScreenRunningAction(t, newRowSource(groceries()...), func(fakeRow) Effect {
+		return Effect{Confirm: question, Command: count.command}
+	})
+
+	plugintest.Press(t, model, "g")
+	asked := lines(model)
+	ranBeforeAnswer := count.runs
+	plugintest.Press(t, model, "y")
+
+	if asked[0] != "screen "+screen.title || !strings.Contains(asked[len(asked)-1], question) || ranBeforeAnswer != 0 {
+		t.Fatalf("view while asking = %q, command runs before the answer = %d", asked, ranBeforeAnswer)
+	}
+	if count.runs != 1 || len(model.screens) != 1 {
+		t.Fatalf("command runs = %d, screens = %d", count.runs, len(model.screens))
+	}
+}
+
+func TestQuestionFromRunActionDeclinedWithNRunsNothingAndLeavesTheScreenOpen(t *testing.T) {
+	count := &counter{}
+	model, screen := modelWithScreenRunningAction(t, newRowSource(groceries()...), func(fakeRow) Effect {
+		return Effect{Confirm: "Really?", Command: count.command}
+	})
+
+	plugintest.Press(t, model, "g", "n")
+
+	if count.runs != 0 || len(model.screens) != 1 || screenText(model) != "screen "+screen.title {
+		t.Fatalf("command runs = %d, view = %q", count.runs, screenText(model))
+	}
+}
+
+func TestKeysDoNotReachTheScreenWhileAQuestionIsPending(t *testing.T) {
+	model, screen := modelWithScreenRunningAction(t, newRowSource(groceries()...), func(fakeRow) Effect {
+		return Effect{Confirm: "Really?"}
+	})
+	plugintest.Press(t, model, "g")
+
+	plugintest.Press(t, model, "q", "j", "x")
+
+	if len(screen.receivedKeys()) != 0 || plugintest.Quits(model, "q") {
+		t.Fatalf("the screen received %v", screen.receivedKeys())
+	}
+	if model.mode != confirmMode {
+		t.Fatalf("the question should still be pending")
+	}
+}
+
+func TestBoardNoticeShowsBeneathItsScreenAndTheScreenLosesALine(t *testing.T) {
+	notice := "Working on it"
+	model, screen := modelWithScreenRunningAction(t, newRowSource(groceries()...), func(fakeRow) Effect {
+		return Effect{Notice: notice}
+	})
+	plugintest.Resize(t, model, 90, 25)
+
+	plugintest.Press(t, model, "g")
+
+	if lastLine(model) != notice || screen.height != 24 {
+		t.Fatalf("last line = %q, the screen was drawn %d high", lastLine(model), screen.height)
+	}
+}
+
+func TestScreenGetsEveryLineWhenItsBoardHasNoNoticeAndNoQuestionIsPending(t *testing.T) {
+	model, screen := modelWithScreenRunningAction(t, newRowSource(groceries()...), func(fakeRow) Effect { return Effect{} })
+	plugintest.Resize(t, model, 90, 25)
+
+	plugintest.Press(t, model, "g")
+
+	if screen.height != 25 || len(lines(model)) != 1 {
+		t.Fatalf("the screen was drawn %d high, view = %q", screen.height, screenText(model))
 	}
 }

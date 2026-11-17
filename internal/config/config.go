@@ -254,7 +254,7 @@ clone_root = "~/git"
 # Required. Each entry is "owner/name"; the owners may differ.
 repositories = ["your-organization/your-repository"]
 
-# Optional. When set, the "e" key requests a review from this team and the board marks
+# Optional. When set, the "t" key requests a review from this team and the board marks
 # pull requests that are waiting on it.
 # review_team = "engineering"
 

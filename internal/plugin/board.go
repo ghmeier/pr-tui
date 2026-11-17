@@ -74,6 +74,11 @@ func (board *boardState) selection() (Selection, bool) {
 	if !hasSelection {
 		return Selection{}, false
 	}
+	return board.selectionOf(row), true
+}
+
+// selectionOf is the selection for any row of the board, with its loaded values copied.
+func (board *boardState) selectionOf(row Row) Selection {
 	loaded := map[string]any{}
 	for index, column := range board.spec.Columns {
 		if value, found := board.data[index][row.Key()]; found {
@@ -84,7 +89,17 @@ func (board *boardState) selection() (Selection, bool) {
 		Row:        row,
 		Data:       func(header string) any { return loaded[header] },
 		boardIndex: board.index,
-	}, true
+	}
+}
+
+// rowWithKey finds a loaded row, whether or not the filters show it.
+func (board *boardState) rowWithKey(key string) (Row, bool) {
+	for _, row := range board.rows {
+		if row.Key() == key {
+			return row, true
+		}
+	}
+	return nil, false
 }
 
 func (board *boardState) cells() [][][]ui.Segment {

@@ -166,7 +166,7 @@ func TestTicketKeyOnAPullRequestOpensTheMatchedTicketsAddress(t *testing.T) {
 	commands := recordShell(t)
 	model := startedWithBoth(t, example)
 
-	plugintest.Press(t, model, "t")
+	plugintest.Press(t, model, "i")
 
 	expected := [][]string{{"open", defaultURLPrefix + example.ticket.ID}}
 	if !reflect.DeepEqual(*commands, expected) {
@@ -179,7 +179,7 @@ func TestTicketKeyOnAPullRequestWithoutATicketRunsNothingAndSaysSo(t *testing.T)
 	commands := recordShell(t)
 	model := startedWithBoth(t, example)
 
-	plugintest.Press(t, model, "down", "t")
+	plugintest.Press(t, model, "down", "i")
 
 	if len(*commands) != 0 {
 		t.Fatalf("commands = %v", *commands)

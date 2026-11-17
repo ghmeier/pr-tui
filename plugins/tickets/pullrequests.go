@@ -42,11 +42,11 @@ func (tracker *tracker) pullRequestColumn() plugin.Column {
 	}
 }
 
-// openTicketOfPullRequest is the t key of the pull request board. It reads the ticket that the
+// openTicketOfPullRequest is the i key of the pull request board. It reads the ticket that the
 // Ticket column loaded for the selected row.
 func (tracker *tracker) openTicketOfPullRequest() plugin.Action {
 	return plugin.Action{
-		Key:   "t",
+		Key:   "i",
 		Label: "ticket",
 		Run: func(selection plugin.Selection) plugin.Effect {
 			found, matched := selection.Data(ticketColumnHeader).(ticket)

@@ -195,6 +195,18 @@ func TestRequestTeamReviewGoesToTheOwnerOfThePullRequest(t *testing.T) {
 	})
 }
 
+func TestApproveApprovesThePullRequestByItsUrl(t *testing.T) {
+	pr := fixturePullRequest(storefront)
+	stub := stubShell(t, "")
+
+	err := providerFor(storefront).Approve(pr)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	stub.assertCommands(t, []string{"gh", "pr", "review", pr.URL, "--approve"})
+}
+
 func TestEveryMethodReturnsTheFailureOfTheCommandItRan(t *testing.T) {
 	pr := fixturePullRequest(storefront)
 	target := pullrequests.CommentTarget{Path: "first.py", Line: 2}
@@ -210,6 +222,7 @@ func TestEveryMethodReturnsTheFailureOfTheCommandItRan(t *testing.T) {
 		"PostComment":       func(p *provider) error { return p.PostComment(pr, target, "body") },
 		"SetDraft":          func(p *provider) error { return p.SetDraft(pr, false) },
 		"SetAutoMerge":      func(p *provider) error { return p.SetAutoMerge(pr, true) },
+		"Approve":           func(p *provider) error { return p.Approve(pr) },
 		"RequestTeamReview": func(p *provider) error { return p.RequestTeamReview(pr) },
 	}
 	stubShellWith(t, func([]string) ([]byte, error) { return nil, errorFromGh })

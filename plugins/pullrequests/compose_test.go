@@ -59,7 +59,7 @@ func (tickets *ticketPlugin) Setup(host *plugin.Host) error {
 			}}
 		},
 	})
-	host.AddAction(BoardName, plugin.Action{Key: "t", Label: "link ticket", Run: func(selection plugin.Selection) plugin.Effect {
+	host.AddAction(BoardName, plugin.Action{Key: "i", Label: "link ticket", Run: func(selection plugin.Selection) plugin.Effect {
 		tickets.linked = append(tickets.linked, selection.Row.(Row).PullRequest)
 		tickets.seenOnAction = selection.Data(ticketColumnHeader)
 		return plugin.Effect{}
@@ -125,7 +125,7 @@ func TestAnotherPluginsActionRunsOnTheSelectedPullRequest(t *testing.T) {
 	tickets := ticketsFor(provider)
 	model := composedBoard(t, provider, tickets)
 
-	press(t, model, "down", "t")
+	press(t, model, "down", "i")
 
 	if len(tickets.linked) != 1 || tickets.linked[0].URL != provider.pullRequest(3).URL {
 		t.Fatalf("the action ran on %v", tickets.linked)
@@ -133,7 +133,7 @@ func TestAnotherPluginsActionRunsOnTheSelectedPullRequest(t *testing.T) {
 	if tickets.seenOnAction != tickets.ticketsByURL[provider.pullRequest(3).URL] {
 		t.Fatalf("the action read %v from its own column", tickets.seenOnAction)
 	}
-	if !strings.Contains(helpLine(model), "t link ticket") {
+	if !strings.Contains(helpLine(model), "i link ticket") {
 		t.Fatalf("help = %q", helpLine(model))
 	}
 }

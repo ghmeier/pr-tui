@@ -22,8 +22,7 @@ func (m *Model) tableRows() int {
 	return max(rows, 1)
 }
 
-func (m *Model) statusLine() string {
-	board := m.current()
+func (m *Model) statusLine(board *boardState) string {
 	switch {
 	case m.mode == confirmMode:
 		return ui.KeyStyle.Render(m.question) + "  " + ui.HelpLine("y", "yes", "n", "no")
@@ -85,7 +84,7 @@ func (m *Model) tabBar() string {
 
 func (m *Model) View() string {
 	if len(m.screens) > 0 {
-		return m.screens[len(m.screens)-1].View(m.width, m.height)
+		return m.viewTopScreen()
 	}
 	board := m.current()
 	var sections []string
@@ -100,6 +99,17 @@ func (m *Model) View() string {
 	table := board.table(m.width, board.cursor, board.offset, rows)
 	blankLines := rows + 1 - lipgloss.Height(table)
 	sections = append(sections, table+strings.Repeat("\n", max(blankLines, 0)))
-	sections = append(sections, ansi.Truncate(m.statusLine(), m.width, "…"), ansi.Truncate(m.help(), m.width, "…"))
+	sections = append(sections, ansi.Truncate(m.statusLine(board), m.width, "…"), ansi.Truncate(m.help(), m.width, "…"))
 	return strings.Join(sections, "\n")
+}
+
+// viewTopScreen draws the top screen. While a question is pending or its board has a notice,
+// the screen gives up its last line to the board's status line, because the board is hidden.
+func (m *Model) viewTopScreen() string {
+	top := len(m.screens) - 1
+	board := m.boards[m.screenBoards[top]]
+	if m.mode != confirmMode && board.notice == "" {
+		return m.screens[top].View(m.width, m.height)
+	}
+	return m.screens[top].View(m.width, m.height-1) + "\n" + ansi.Truncate(m.statusLine(board), m.width, "…")
 }

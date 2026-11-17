@@ -28,6 +28,7 @@ type Provider interface {
 	SetDraft(pullRequest PullRequest, draft bool) error
 	SetAutoMerge(pullRequest PullRequest, enabled bool) error
 	RequestTeamReview(pullRequest PullRequest) error
+	Approve(pullRequest PullRequest) error
 }
 
 // SectionDecoder decodes one table of the configuration file into target, rejecting unknown

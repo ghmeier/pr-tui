@@ -98,6 +98,17 @@ func (selection Selection) Run(effect Effect) tea.Cmd {
 	}
 }
 
+// RunAction has the host run the board's action with the given key on the row as the board has
+// it now, found by this selection's row key among all the rows the board has loaded and not
+// only the visible ones. When that row is gone it runs on this selection's own row. It is
+// exactly as if the key had been pressed on the board, including the question the action asks.
+// A key the board has no action for does nothing.
+func (selection Selection) RunAction(key string) tea.Cmd {
+	return func() tea.Msg {
+		return actionMessage{board: selection.boardIndex, rowKey: selection.Row.Key(), fallback: selection.Row, key: key}
+	}
+}
+
 // Action is a key that does something to the selected row.
 type Action struct {
 	Key string

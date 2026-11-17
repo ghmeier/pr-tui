@@ -73,7 +73,7 @@ func TestDraftKeyShowsTheFailureWhenTheProviderRefuses(t *testing.T) {
 func TestReviewKeyOnADraftMarksItReadyThenRequestsTheTeam(t *testing.T) {
 	provider := newFakeProvider()
 
-	press(t, loadedBoardWith(t, provider), "e")
+	press(t, loadedBoardWith(t, provider), "t")
 
 	draft := provider.pullRequest(1)
 	assertCalls(t, provider, draftCall(draft, false), teamReviewCall(draft))
@@ -82,7 +82,7 @@ func TestReviewKeyOnADraftMarksItReadyThenRequestsTheTeam(t *testing.T) {
 func TestReviewKeyOnAReadyPullRequestOnlyRequestsTheTeam(t *testing.T) {
 	provider := newFakeProvider()
 
-	press(t, loadedBoardWith(t, provider), "down", "e")
+	press(t, loadedBoardWith(t, provider), "down", "t")
 
 	assertCalls(t, provider, teamReviewCall(provider.pullRequest(3)))
 }
@@ -92,7 +92,7 @@ func TestReviewKeyDoesNotRequestTheTeamWhenMarkingReadyFails(t *testing.T) {
 	provider.fail("SetDraft", errorForTests)
 	model := loadedBoardWith(t, provider)
 
-	press(t, model, "e")
+	press(t, model, "t")
 
 	assertCalls(t, provider, draftCall(provider.pullRequest(1), false))
 	if !strings.Contains(view(model), "Failed: "+errorForTests.Error()) {
@@ -105,7 +105,7 @@ func TestReviewKeyIsNotRegisteredWithoutAReviewTeam(t *testing.T) {
 	provider.reviewTeam = ""
 	model := loadedBoardWith(t, provider)
 
-	press(t, model, "e")
+	press(t, model, "t")
 
 	assertCalls(t, provider)
 	if help := helpLine(model); strings.Contains(help, "request") {
@@ -118,7 +118,7 @@ func TestHelpOffersTheReviewKeyWithTheTeamNameWhenOneIsConfigured(t *testing.T) 
 
 	help := helpLine(model)
 
-	if !strings.Contains(help, "e request "+testReviewTeam) {
+	if !strings.Contains(help, "t request "+testReviewTeam) {
 		t.Fatalf("help = %q", help)
 	}
 }
@@ -129,8 +129,8 @@ func TestHelpListsTheActionsInTheOrderOfTheBoardAndNamesTheConfiguredEditor(t *t
 
 	help := helpLine(model)
 
-	expected := "enter diff · p description · o open · v " + testEditorName + " · d draft / ready · e request " + testReviewTeam +
-		" · m auto-merge · f filters · r refresh · q quit"
+	expected := "enter diff · p description · o open · v " + testEditorName + " · d draft / ready · t request " + testReviewTeam +
+		" · m auto-merge · a approve · f filters · r refresh · q quit"
 	if help != expected {
 		t.Fatalf("help = %q, expected %q", help, expected)
 	}
@@ -177,6 +177,64 @@ func TestDecliningAutoMergeChangesNothing(t *testing.T) {
 	if strings.Contains(view(model), "auto-merge (squash)") {
 		t.Fatalf("the question is still shown:\n%s", view(model))
 	}
+}
+
+func TestApproveKeyAsksBeforeApprovingSomeoneElsesPullRequest(t *testing.T) {
+	provider := newFakeProvider()
+	model := loadedBoardWith(t, provider)
+	selected := provider.pullRequest(1)
+
+	press(t, model, "a")
+	asked := view(model)
+	callsWhileAsking := provider.recorded()
+	press(t, model, "y")
+
+	if !strings.Contains(asked, selected.approveQuestion()) || len(callsWhileAsking) != 0 {
+		t.Fatalf("view while asking:\n%s\ncalls = %v", asked, callsWhileAsking)
+	}
+	assertCalls(t, provider, approveCall(selected))
+}
+
+func TestDecliningApproveChangesNothing(t *testing.T) {
+	provider := newFakeProvider()
+	model := loadedBoardWith(t, provider)
+
+	press(t, model, "a", "n")
+
+	assertCalls(t, provider)
+}
+
+func TestApproveKeyNamesThePullRequestInItsNoticeWhileItWorks(t *testing.T) {
+	provider := newFakeProvider()
+	model := loadedBoardWith(t, provider)
+
+	press(t, model, "a")
+	model.Update(keyMessage("y"))
+
+	if notice := view(model); !strings.Contains(notice, provider.pullRequest(1).approveNotice()) {
+		t.Fatalf("view:\n%s", notice)
+	}
+}
+
+func TestApproveKeyOnTheViewersOwnPullRequestOnlyShowsANotice(t *testing.T) {
+	provider := newFakeProvider()
+	provider.pullRequests[0].Author = testViewer
+	model := loadedBoardWith(t, provider)
+
+	press(t, model, "a")
+
+	assertCalls(t, provider)
+	if notice := view(model); !strings.Contains(notice, provider.pullRequest(1).approveOwnNotice()) || strings.Contains(notice, "Approve ") {
+		t.Fatalf("view:\n%s", notice)
+	}
+}
+
+func TestReviewKeyIsNoLongerBoundToE(t *testing.T) {
+	provider := newFakeProvider()
+
+	press(t, loadedBoardWith(t, provider), "e")
+
+	assertCalls(t, provider)
 }
 
 func TestEditorKeyOpensTheWorktreeAndTheProvidersChangedFiles(t *testing.T) {

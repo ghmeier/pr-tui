@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"slices"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -23,9 +24,44 @@ func (board *pullRequestBoard) actions() []plugin.Action {
 		{Key: "d", Label: "draft / ready", Run: board.toggleDraft},
 	}
 	if board.reviewTeam != "" {
-		actions = append(actions, plugin.Action{Key: "e", Label: "request " + board.reviewTeam, Run: board.requestTeamReview})
+		actions = append(actions, plugin.Action{Key: "t", Label: "request " + board.reviewTeam, Run: board.requestTeamReview})
 	}
-	return append(actions, plugin.Action{Key: "m", Label: "auto-merge", Run: board.toggleAutoMerge})
+	return append(actions,
+		plugin.Action{Key: "m", Label: "auto-merge", Run: board.toggleAutoMerge},
+		plugin.Action{Key: "a", Label: "approve", Run: board.approve},
+	)
+}
+
+// screenActions are the board's actions that the diff and description screens offer as well,
+// so that a pull request can be changed without going back to the board.
+func (board *pullRequestBoard) screenActions() []plugin.Action {
+	var offered []plugin.Action
+	for _, action := range board.actions() {
+		if slices.Contains([]string{"d", "t", "m", "a"}, action.Key) {
+			offered = append(offered, action)
+		}
+	}
+	return offered
+}
+
+// screenActionHelp lists the screen actions' keys and labels for a screen's help line.
+func (board *pullRequestBoard) screenActionHelp() []string {
+	var keysAndLabels []string
+	for _, action := range board.screenActions() {
+		keysAndLabels = append(keysAndLabels, action.Key, action.Label)
+	}
+	return keysAndLabels
+}
+
+// runScreenAction hands the key to the board when it is one of the screen actions. The board
+// runs it on the pull request as the board has it now, which a screen's own copy may not be.
+func (board *pullRequestBoard) runScreenAction(selection plugin.Selection, key string) (tea.Cmd, bool) {
+	for _, action := range board.screenActions() {
+		if action.Key == key {
+			return selection.RunAction(key), true
+		}
+	}
+	return nil, false
 }
 
 func pullRequestOf(selection plugin.Selection) PullRequest {
@@ -85,6 +121,21 @@ func (board *pullRequestBoard) toggleAutoMerge(selection plugin.Selection) plugi
 	}
 }
 
+// approve refuses the viewer's own pull request up front, because GitHub rejects it anyway.
+func (board *pullRequestBoard) approve(selection plugin.Selection) plugin.Effect {
+	row := selection.Row.(Row)
+	pr := row.PullRequest
+	if pr.Author == row.Viewer {
+		return plugin.Effect{Notice: pr.approveOwnNotice()}
+	}
+	return plugin.Effect{
+		Confirm: pr.approveQuestion(),
+		Notice:  pr.approveNotice(),
+		Command: func() error { return board.provider.Approve(pr) },
+		Refresh: true,
+	}
+}
+
 // requestTeamReview marks a draft ready first, because a review request on a draft does not
 // ask anyone to look yet. If marking it ready fails, no review is requested.
 func (board *pullRequestBoard) requestTeamReview(selection plugin.Selection) plugin.Effect {
@@ -136,6 +187,18 @@ func (pr PullRequest) requestTeamReviewNotice(reviewTeam string) string {
 		return "Marking " + pr.label() + " ready and requesting review from " + reviewTeam + "…"
 	}
 	return "Requesting review from " + reviewTeam + " on " + pr.label() + "…"
+}
+
+func (pr PullRequest) approveQuestion() string {
+	return "Approve " + pr.label() + "?"
+}
+
+func (pr PullRequest) approveNotice() string {
+	return "Approving " + pr.label() + "…"
+}
+
+func (pr PullRequest) approveOwnNotice() string {
+	return "You cannot approve your own pull request."
 }
 
 // commandToOpenInBrowser is for the screens, which cannot return an Effect.

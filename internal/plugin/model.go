@@ -39,6 +39,13 @@ type (
 		board  int
 		effect Effect
 	}
+	// actionMessage asks the host to run a board's action as if its key was pressed on the row.
+	actionMessage struct {
+		board    int
+		rowKey   string
+		fallback Row
+		key      string
+	}
 	commandFinishedMessage struct {
 		board   int
 		err     error
@@ -49,9 +56,11 @@ type (
 
 // Model is the root Bubble Tea model: the boards with their tabs, and the screens above them.
 type Model struct {
-	boards          []*boardState
-	active          int
-	screens         []Screen
+	boards  []*boardState
+	active  int
+	screens []Screen
+	// screenBoards is the board each open screen was opened for, parallel to screens.
+	screenBoards    []int
 	refreshInterval time.Duration
 	// startTimer starts the timer for the next scheduled refresh. Tests replace it, because a
 	// real timer would make them wait.
@@ -192,6 +201,13 @@ func (m *Model) update(message tea.Msg) tea.Cmd {
 		m.width, m.height = message.Width, message.Height
 	case effectMessage:
 		return m.applyEffect(message.board, message.effect)
+	case actionMessage:
+		board := m.boards[message.board]
+		row, found := board.rowWithKey(message.rowKey)
+		if !found {
+			row = message.fallback
+		}
+		return m.runBoardAction(message.board, board.selectionOf(row), message.key)
 	case loadedMessage:
 		board := m.boards[message.board]
 		if message.generation < board.rowsGeneration {
@@ -233,6 +249,9 @@ func (m *Model) update(message tea.Msg) tea.Cmd {
 			return tea.Quit
 		}
 		if len(m.screens) > 0 {
+			if m.mode == confirmMode {
+				return m.handleConfirmKey(message.String())
+			}
 			return m.updateTopScreen(message)
 		}
 		return m.handleKey(message.String())
@@ -247,6 +266,7 @@ func (m *Model) updateTopScreen(message tea.Msg) tea.Cmd {
 	next, command := m.screens[top].Update(message)
 	if next == nil {
 		m.screens = m.screens[:top]
+		m.screenBoards = m.screenBoards[:top]
 	} else {
 		m.screens[top] = next
 	}
@@ -262,6 +282,7 @@ func (m *Model) updateEveryScreen(message tea.Msg) tea.Cmd {
 		commands = append(commands, command)
 		if next == nil {
 			m.screens = slices.Delete(m.screens, index, index+1)
+			m.screenBoards = slices.Delete(m.screenBoards, index, index+1)
 		} else {
 			m.screens[index] = next
 		}
@@ -313,22 +334,24 @@ func (m *Model) handleKey(key string) tea.Cmd {
 }
 
 func (m *Model) runAction(key string) tea.Cmd {
-	board := m.current()
-	selection, hasSelection := board.selection()
+	selection, hasSelection := m.current().selection()
 	if !hasSelection {
 		return nil
 	}
-	for _, action := range board.spec.Actions {
-		if action.Key != key {
-			continue
+	return m.runBoardAction(m.active, selection, key)
+}
+
+// runBoardAction runs the board's action with the key on the selection, if it has one.
+func (m *Model) runBoardAction(index int, selection Selection, key string) tea.Cmd {
+	for _, action := range m.boards[index].spec.Actions {
+		if action.Key == key {
+			return m.applyEffect(index, action.Run(selection))
 		}
-		return m.applyEffect(m.active, action.Run(selection))
 	}
 	return nil
 }
 
 // applyEffect asks the effect's question first, if it has one, and otherwise carries it out.
-// The question is shown once no screen covers the board.
 func (m *Model) applyEffect(index int, effect Effect) tea.Cmd {
 	if effect.Confirm != "" {
 		m.mode, m.question, m.pending, m.pendingBoard = confirmMode, effect.Confirm, effect, index
@@ -351,6 +374,7 @@ func (m *Model) execute(index int, effect Effect) tea.Cmd {
 	}
 	if effect.Screen != nil {
 		m.screens = append(m.screens, effect.Screen)
+		m.screenBoards = append(m.screenBoards, index)
 		commands = append(commands, effect.Screen.Init())
 	}
 	return tea.Batch(commands...)

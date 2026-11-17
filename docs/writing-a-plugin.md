@@ -349,11 +349,11 @@ func (tracker *tracker) pullRequestColumn() plugin.Column {
 	}
 }
 
-// openTicketOfPullRequest is the t key of the pull request board. It reads the ticket that the
+// openTicketOfPullRequest is the i key of the pull request board. It reads the ticket that the
 // Ticket column loaded for the selected row.
 func (tracker *tracker) openTicketOfPullRequest() plugin.Action {
 	return plugin.Action{
-		Key:   "t",
+		Key:   "i",
 		Label: "ticket",
 		Run: func(selection plugin.Selection) plugin.Effect {
 			found, matched := selection.Data(ticketColumnHeader).(ticket)
@@ -541,7 +541,7 @@ func recordShell(t *testing.T) *[][]string {
 }
 ```
 
-This test uses it to check what the `t` key does on a pull request:
+This test uses it to check what the `i` key does on a pull request:
 
 `plugins/tickets/tickets_test.go`:
 
@@ -551,7 +551,7 @@ func TestTicketKeyOnAPullRequestOpensTheMatchedTicketsAddress(t *testing.T) {
 	commands := recordShell(t)
 	model := startedWithBoth(t, example)
 
-	plugintest.Press(t, model, "t")
+	plugintest.Press(t, model, "i")
 
 	expected := [][]string{{"open", defaultURLPrefix + example.ticket.ID}}
 	if !reflect.DeepEqual(*commands, expected) {

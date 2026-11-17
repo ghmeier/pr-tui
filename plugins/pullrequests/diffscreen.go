@@ -416,6 +416,10 @@ func (screen *diffScreen) handleKey(key string) (plugin.Screen, tea.Cmd) {
 		return screen, screen.board.commandToOpenInEditor(screen.selection)
 	case "p":
 		return screen, screen.selection.Run(plugin.Effect{Screen: screen.board.newDescriptionScreen(screen.selection)})
+	default:
+		if command, isAction := screen.board.runScreenAction(screen.selection, key); isAction {
+			return screen, command
+		}
 	}
 	return screen, nil
 }
@@ -477,10 +481,12 @@ func (screen *diffScreen) help() string {
 	if screen.splitDiff {
 		layout = "unified"
 	}
-	return position + ui.HelpLine(
+	keysAndLabels := []string{
 		"↑/↓", "file", "j/k", "line", "space/b", "page", "c", "comment", "tab", "old/new side", "s", layout,
-		"p", "description", "o", "open", "v", screen.board.editor.Name, "esc", "back",
-	)
+		"p", "description", "o", "open", "v", screen.board.editor.Name,
+	}
+	keysAndLabels = append(keysAndLabels, screen.board.screenActionHelp()...)
+	return position + ui.HelpLine(append(keysAndLabels, "esc", "back")...)
 }
 
 // View adopts the size it is drawn at, so that what follows a resize is laid out for it.

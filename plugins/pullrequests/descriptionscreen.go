@@ -216,6 +216,10 @@ func (screen *descriptionScreen) handleKey(key string) (plugin.Screen, tea.Cmd) 
 		return screen, commandToOpenInBrowser(screen.pullRequest.URL)
 	case "v":
 		return screen, screen.board.commandToOpenInEditor(screen.selection)
+	default:
+		if command, isAction := screen.board.runScreenAction(screen.selection, key); isAction {
+			return screen, command
+		}
 	}
 	return screen, nil
 }
@@ -238,7 +242,9 @@ func (screen *descriptionScreen) View(width, height int) string {
 	for len(lines) < screen.rows()+1 {
 		lines = append(lines, "")
 	}
-	help := ui.HelpLine("↑/↓", "scroll", "space/b", "page", "e", "edit", "o", "open", "v", screen.board.editor.Name, "esc", "back")
+	keysAndLabels := []string{"↑/↓", "scroll", "space/b", "page", "e", "edit", "o", "open", "v", screen.board.editor.Name}
+	keysAndLabels = append(keysAndLabels, screen.board.screenActionHelp()...)
+	help := ui.HelpLine(append(keysAndLabels, "esc", "back")...)
 	lines = append(lines, ansi.Truncate(screen.notice, screen.width, "…"), ansi.Truncate(help, screen.width, "…"))
 	return strings.Join(lines, "\n")
 }

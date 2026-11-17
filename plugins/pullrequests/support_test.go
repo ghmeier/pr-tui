@@ -74,6 +74,10 @@ func teamReviewCall(pr PullRequest) recordedCall {
 	return recordedCall{method: "RequestTeamReview", url: pr.URL}
 }
 
+func approveCall(pr PullRequest) recordedCall {
+	return recordedCall{method: "Approve", url: pr.URL}
+}
+
 func saveDescriptionCall(pr PullRequest, body string) recordedCall {
 	return recordedCall{method: "SaveDescription", url: pr.URL, body: body}
 }
@@ -253,8 +257,20 @@ func (fake *fakeProvider) PostComment(pr PullRequest, target CommentTarget, body
 	return fake.change("PostComment", recordedCall{url: pr.URL, target: target, body: body})
 }
 
+// SetDraft also changes the stored pull request when it succeeds, so that the next refresh
+// shows what the change did.
 func (fake *fakeProvider) SetDraft(pr PullRequest, draft bool) error {
-	return fake.change("SetDraft", recordedCall{url: pr.URL, flag: draft})
+	err := fake.change("SetDraft", recordedCall{url: pr.URL, flag: draft})
+	fake.mutex.Lock()
+	defer fake.mutex.Unlock()
+	if err == nil {
+		for index := range fake.pullRequests {
+			if fake.pullRequests[index].URL == pr.URL {
+				fake.pullRequests[index].IsDraft = draft
+			}
+		}
+	}
+	return err
 }
 
 func (fake *fakeProvider) SetAutoMerge(pr PullRequest, enabled bool) error {
@@ -263,6 +279,10 @@ func (fake *fakeProvider) SetAutoMerge(pr PullRequest, enabled bool) error {
 
 func (fake *fakeProvider) RequestTeamReview(pr PullRequest) error {
 	return fake.change("RequestTeamReview", recordedCall{url: pr.URL})
+}
+
+func (fake *fakeProvider) Approve(pr PullRequest) error {
+	return fake.change("Approve", recordedCall{url: pr.URL})
 }
 
 const (
