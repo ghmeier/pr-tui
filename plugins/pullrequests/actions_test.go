@@ -224,7 +224,7 @@ func TestApproveKeyOnTheViewersOwnPullRequestOnlyShowsANotice(t *testing.T) {
 	press(t, model, "a")
 
 	assertCalls(t, provider)
-	if notice := view(model); !strings.Contains(notice, provider.pullRequest(1).approveOwnNotice()) || strings.Contains(notice, "Approve ") {
+	if notice := view(model); !strings.Contains(notice, approveOwnPullRequestNotice) || strings.Contains(notice, "Approve ") {
 		t.Fatalf("view:\n%s", notice)
 	}
 }

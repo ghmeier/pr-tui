@@ -32,12 +32,14 @@ func (board *pullRequestBoard) actions() []plugin.Action {
 	)
 }
 
+var screenActionKeys = []string{"d", "t", "m", "a"}
+
 // screenActions are the board's actions that the diff and description screens offer as well,
 // so that a pull request can be changed without going back to the board.
 func (board *pullRequestBoard) screenActions() []plugin.Action {
 	var offered []plugin.Action
 	for _, action := range board.actions() {
-		if slices.Contains([]string{"d", "t", "m", "a"}, action.Key) {
+		if slices.Contains(screenActionKeys, action.Key) {
 			offered = append(offered, action)
 		}
 	}
@@ -121,12 +123,14 @@ func (board *pullRequestBoard) toggleAutoMerge(selection plugin.Selection) plugi
 	}
 }
 
+const approveOwnPullRequestNotice = "You cannot approve your own pull request."
+
 // approve refuses the viewer's own pull request up front, because GitHub rejects it anyway.
 func (board *pullRequestBoard) approve(selection plugin.Selection) plugin.Effect {
 	row := selection.Row.(Row)
 	pr := row.PullRequest
 	if pr.Author == row.Viewer {
-		return plugin.Effect{Notice: pr.approveOwnNotice()}
+		return plugin.Effect{Notice: approveOwnPullRequestNotice}
 	}
 	return plugin.Effect{
 		Confirm: pr.approveQuestion(),
@@ -195,10 +199,6 @@ func (pr PullRequest) approveQuestion() string {
 
 func (pr PullRequest) approveNotice() string {
 	return "Approving " + pr.label() + "…"
-}
-
-func (pr PullRequest) approveOwnNotice() string {
-	return "You cannot approve your own pull request."
 }
 
 // commandToOpenInBrowser is for the screens, which cannot return an Effect.
