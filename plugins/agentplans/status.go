@@ -24,18 +24,19 @@ func (settings settings) chooseStatus(row Row) plugin.Effect {
 	}}
 }
 
+// setStatus runs apl set in the checkout that holds the document, and reloads the board.
 func (settings settings) setStatus(row Row, status string) plugin.Effect {
 	if status == row.Doc.Status {
 		return plugin.Effect{Notice: row.Doc.File + " already has the status " + status + "."}
 	}
-	home, found := settings.checkoutNamed(row.Repository)
+	documentCheckout, found := settings.checkoutNamed(row.Repository)
 	if !found {
 		return plugin.Effect{Notice: "Cannot change the status: " + row.Repository + " is not a configured repository."}
 	}
 	return plugin.Effect{
 		Notice: "Setting " + row.Doc.File + " to " + status + "…",
 		Command: func() error {
-			_, err := shell.RunIn(home.path, "apl", "set", row.Doc.File, "--status", status)
+			_, err := shell.RunIn(documentCheckout.path, "apl", "set", row.Doc.File, "--status", status)
 			if err != nil && strings.Contains(err.Error(), "unknown command") {
 				return errors.New("changing a status needs apl 0.9.0 or later")
 			}

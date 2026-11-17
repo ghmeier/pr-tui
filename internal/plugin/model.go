@@ -252,6 +252,7 @@ func (m *Model) update(message tea.Msg) tea.Cmd {
 			return tea.Quit
 		}
 		if len(m.screens) > 0 {
+			// A screen may use q itself, so an answer gets every key but ctrl+c, q included.
 			if m.asking() {
 				return m.handleAnswerKey(message.String())
 			}
@@ -293,6 +294,8 @@ func (m *Model) updateEveryScreen(message tea.Msg) tea.Cmd {
 	return tea.Batch(commands...)
 }
 
+// handleKey routes a key on the boards. Unlike on a screen, q quits here even while a question
+// or choice is pending, because only a screen can have a use for q of its own.
 func (m *Model) handleKey(key string) tea.Cmd {
 	if key == "q" {
 		return tea.Quit
@@ -393,6 +396,7 @@ func (m *Model) execute(index int, effect Effect) tea.Cmd {
 	return tea.Batch(commands...)
 }
 
+// handleAnswerKey gives a key to the pending confirmation or choice.
 func (m *Model) handleAnswerKey(key string) tea.Cmd {
 	if m.mode == choiceMode {
 		return m.handleChoiceKey(key)

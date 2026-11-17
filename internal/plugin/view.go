@@ -106,8 +106,9 @@ func (m *Model) View() string {
 	return strings.Join(sections, "\n")
 }
 
-// viewTopScreen draws the top screen. While a question or choice is pending or its board has a notice,
-// the screen gives up its last line to the board's status line, because the board is hidden.
+// viewTopScreen draws the top screen. While a question or choice is pending or its board has a
+// notice, the screen gives up its last line to the board's status line, because the board is
+// hidden.
 func (m *Model) viewTopScreen() string {
 	top := len(m.screens) - 1
 	board := m.boards[m.screenBoards[top]]
@@ -120,6 +121,7 @@ func (m *Model) viewTopScreen() string {
 // maxShownOptions is how many options a choice can number with one key.
 const maxShownOptions = 9
 
+// shownOptions are the options that have a number key.
 func (choice *Choice) shownOptions() []string {
 	return choice.Options[:min(len(choice.Options), maxShownOptions)]
 }

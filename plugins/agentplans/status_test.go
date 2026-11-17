@@ -14,30 +14,22 @@ func activePlan() doc {
 	return doc{file: "plan/active.md", kind: "plan", title: "Active plan", status: "active", updated: "2026-11-12"}
 }
 
-// setCalls are the calls that change a status.
-func (apl *fakeApl) setCalls() []call {
+// callsTo are the calls of one apl subcommand.
+func (apl *fakeApl) callsTo(subcommand string) []call {
 	apl.mutex.Lock()
 	defer apl.mutex.Unlock()
 	var matching []call
 	for _, received := range apl.calls {
-		if received.arguments[1] == "set" {
+		if received.arguments[1] == subcommand {
 			matching = append(matching, received)
 		}
 	}
 	return matching
 }
 
-func (apl *fakeApl) loadCount() int {
-	apl.mutex.Lock()
-	defer apl.mutex.Unlock()
-	count := 0
-	for _, received := range apl.calls {
-		if received.arguments[1] == "ls" {
-			count++
-		}
-	}
-	return count
-}
+func (apl *fakeApl) setCalls() []call { return apl.callsTo("set") }
+
+func (apl *fakeApl) loadCount() int { return len(apl.callsTo("ls")) }
 
 // statusText is the line under the board's table, where choices and notices are shown.
 func statusText(model *plugin.Model) string {
