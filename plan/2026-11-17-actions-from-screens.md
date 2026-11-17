@@ -5,7 +5,7 @@ status: active
 tags: [plugins]
 created: 2026-11-17
 updated: 2026-11-17
-next_step: Step 1, branch screen-actions
+next_step: Step 0, apl set in ~/git/agent-plan; step 1 in parallel
 ---
 # Pull request actions from screens, approval, and plan status
 
@@ -72,28 +72,36 @@ next_step: Step 1, branch screen-actions
 
 - `Row.Statuses []string`: the statuses `apl types --json` lists for the doc's type in its
   checkout, read once per checkout on each load. Empty when the type is unknown.
+- Picking a status runs `apl set <file> --status <status>` in the checkout with
+  `shell.RunIn`. When apl answers that it has no `set` command, the failure reads "changing a
+  status needs apl 0.9.0 or later".
 - Board action `s`, label `status`: a Choice of `row.Statuses` with `Current` the doc's
   status. A doc whose type has no statuses gets a notice instead. Picking writes the file and
   refreshes the board.
-- Writing rewrites the front matter's `status:` line and sets `updated:` to today
-  (YYYY-MM-DD, local time), inserting either line before the closing fence when missing. A
-  file without front matter is an error. Nothing else in the file changes. apl commits it on
-  the next sync, as with any edit.
 - The document screen passes `s` to `selection.RunAction` and lists it in its help line.
 
 No configuration changes.
 
 ## Steps
 
+0. **`apl set`**, in `~/git/agent-plan`, branch `set-status` from `main`.
+   `apl set <doc> --status <status>` sets the doc's status and stamps `updated:` (and
+   `created:` when missing) with `setFrontmatterFields` and `stampTimestamps`, so no other line
+   changes. It takes the store lock and resolves the doc with `resolveDocPath`, as `link`
+   does. A status that the doc's type does not list is an error that names the allowed
+   statuses. With no field option it is an error saying what can be set. README and the
+   plugin skill say to use it instead of editing `status:` by hand. Verified with
+   `bun test`, `bun run typecheck`, `bun run lint`. Lands as a pull request the user merges;
+   then I push the `v0.9.0` tag.
 1. **`screen-actions`**, from `main`. Host: `RunAction`, screen boards, status line and
    questions beneath screens. Pull requests: `a` approve with `Provider.Approve`, `e` to `t`,
    and the screens' `d`, `t`, `m`, `a`. README key list updated.
    Verified by host tests with fake boards and screens, plugin tests with the fake provider,
    a GitHub provider test for the exact `gh pr review` command, and a `--once` run.
-2. **`plan-status`**, from step 1. Host: `Effect.Choice`. Agent plans: `Row.Statuses`, the `s`
-   action on the board and document screen, front matter rewrite.
+2. **`plan-status`**, from step 1, after step 0 is merged. Host: `Effect.Choice`. Agent plans:
+   `Row.Statuses`, the `s` action on the board and document screen running `apl set`.
    Verified by host tests for choosing, cancelling, and a choice over a screen; plugin tests
-   for the rewrite (status present, missing, no front matter) and the action; a `--once` run.
+   that replace `shell.Run` and assert the exact `apl set` command; a `--once` run.
 
 ## Risks
 
@@ -108,8 +116,10 @@ No configuration changes.
 - 2026-11-17: Team review is `t` everywhere, so `e` stays edit on the description screen.
   Approve is `a` with a confirmation. Status uses a numbered choice in the status line, and
   sets `updated:` to today.
-- 2026-11-17: `apl` has no command that sets a status, so the plugin rewrites the front matter.
-  Statuses differ by checkout (gazebo plans use active, merged, done, abandoned), so they come
+- 2026-11-17: The user merges the agent-plan pull request; I push the release tag after.
+- 2026-11-17: `apl` has no command that sets a status, so step 0 adds `apl set <doc>
+  --status <s>`, named to take other fields later. apl commit already stamps `updated:`; set
+  stamps it as well so the board's Updated column moves right away. Statuses differ by checkout (gazebo plans use active, merged, done, abandoned), so they come
   from `apl types --json` in each checkout.
 - 2026-11-17: The approve action stays in the help line on the viewer's own pull requests,
   because actions are fixed per board; pressing it there only explains why it does nothing.
