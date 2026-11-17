@@ -31,8 +31,18 @@ type doc struct {
 type fakeApl struct {
 	mutex    sync.Mutex
 	listings map[string][]byte
+	// types is what "apl types --json" prints in every checkout.
+	types []byte
+	// setError is what "apl set" fails with, or nil when it succeeds.
+	setError error
 	calls    []call
 }
+
+// defaultTypes lists the statuses of the types the tests use. The research type has none.
+const defaultTypes = `{"types":[` +
+	`{"name":"plan","statuses":["draft","active","completed","archived"],"defaultStatus":"draft"},` +
+	`{"name":"handoff","statuses":["open","picked-up","closed"],"defaultStatus":"open"},` +
+	`{"name":"research","statuses":[]}]}`
 
 type call struct {
 	directory string
@@ -74,7 +84,7 @@ func (apl *fakeApl) newCheckout(t *testing.T, name string, docs ...doc) string {
 // installFakeApl replaces shell.RunIn for the test. With missing set, the program is not found.
 func installFakeApl(t *testing.T, missing bool) *fakeApl {
 	t.Helper()
-	apl := &fakeApl{listings: map[string][]byte{}}
+	apl := &fakeApl{listings: map[string][]byte{}, types: []byte(defaultTypes)}
 	original := shell.RunIn
 	t.Cleanup(func() { shell.RunIn = original })
 	shell.RunIn = func(directory string, arguments ...string) ([]byte, error) {
@@ -83,6 +93,12 @@ func installFakeApl(t *testing.T, missing bool) *fakeApl {
 		apl.calls = append(apl.calls, call{directory: directory, arguments: arguments})
 		if missing {
 			return nil, fmt.Errorf("start apl: %w", exec.ErrNotFound)
+		}
+		switch {
+		case len(arguments) > 1 && arguments[1] == "types":
+			return apl.types, nil
+		case len(arguments) > 1 && arguments[1] == "set":
+			return nil, apl.setError
 		}
 		return apl.listings[directory], nil
 	}
@@ -272,7 +288,9 @@ func TestLoadRunsAplListInEachCheckoutsDirectory(t *testing.T) {
 
 	expected := []call{
 		{directory: first, arguments: []string{"apl", "ls", "--json"}},
+		{directory: first, arguments: []string{"apl", "types", "--json"}},
 		{directory: second, arguments: []string{"apl", "ls", "--json"}},
+		{directory: second, arguments: []string{"apl", "types", "--json"}},
 	}
 	if !reflect.DeepEqual(apl.calls, expected) {
 		t.Fatalf("calls = %v, expected %v", apl.calls, expected)

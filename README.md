@@ -135,7 +135,11 @@ directory inside, and two entries cannot have the same directory name, because t
 the board tells repositories apart. The filter menu (`f`) narrows by repository, type, and
 status; it starts on plans only. `enter` reads the selected document as rendered markdown
 (front matter left out), and `v` opens its file in your configured editor, from the board or
-from the document. When `pull_requests` is on too, its board gets a `Plan` column with the title
+from the document. `s` changes the selected document's status, from the board or from the
+document: it asks in the status line which of the statuses its type allows to set (press its
+number, or `esc` to cancel) and runs `apl set <document> --status <status>` in the document's
+checkout. That needs apl 0.9.0 or later; the rest of the board works with older versions. When
+`pull_requests` is on too, its board gets a `Plan` column with the title
 of the document linked to each pull request's branch with `apl link <document> --branch <name>`,
 and `+N` when more documents are linked.
 

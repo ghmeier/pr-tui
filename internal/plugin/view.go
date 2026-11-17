@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -24,6 +25,8 @@ func (m *Model) tableRows() int {
 
 func (m *Model) statusLine(board *boardState) string {
 	switch {
+	case m.mode == choiceMode:
+		return m.choice.line()
 	case m.mode == confirmMode:
 		return ui.KeyStyle.Render(m.question) + "  " + ui.HelpLine("y", "yes", "n", "no")
 	case board.notice != "":
@@ -55,7 +58,7 @@ func (m *Model) help() string {
 	switch m.mode {
 	case filterMode:
 		return ui.HelpLine("esc", "close filters", "q", "quit")
-	case confirmMode:
+	case confirmMode, choiceMode:
 		return ""
 	}
 	var keysAndLabels []string
@@ -103,13 +106,35 @@ func (m *Model) View() string {
 	return strings.Join(sections, "\n")
 }
 
-// viewTopScreen draws the top screen. While a question is pending or its board has a notice,
+// viewTopScreen draws the top screen. While a question or choice is pending or its board has a notice,
 // the screen gives up its last line to the board's status line, because the board is hidden.
 func (m *Model) viewTopScreen() string {
 	top := len(m.screens) - 1
 	board := m.boards[m.screenBoards[top]]
-	if m.mode != confirmMode && board.notice == "" {
+	if !m.asking() && board.notice == "" {
 		return m.screens[top].View(m.width, m.height)
 	}
 	return m.screens[top].View(m.width, m.height-1) + "\n" + ansi.Truncate(m.statusLine(board), m.width, "…")
+}
+
+// maxShownOptions is how many options a choice can number with one key.
+const maxShownOptions = 9
+
+func (choice *Choice) shownOptions() []string {
+	return choice.Options[:min(len(choice.Options), maxShownOptions)]
+}
+
+// line is the status line of a pending choice: the question, the numbered options with the
+// current one in bold, and how to cancel.
+func (choice *Choice) line() string {
+	options := choice.shownOptions()
+	labels := make([]string, len(options))
+	for index, option := range options {
+		label := option
+		if option == choice.Current {
+			label = ui.BoldStyle.Render(option)
+		}
+		labels[index] = ui.KeyStyle.Render(strconv.Itoa(index+1)) + " " + label
+	}
+	return ui.KeyStyle.Render(choice.Question) + "  " + strings.Join(labels, "  ") + "  " + ui.HelpLine("esc", "cancel")
 }

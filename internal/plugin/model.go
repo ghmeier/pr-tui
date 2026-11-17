@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"slices"
+	"strconv"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -15,6 +16,7 @@ const (
 	boardMode mode = iota
 	filterMode
 	confirmMode
+	choiceMode
 )
 
 type (
@@ -70,9 +72,10 @@ type Model struct {
 	mode       mode
 	question   string
 	// pending is the effect waiting for an answer to its question, and pendingBoard the board
-	// it applies to.
+	// it applies to, whether the question is a confirmation or a choice.
 	pending      Effect
 	pendingBoard int
+	choice       *Choice
 }
 
 // Model builds the interactive program for the boards the plugins registered.
@@ -249,8 +252,8 @@ func (m *Model) update(message tea.Msg) tea.Cmd {
 			return tea.Quit
 		}
 		if len(m.screens) > 0 {
-			if m.mode == confirmMode {
-				return m.handleConfirmKey(message.String())
+			if m.asking() {
+				return m.handleAnswerKey(message.String())
 			}
 			return m.updateTopScreen(message)
 		}
@@ -298,8 +301,8 @@ func (m *Model) handleKey(key string) tea.Cmd {
 	case filterMode:
 		m.handleFilterMenuKey(key)
 		return nil
-	case confirmMode:
-		return m.handleConfirmKey(key)
+	case confirmMode, choiceMode:
+		return m.handleAnswerKey(key)
 	}
 
 	board := m.current()
@@ -351,8 +354,18 @@ func (m *Model) runBoardAction(index int, selection Selection, key string) tea.C
 	return nil
 }
 
-// applyEffect asks the effect's question first, if it has one, and otherwise carries it out.
+// asking says whether a confirmation or a choice is waiting for an answer.
+func (m *Model) asking() bool {
+	return m.mode == confirmMode || m.mode == choiceMode
+}
+
+// applyEffect asks the effect's choice or question first, if it has one, and otherwise carries
+// it out.
 func (m *Model) applyEffect(index int, effect Effect) tea.Cmd {
+	if effect.Choice != nil {
+		m.mode, m.choice, m.pendingBoard = choiceMode, effect.Choice, index
+		return nil
+	}
 	if effect.Confirm != "" {
 		m.mode, m.question, m.pending, m.pendingBoard = confirmMode, effect.Confirm, effect, index
 		return nil
@@ -378,6 +391,28 @@ func (m *Model) execute(index int, effect Effect) tea.Cmd {
 		commands = append(commands, effect.Screen.Init())
 	}
 	return tea.Batch(commands...)
+}
+
+func (m *Model) handleAnswerKey(key string) tea.Cmd {
+	if m.mode == choiceMode {
+		return m.handleChoiceKey(key)
+	}
+	return m.handleConfirmKey(key)
+}
+
+func (m *Model) handleChoiceKey(key string) tea.Cmd {
+	if key == "esc" {
+		m.mode, m.choice = boardMode, nil
+		return nil
+	}
+	number, err := strconv.Atoi(key)
+	options := m.choice.shownOptions()
+	if err != nil || number < 1 || number > len(options) {
+		return nil
+	}
+	choice, index := m.choice, m.pendingBoard
+	m.mode, m.choice = boardMode, nil
+	return m.applyEffect(index, choice.Pick(options[number-1]))
 }
 
 func (m *Model) handleConfirmKey(key string) tea.Cmd {

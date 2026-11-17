@@ -119,10 +119,26 @@ type Action struct {
 	Run func(selection Selection) Effect
 }
 
+// Choice asks for one of a few options in the status line, numbered from 1. A number key picks
+// one and esc cancels. Options past the ninth are not shown.
+type Choice struct {
+	Question string
+	Options  []string
+	// Current is marked among the options, or empty.
+	Current string
+	// Pick returns what choosing the option does. It runs on the update loop, so it must return
+	// quickly; slow work belongs in the returned Effect's Command.
+	Pick func(option string) Effect
+}
+
 // Effect describes what an action does, so that the host can show notices, ask, and refresh.
 type Effect struct {
 	// Notice is shown in the status line while Command runs.
 	Notice string
+	// Choice, when set, is asked before anything else, and the host does nothing else with this
+	// effect. The effect that Pick returns for the chosen option is applied like any other, so
+	// it may ask a question of its own.
+	Choice *Choice
 	// Confirm, when set, is a question the host asks before doing anything else: y or enter
 	// accepts it, n or esc declines it.
 	Confirm string

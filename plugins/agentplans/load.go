@@ -34,6 +34,14 @@ type listing struct {
 	} `json:"files"`
 }
 
+// typeListing is what "apl types --json" prints.
+type typeListing struct {
+	Types []struct {
+		Name     string   `json:"name"`
+		Statuses []string `json:"statuses"`
+	} `json:"types"`
+}
+
 // load runs on a background goroutine. apl acts on its working directory, so it is started in
 // each checkout.
 func (settings settings) load() ([]plugin.Row, error) {
@@ -85,8 +93,29 @@ func (checkout checkout) docs() ([]Doc, error) {
 	return docs, nil
 }
 
+// statusesByType runs apl in the checkout and reads the statuses each type of document allows.
+func (checkout checkout) statusesByType() (map[string][]string, error) {
+	output, err := shell.RunIn(checkout.path, "apl", "types", "--json")
+	if err != nil {
+		return nil, err
+	}
+	var parsed typeListing
+	if err := json.Unmarshal(output, &parsed); err != nil {
+		return nil, fmt.Errorf("cannot read the output of apl types: %w", err)
+	}
+	statuses := make(map[string][]string, len(parsed.Types))
+	for _, listed := range parsed.Types {
+		statuses[listed.Name] = listed.Statuses
+	}
+	return statuses, nil
+}
+
 func (checkout checkout) rows() ([]Row, error) {
 	docs, err := checkout.docs()
+	if err != nil {
+		return nil, err
+	}
+	statuses, err := checkout.statusesByType()
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +126,7 @@ func (checkout checkout) rows() ([]Row, error) {
 		if body, err := os.ReadFile(path); err == nil {
 			doc.PullRequestNumbers = pullRequestNumbers(string(body))
 		}
-		rows[index] = Row{Repository: checkout.name, Path: path, Doc: doc}
+		rows[index] = Row{Repository: checkout.name, Path: path, Doc: doc, Statuses: statuses[doc.Type]}
 	}
 	return rows, nil
 }

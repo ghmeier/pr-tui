@@ -52,3 +52,13 @@ func loadSettings(decodeSection func(name string, target any) error) (settings, 
 	}
 	return loaded, nil
 }
+
+// checkoutNamed finds the configured checkout that a row's repository names.
+func (settings settings) checkoutNamed(name string) (checkout, bool) {
+	for _, candidate := range settings.checkouts {
+		if candidate.name == name {
+			return candidate, true
+		}
+	}
+	return checkout{}, false
+}

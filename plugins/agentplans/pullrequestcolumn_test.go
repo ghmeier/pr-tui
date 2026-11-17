@@ -76,10 +76,11 @@ func (example planFixture) startedWithPullRequests(t *testing.T) *plugin.Model {
 	return example.startedWith(t, []pullrequests.PullRequest{example.linked, example.unlinked, example.elsewhere}, example.checkout)
 }
 
-func (example planFixture) callsIn(directory string) []call {
+// listingCallsIn are the calls that list documents in the directory.
+func (example planFixture) listingCallsIn(directory string) []call {
 	var matching []call
 	for _, received := range example.apl.calls {
-		if received.directory == directory {
+		if received.directory == directory && received.arguments[1] == "ls" {
 			matching = append(matching, received)
 		}
 	}
@@ -148,7 +149,7 @@ func TestPlanColumnListsEachCheckoutWithPullRequestsOnceAndSkipsOthers(t *testin
 	// The agent plans board lists every checkout once, and the column lists only the checkout
 	// that has a pull request.
 	expectedCommand := []string{"apl", "ls", "--json"}
-	withPullRequest, without := example.callsIn(example.checkout), example.callsIn(idle)
+	withPullRequest, without := example.listingCallsIn(example.checkout), example.listingCallsIn(idle)
 	if len(withPullRequest) != 2 || len(without) != 1 {
 		t.Fatalf("calls in %s = %v, calls in %s = %v", example.checkout, withPullRequest, idle, without)
 	}

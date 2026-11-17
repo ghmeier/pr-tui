@@ -32,6 +32,9 @@ func board(settings settings) plugin.Board {
 			{Key: "v", Label: settings.editor.Name, Run: func(selection plugin.Selection) plugin.Effect {
 				return settings.openInEditor(selection.Row.(Row))
 			}},
+			{Key: statusKey, Label: "status", Run: func(selection plugin.Selection) plugin.Effect {
+				return settings.chooseStatus(selection.Row.(Row))
+			}},
 		},
 		Columns: []plugin.Column{
 			textColumn("Repository", false, func(row Row) string { return row.Repository }),

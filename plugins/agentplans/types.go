@@ -26,6 +26,9 @@ type Row struct {
 	// Path is the absolute path of the document's file.
 	Path string
 	Doc  Doc
+	// Statuses are the statuses that apl allows for the document's type in its checkout, or
+	// none when apl does not list the type.
+	Statuses []string
 }
 
 // Key is the repository and file, which stay the same across refreshes.

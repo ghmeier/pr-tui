@@ -109,6 +109,8 @@ func (screen *documentScreen) handleKey(key string) (plugin.Screen, tea.Cmd) {
 		screen.offset = len(screen.lines)
 	case "v":
 		return screen, screen.selection.Run(screen.settings.openInEditor(screen.row))
+	case statusKey:
+		return screen, screen.selection.RunAction(statusKey)
 	}
 	return screen, nil
 }
@@ -130,7 +132,7 @@ func (screen *documentScreen) View(width, height int) string {
 	for len(lines) < screen.rows()+1 {
 		lines = append(lines, "")
 	}
-	help := ui.HelpLine("↑/↓", "scroll", "space/b", "page", "v", screen.settings.editor.Name, "esc", "back")
+	help := ui.HelpLine("↑/↓", "scroll", "space/b", "page", "v", screen.settings.editor.Name, statusKey, "status", "esc", "back")
 	lines = append(lines, ansi.Truncate(screen.notice, screen.width, "…"), ansi.Truncate(help, screen.width, "…"))
 	return strings.Join(lines, "\n")
 }
