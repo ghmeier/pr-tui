@@ -1,7 +1,7 @@
 ---
 title: Branch and tags columns
-status: active
-next_step: Implementer is adding double-click copying on branch-and-tags-columns (step 2); then refactor pass, verification, push to pull request #1.
+status: completed
+next_step: Done; pull request #1 is open for review.
 tags: [pull-requests, agent-plans, host]
 created: 2026-11-18
 updated: 2026-11-18
@@ -57,7 +57,8 @@ be undone; the auto-merge options apply straight away, since picking one is alre
    the row, two left clicks on the same cell within 500 ms copy the cell's untruncated plain
    text, and the wheel moves the cursor. Only in board mode with no screen open. `y` and
    `Effect.Copy` are removed, since nothing else would use `Effect.Copy`; the host calls
-   `writeClipboard` itself. Verified with tests and `--once`.
+   `writeClipboard` itself. Verified with tests and `--once`. Done: commits f18cbb8, 37801d2,
+   89d815f on pull request #1; checked by hand in tmux.
 
 ## Risks
 
@@ -66,6 +67,10 @@ be undone; the auto-merge options apply straight away, since picking one is alre
 - Branch names longer than 30 are cut in the table; the `y` action is how to get the full name.
 
 ## Notes and decisions
+
+- 2026-11-18: Double-click checked in tmux against real data with SGR mouse sequences; a cut
+  branch name copied in full. Left alone: `tableRows` still computes the space for rows with its
+  own arithmetic, which matches `aboveTable` only while the facet summary is one line.
 
 - 2026-11-18: The user asked for a general double-click to copy and accepted that capturing the
   mouse means the terminal's own drag selection needs a modifier key. They chose to remove `y`.
