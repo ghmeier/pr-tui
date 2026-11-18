@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ghmeier/pr-tui/internal/plugin"
 	"github.com/ghmeier/pr-tui/internal/plugin/plugintest"
 )
 
@@ -130,7 +129,7 @@ func TestHelpListsTheActionsInTheOrderOfTheBoardAndNamesTheConfiguredEditor(t *t
 
 	help := helpLine(model)
 
-	expected := "enter diff · p description · o open · y copy branch · v " + testEditorName + " · d draft / ready · t request " + testReviewTeam +
+	expected := "enter diff · p description · o open · v " + testEditorName + " · d draft / ready · t request " + testReviewTeam +
 		" · m merge · a approve · f filters · r refresh · q quit"
 	if help != expected {
 		t.Fatalf("help = %q, expected %q", help, expected)
@@ -215,18 +214,6 @@ func TestDecliningTheMergeConfirmationMergesNothing(t *testing.T) {
 	assertCalls(t, provider)
 	if strings.Contains(view(model), "now (squash)?") {
 		t.Fatalf("the question is still shown:\n%s", view(model))
-	}
-}
-
-func TestCopyBranchKeyCopiesTheBranchOfTheSelectedPullRequest(t *testing.T) {
-	provider := newFakeProvider()
-	selected := provider.pullRequest(3)
-	board := &pullRequestBoard{}
-
-	effect := board.copyBranch(plugin.Selection{Row: Row{PullRequest: selected}})
-
-	if effect.Copy != selected.HeadBranch || selected.HeadBranch == "" {
-		t.Fatalf("copy = %q, expected the branch %q", effect.Copy, selected.HeadBranch)
 	}
 }
 

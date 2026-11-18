@@ -14,15 +14,12 @@ const (
 	minimumFlexibleWidth = 20
 )
 
-// renderTable draws the header and the rows from offset that fit in rowCount lines. Pass
-// selected = -1 to draw no cursor. The columns supply the headers, the widest each may be
-// drawn, and which one shrinks to fit the width.
-func renderTable(columns []Column, rows [][][]ui.Segment, width, selected, offset, rowCount int) string {
-	headers := make([]string, len(columns))
+// columnWidths is how wide each column is drawn: as wide as its header and widest cell, up to
+// its MaxWidth, with the flexible column giving up room so that the table fits the width.
+func columnWidths(columns []Column, rows [][][]ui.Segment, width int) []int {
 	widths := make([]int, len(columns))
 	flexibleColumn := -1
 	for index, column := range columns {
-		headers[index] = column.Header
 		widths[index] = lipgloss.Width(column.Header)
 		if column.Flexible {
 			flexibleColumn = index
@@ -47,10 +44,31 @@ func renderTable(columns []Column, rows [][][]ui.Segment, width, selected, offse
 		}
 		widths[flexibleColumn] = max(minimumFlexibleWidth, min(widths[flexibleColumn], width-widthOfOtherColumns))
 	}
+	return widths
+}
 
-	headerCells := make([]string, len(headers))
-	for index, header := range headers {
-		headerCells[index] = ui.Fit(header, widths[index])
+// columnAt finds the column drawn at a horizontal position of the table. The gaps between
+// columns and anything past the last column belong to no column.
+func columnAt(widths []int, x int) (int, bool) {
+	start := 0
+	for index, columnWidth := range widths {
+		if x >= start && x < start+columnWidth {
+			return index, true
+		}
+		start += columnWidth + len(columnGap)
+	}
+	return 0, false
+}
+
+// renderTable draws the header and the rows from offset that fit in rowCount lines. Pass
+// selected = -1 to draw no cursor. The columns supply the headers, the widest each may be
+// drawn, and which one shrinks to fit the width.
+func renderTable(columns []Column, rows [][][]ui.Segment, width, selected, offset, rowCount int) string {
+	widths := columnWidths(columns, rows, width)
+
+	headerCells := make([]string, len(columns))
+	for index, column := range columns {
+		headerCells[index] = ui.Fit(column.Header, widths[index])
 	}
 	lines := []string{ui.BoldStyle.Render(ansi.Truncate(strings.Join(headerCells, columnGap), width, "…"))}
 

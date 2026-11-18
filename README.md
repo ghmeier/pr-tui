@@ -90,7 +90,6 @@ Board keys:
 | `enter` | Diff view |
 | `p` | Read or edit the description |
 | `o` | Open in the browser |
-| `y` | Copy the branch name to the clipboard |
 | `v` | Check out the branch with `wt switch` and open it, with its changed files, in the configured editor |
 | `d` | Toggle draft / ready for review |
 | `t` | Request review from the configured team, marking a draft ready for review first |
@@ -101,6 +100,10 @@ Board keys:
 | `r` | Refresh (also on the configured interval, every 3 minutes by default) |
 | `q` | Quit |
 
+Double-click any cell to copy its full text, including text the table cuts short. Clicking a
+row selects it, and the mouse wheel moves the cursor. Because the app captures the mouse, hold
+Option (iTerm2) or Shift (most other terminals) to select text with the terminal instead.
+
 Diff view keys:
 
 | Key | Action |
@@ -110,7 +113,6 @@ Diff view keys:
 | `s` | Toggle split and unified layouts |
 | `c` | Comment on the line under the cursor, or reply to the thread under it (`ctrl+s` posts) |
 | `tab` | Choose the old or new side of a split row for the comment |
-| `y` | Copy the branch name to the clipboard |
 | `d` | Toggle draft / ready for review |
 | `t` | Request review from the configured team, as on the board |
 | `m` | Merge now (squash, after a confirmation), or enable or disable auto-merge (squash) |
@@ -123,7 +125,6 @@ Description view keys:
 | --- | --- |
 | `↑` / `↓`, `space` / `b` | Scroll by a line or a page |
 | `e` | Edit the description |
-| `y` | Copy the branch name to the clipboard |
 | `d` | Toggle draft / ready for review |
 | `t` | Request review from the configured team, as on the board |
 | `m` | Merge now (squash, after a confirmation), or enable or disable auto-merge (squash) |

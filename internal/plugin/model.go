@@ -78,6 +78,8 @@ type Model struct {
 	pending      Effect
 	pendingBoard int
 	choice       *Choice
+	// lastClick is the most recent left click on a cell, to recognise a double click.
+	lastClick cellClick
 }
 
 // Model builds the interactive program for the boards the plugins registered.
@@ -249,6 +251,11 @@ func (m *Model) update(message tea.Msg) tea.Cmd {
 		}
 	case refreshTickMessage:
 		return tea.Batch(m.RefreshAll(), m.scheduleRefresh())
+	case tea.MouseMsg:
+		if len(m.screens) > 0 {
+			return m.updateEveryScreen(message)
+		}
+		return m.handleMouse(message)
 	case tea.KeyMsg:
 		if message.String() == "ctrl+c" {
 			return tea.Quit
@@ -388,12 +395,6 @@ func (m *Model) execute(index int, effect Effect) tea.Cmd {
 		run := effect.Command
 		commands = append(commands, func() tea.Msg {
 			return commandFinishedMessage{board: index, err: run(), refresh: effect.Refresh}
-		})
-	}
-	if effect.Copy != "" {
-		text := effect.Copy
-		commands = append(commands, func() tea.Msg {
-			return commandFinishedMessage{board: index, err: writeClipboard(text), successNotice: "Copied " + text}
 		})
 	}
 	if effect.Screen != nil {

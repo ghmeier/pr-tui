@@ -85,10 +85,9 @@ func (m *Model) tabBar() string {
 	return strings.Join(tabs, " ") + "  " + ui.HelpLine("tab", "next")
 }
 
-func (m *Model) View() string {
-	if len(m.screens) > 0 {
-		return m.viewTopScreen()
-	}
+// aboveTable is everything drawn over the table: the tab bar when there is more than one board,
+// the summary of the filters, and the filter menu while it is open.
+func (m *Model) aboveTable() string {
 	board := m.current()
 	var sections []string
 	if len(m.boards) > 1 {
@@ -98,12 +97,23 @@ func (m *Model) View() string {
 	if m.mode == filterMode {
 		sections = append(sections, filterMenu(board.facets, board.menuCursor))
 	}
+	return strings.Join(sections, "\n")
+}
+
+func (m *Model) View() string {
+	if len(m.screens) > 0 {
+		return m.viewTopScreen()
+	}
+	board := m.current()
 	rows := m.tableRows()
 	table := board.table(m.width, board.cursor, board.offset, rows)
 	blankLines := rows + 1 - lipgloss.Height(table)
-	sections = append(sections, table+strings.Repeat("\n", max(blankLines, 0)))
-	sections = append(sections, ansi.Truncate(m.statusLine(board), m.width, "…"), ansi.Truncate(m.help(), m.width, "…"))
-	return strings.Join(sections, "\n")
+	return strings.Join([]string{
+		m.aboveTable(),
+		table + strings.Repeat("\n", max(blankLines, 0)),
+		ansi.Truncate(m.statusLine(board), m.width, "…"),
+		ansi.Truncate(m.help(), m.width, "…"),
+	}, "\n")
 }
 
 // viewTopScreen draws the top screen. While a question or choice is pending or its board has a

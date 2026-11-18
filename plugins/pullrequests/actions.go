@@ -20,7 +20,6 @@ func (board *pullRequestBoard) actions() []plugin.Action {
 		{Key: "enter", Label: "diff", Run: board.showDiff},
 		{Key: "p", Label: "description", Run: board.showDescription},
 		{Key: "o", Label: "open", Run: board.openInBrowser},
-		{Key: "y", Label: "copy branch", Run: board.copyBranch},
 		{Key: "v", Label: board.editor.Name, Run: board.openInEditor},
 		{Key: "d", Label: "draft / ready", Run: board.toggleDraft},
 	}
@@ -33,7 +32,7 @@ func (board *pullRequestBoard) actions() []plugin.Action {
 	)
 }
 
-var screenActionKeys = []string{"y", "d", "t", "m", "a"}
+var screenActionKeys = []string{"d", "t", "m", "a"}
 
 // screenActions are the board's actions that the diff and description screens offer as well,
 // so that a pull request can be changed without going back to the board.
@@ -113,10 +112,6 @@ func (board *pullRequestBoard) toggleDraft(selection plugin.Selection) plugin.Ef
 		Command: func() error { return board.provider.SetDraft(pr, !pr.IsDraft) },
 		Refresh: true,
 	}
-}
-
-func (board *pullRequestBoard) copyBranch(selection plugin.Selection) plugin.Effect {
-	return plugin.Effect{Copy: pullRequestOf(selection).HeadBranch}
 }
 
 const (

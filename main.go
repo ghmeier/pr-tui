@@ -80,7 +80,7 @@ func main() {
 	if *once {
 		err = host.PrintOnce(os.Stdout, terminalWidth())
 	} else {
-		_, err = tea.NewProgram(host.Model(), tea.WithAltScreen()).Run()
+		_, err = tea.NewProgram(host.Model(), tea.WithAltScreen(), tea.WithMouseCellMotion()).Run()
 	}
 	if err != nil {
 		fail(err)

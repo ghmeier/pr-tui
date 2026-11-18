@@ -566,20 +566,6 @@ func TestMergeKeyOnAScreenOffersTheMergeChoices(t *testing.T) {
 	}
 }
 
-func TestCopyBranchKeyOnAScreenIsOfferedInItsHelp(t *testing.T) {
-	for name, opener := range screenOpeners {
-		t.Run(name, func(t *testing.T) {
-			model := loadedBoard(t)
-			plugintest.Resize(t, model, 200, 30)
-			press(t, model, opener...)
-
-			if help := helpLine(model); !strings.Contains(help, "y copy branch") {
-				t.Fatalf("help = %q", help)
-			}
-		})
-	}
-}
-
 func TestApproveKeyOnAScreenAsksThenApproves(t *testing.T) {
 	for name, opener := range screenOpeners {
 		t.Run(name, func(t *testing.T) {
@@ -665,10 +651,10 @@ func TestChangeKeysTypedIntoACommentDoNotRunActions(t *testing.T) {
 	model := loadedBoardWith(t, provider)
 	press(t, model, append(pressToTheAddedLine(), "c")...)
 
-	press(t, model, "d", "t", "m", "a", "y")
+	press(t, model, "d", "t", "m", "a")
 
 	assertCalls(t, provider)
-	if !strings.Contains(view(model), "dtmay") {
+	if !strings.Contains(view(model), "dtma") {
 		t.Fatalf("the keys should be in the comment:\n%s", view(model))
 	}
 }

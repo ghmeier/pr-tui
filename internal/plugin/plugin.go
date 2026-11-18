@@ -149,10 +149,6 @@ type Effect struct {
 	Command func() error
 	// Refresh reloads the board after Command succeeds.
 	Refresh bool
-	// Copy is text the host puts on the clipboard. On success the status line shows "Copied "
-	// and the text; a failure shows like a failed Command. It is carried out on its own, not
-	// together with Command.
-	Copy string
 	// Screen, when set, opens a full-screen view.
 	Screen Screen
 }

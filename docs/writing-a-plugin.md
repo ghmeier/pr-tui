@@ -297,9 +297,10 @@ An action is a key and a `Run` function. `Run` does not do the work. It returns 
 line, `Command` runs on a background goroutine and a returned error shows as `Failed: ...`,
 `Confirm` asks a question first, `Choice` asks for one of a few numbered options and applies the
 effect that its `Pick` returns for the one chosen, `Refresh` reloads the board after the command
-succeeds, `Copy` puts a text on the clipboard, and `Screen` opens a full-screen view. The host
-refuses keys it uses itself (for example `f`, `r`, `q`, and `tab`) and two actions on one key,
-and says so when the program starts.
+succeeds, and `Screen` opens a full-screen view. Every board's cells can be copied to the
+clipboard by double-clicking them, so a plugin needs no action for that. The host refuses keys
+it uses itself (for example `f`, `r`, `q`, and `tab`) and two actions on one key, and says so
+when the program starts.
 
 All external commands go through `shell.Run`, which is what tests replace.
 
