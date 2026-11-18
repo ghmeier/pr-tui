@@ -1,7 +1,7 @@
 ---
 title: Branch and tags columns
-status: completed
-next_step: Done; pull request #1 is open for review.
+status: active
+next_step: Implementer is adding double-click copying on branch-and-tags-columns (step 2); then refactor pass, verification, push to pull request #1.
 tags: [pull-requests, agent-plans, host]
 created: 2026-11-18
 updated: 2026-11-18
@@ -52,6 +52,13 @@ be undone; the auto-merge options apply straight away, since picking one is alre
    columns, the `y` action, the merge choice and `Provider.Merge`, README key tables. Verified with `go vet`, `gofmt -l`,
    `go test ./...`, and a `--once` run. Done: pull request #1 (commits 8d96a51, ba3f325, and a README rewrap).
 
+2. Same branch, added to pull request #1: double-clicking any table cell copies its full text.
+   The host captures the mouse (`tea.WithMouseCellMotion`), a left click moves the cursor to
+   the row, two left clicks on the same cell within 500 ms copy the cell's untruncated plain
+   text, and the wheel moves the cursor. Only in board mode with no screen open. `y` and
+   `Effect.Copy` are removed, since nothing else would use `Effect.Copy`; the host calls
+   `writeClipboard` itself. Verified with tests and `--once`.
+
 ## Risks
 
 - OSC 52 written from a background goroutine could interleave with a frame. Each is one write,
@@ -59,6 +66,9 @@ be undone; the auto-merge options apply straight away, since picking one is alre
 - Branch names longer than 30 are cut in the table; the `y` action is how to get the full name.
 
 ## Notes and decisions
+
+- 2026-11-18: The user asked for a general double-click to copy and accepted that capturing the
+  mouse means the terminal's own drag selection needs a modifier key. They chose to remove `y`.
 
 - 2026-11-18: Built and verified. Left alone: the OSC 52 fallback reports success even if the
   terminal ignores it (Terminal.app does), and was not tried in a real terminal. The Branch
