@@ -1,7 +1,6 @@
 package plugin
 
 import (
-	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -46,7 +45,7 @@ func (m *Model) handleMouse(event tea.MouseMsg) tea.Cmd {
 // second on that cell within the double click interval.
 func (m *Model) handleClick(x, y int) tea.Cmd {
 	board := m.current()
-	rowOnScreen := y - strings.Count(m.aboveTable(), "\n") - 2
+	rowOnScreen := y - m.firstRowLine()
 	if rowOnScreen < 0 || rowOnScreen >= m.tableRows() || x < 0 || x >= m.width {
 		return nil
 	}

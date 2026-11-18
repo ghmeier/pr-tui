@@ -100,6 +100,12 @@ func (m *Model) aboveTable() string {
 	return strings.Join(sections, "\n")
 }
 
+// firstRowLine is the line of the screen where the table's first row is drawn, below the lines
+// above the table and the header.
+func (m *Model) firstRowLine() int {
+	return strings.Count(m.aboveTable(), "\n") + 2
+}
+
 func (m *Model) View() string {
 	if len(m.screens) > 0 {
 		return m.viewTopScreen()
