@@ -114,13 +114,5 @@ func (board *boardState) cells() [][][]ui.Segment {
 }
 
 func (board *boardState) table(width, selected, offset, rowCount int) string {
-	headers := make([]string, len(board.spec.Columns))
-	flexible := -1
-	for index, column := range board.spec.Columns {
-		headers[index] = column.Header
-		if column.Flexible {
-			flexible = index
-		}
-	}
-	return renderTable(headers, flexible, board.cells(), width, selected, offset, rowCount)
+	return renderTable(board.spec.Columns, board.cells(), width, selected, offset, rowCount)
 }

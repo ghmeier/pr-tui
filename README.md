@@ -81,6 +81,8 @@ The State column uses these marks:
 | ⏩ | Auto-merge enabled |
 | 🟢 / 🔴 / 🟡 | CI passing / failing / running |
 
+The board's Branch column shows each pull request's head branch, cut at 30 characters.
+
 Board keys:
 
 | Key | Action |
@@ -88,10 +90,11 @@ Board keys:
 | `enter` | Diff view |
 | `p` | Read or edit the description |
 | `o` | Open in the browser |
+| `y` | Copy the branch name to the clipboard |
 | `v` | Check out the branch with `wt switch` and open it, with its changed files, in the configured editor |
 | `d` | Toggle draft / ready for review |
 | `t` | Request review from the configured team, marking a draft ready for review first |
-| `m` | Enable or disable auto-merge (squash), after a confirmation |
+| `m` | Merge now (squash, after a confirmation), or enable or disable auto-merge (squash) |
 | `a` | Approve someone else's pull request, after a confirmation |
 | `f` | Filter by repository and by people or bots: `j`/`k` move, `space` toggles, `1` to `9` toggle the first nine options, `b` switches people and bots |
 | `tab` / `shift+tab` | Switch boards, when plugins add more than one |
@@ -107,9 +110,10 @@ Diff view keys:
 | `s` | Toggle split and unified layouts |
 | `c` | Comment on the line under the cursor, or reply to the thread under it (`ctrl+s` posts) |
 | `tab` | Choose the old or new side of a split row for the comment |
+| `y` | Copy the branch name to the clipboard |
 | `d` | Toggle draft / ready for review |
 | `t` | Request review from the configured team, as on the board |
-| `m` | Enable or disable auto-merge (squash), after a confirmation |
+| `m` | Merge now (squash, after a confirmation), or enable or disable auto-merge (squash) |
 | `a` | Approve someone else's pull request, after a confirmation |
 | `esc` | Back |
 
@@ -119,9 +123,10 @@ Description view keys:
 | --- | --- |
 | `↑` / `↓`, `space` / `b` | Scroll by a line or a page |
 | `e` | Edit the description |
+| `y` | Copy the branch name to the clipboard |
 | `d` | Toggle draft / ready for review |
 | `t` | Request review from the configured team, as on the board |
-| `m` | Enable or disable auto-merge (squash), after a confirmation |
+| `m` | Merge now (squash, after a confirmation), or enable or disable auto-merge (squash) |
 | `a` | Approve someone else's pull request, after a confirmation |
 | `esc` | Back |
 
@@ -129,7 +134,7 @@ Description view keys:
 
 The `agent_plans` plugin adds a board of the `apl` documents
 (plans, research notes, and handoffs) in your local checkouts, newest first, with the pull
-request numbers each document mentions. It needs `apl` on your `PATH` and is off until you add
+request numbers each document mentions and, in a Tags column cut at 30 characters, its tags. It needs `apl` on your `PATH` and is off until you add
 `"agent_plans"` to `plugins`. Each entry of `repositories` must be a directory with a `.apl`
 directory inside, and two entries cannot have the same directory name, because the name is how
 the board tells repositories apart. The filter menu (`f`) narrows by repository, type, and

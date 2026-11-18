@@ -17,6 +17,7 @@ import (
 	"github.com/ghmeier/pr-tui/internal/plugin"
 	"github.com/ghmeier/pr-tui/internal/plugin/plugintest"
 	"github.com/ghmeier/pr-tui/internal/shell"
+	"github.com/ghmeier/pr-tui/internal/ui"
 )
 
 // doc is what a test says about one document: apl's listing of it and the text of its file.
@@ -24,6 +25,7 @@ type doc struct {
 	file, kind, title, status, updated, body string
 	// branches are the branches the document is linked to.
 	branches []string
+	tags     []string
 }
 
 // fakeApl stands in for the apl program: each checkout has a canned listing, and the calls it
@@ -63,7 +65,11 @@ func (apl *fakeApl) newCheckout(t *testing.T, name string, docs ...doc) string {
 		if err := os.WriteFile(file, []byte(example.body), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		meta := map[string]any{"title": example.title, "tags": []string{}, "updated": example.updated}
+		tags := example.tags
+		if tags == nil {
+			tags = []string{}
+		}
+		meta := map[string]any{"title": example.title, "tags": tags, "updated": example.updated}
 		if example.status != "" {
 			meta["status"] = example.status
 		}
@@ -193,6 +199,28 @@ func TestPullRequestCellShowsTheNumbersOfTheBodyAndCountsThoseBeyondThree(t *tes
 	}
 	if line := lineWith(model, "No pull requests"); strings.Contains(line, "#") {
 		t.Fatalf("line = %q", line)
+	}
+}
+
+func TestTagsColumnShowsTheTagsOfADocumentJoinedByCommas(t *testing.T) {
+	apl := installFakeApl(t, false)
+	tagged := doc{file: "plan/tagged.md", kind: "plan", title: "Tagged plan", updated: "2026-11-12", tags: []string{"billing", "release"}}
+	checkout := apl.newCheckout(t, "storefront", tagged)
+
+	model := startedModel(t, checkout)
+
+	if line := lineWith(model, tagged.title); !strings.Contains(line, strings.Join(tagged.tags, ", ")) {
+		t.Fatalf("line = %q", line)
+	}
+}
+
+func TestTagsColumnIsEmptyForADocumentWithoutTags(t *testing.T) {
+	row := Row{Doc: Doc{Tags: nil}}
+
+	cell := ui.PlainText(tagsColumn().Cell(row, nil))
+
+	if cell != "" {
+		t.Fatalf("cell = %q", cell)
 	}
 }
 

@@ -52,6 +52,8 @@ type (
 		board   int
 		err     error
 		refresh bool
+		// successNotice is shown when the command succeeds without a refresh.
+		successNotice string
 	}
 	refreshTickMessage struct{}
 )
@@ -243,7 +245,7 @@ func (m *Model) update(message tea.Msg) tea.Cmd {
 		case message.refresh:
 			return m.load(message.board)
 		default:
-			board.notice = ""
+			board.notice = message.successNotice
 		}
 	case refreshTickMessage:
 		return tea.Batch(m.RefreshAll(), m.scheduleRefresh())
@@ -386,6 +388,12 @@ func (m *Model) execute(index int, effect Effect) tea.Cmd {
 		run := effect.Command
 		commands = append(commands, func() tea.Msg {
 			return commandFinishedMessage{board: index, err: run(), refresh: effect.Refresh}
+		})
+	}
+	if effect.Copy != "" {
+		text := effect.Copy
+		commands = append(commands, func() tea.Msg {
+			return commandFinishedMessage{board: index, err: writeClipboard(text), successNotice: "Copied " + text}
 		})
 	}
 	if effect.Screen != nil {

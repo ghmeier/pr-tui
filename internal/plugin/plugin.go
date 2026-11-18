@@ -63,6 +63,8 @@ type Column struct {
 	// Flexible marks the column that shrinks when the table is wider than the terminal. At
 	// most one column of a board is flexible.
 	Flexible bool
+	// MaxWidth is the widest the column is drawn; zero means no limit.
+	MaxWidth int
 	// Cell draws the column for a row. The data is nil until a fetch from Load has delivered
 	// a value for the row. It runs on the update loop, so it must return quickly.
 	Cell func(row Row, data any) []ui.Segment
@@ -147,6 +149,10 @@ type Effect struct {
 	Command func() error
 	// Refresh reloads the board after Command succeeds.
 	Refresh bool
+	// Copy is text the host puts on the clipboard. On success the status line shows "Copied "
+	// and the text; a failure shows like a failed Command. It is carried out on its own, not
+	// together with Command.
+	Copy string
 	// Screen, when set, opens a full-screen view.
 	Screen Screen
 }

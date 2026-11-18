@@ -138,6 +138,9 @@ func (board *pullRequestBoard) columns() []plugin.Column {
 		{Header: "Title", Flexible: true, Cell: func(row plugin.Row, _ any) []ui.Segment {
 			return ui.PlainSegments(row.(Row).PullRequest.Title)
 		}},
+		{Header: "Branch", MaxWidth: 30, Cell: func(row plugin.Row, _ any) []ui.Segment {
+			return ui.PlainSegments(row.(Row).PullRequest.HeadBranch)
+		}},
 		{Header: "Author", Cell: func(row plugin.Row, _ any) []ui.Segment {
 			pr := row.(Row).PullRequest
 			if pr.IsBot {

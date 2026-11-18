@@ -91,6 +91,31 @@ func TestTableKeepsTheFlexibleColumnAtItsMinimumWidthInANarrowTerminal(t *testin
 	}
 }
 
+func TestTableCutsAColumnToItsMaximumWidthWhenACellIsWider(t *testing.T) {
+	board := groceryBoard(newRowSource(vegetable("broccoli-key", "broccoli")))
+	board.Columns[1].MaxWidth = 4
+	model := modelForBoard(t, board)
+
+	row := tableLines(model)[1]
+
+	if !strings.Contains(row, "veg…") || strings.Contains(row, "vegetable") {
+		t.Fatalf("row = %q", row)
+	}
+}
+
+func TestTableKeepsTheNaturalWidthOfAColumnWhoseCellsAreNarrowerThanItsMaximum(t *testing.T) {
+	rows := newRowSource(vegetable("broccoli-key", "broccoli"))
+	unlimited := modelForBoard(t, groceryBoard(rows))
+	limited := groceryBoard(rows)
+	limited.Columns[1].MaxWidth = 40
+
+	table := tableLines(modelForBoard(t, limited))
+
+	if expected := tableLines(unlimited); strings.Join(table, "\n") != strings.Join(expected, "\n") {
+		t.Fatalf("table:\n%s\nexpected:\n%s", strings.Join(table, "\n"), strings.Join(expected, "\n"))
+	}
+}
+
 func TestTableCutsARowAtTheTerminalWidthWhenNoColumnIsFlexible(t *testing.T) {
 	board := groceryBoard(newRowSource(fruit("long-key", strings.Repeat("x", 100))))
 	board.Columns[0].Flexible = false

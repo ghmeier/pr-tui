@@ -546,7 +546,7 @@ func TestDraftKeyOnAScreenUsesTheRefreshedPullRequestTheSecondTime(t *testing.T)
 	}
 }
 
-func TestAutoMergeKeyOnAScreenAsksBeforeToggling(t *testing.T) {
+func TestMergeKeyOnAScreenOffersTheMergeChoices(t *testing.T) {
 	for name, opener := range screenOpeners {
 		t.Run(name, func(t *testing.T) {
 			provider := newFakeProvider()
@@ -556,13 +556,26 @@ func TestAutoMergeKeyOnAScreenAsksBeforeToggling(t *testing.T) {
 
 			press(t, model, "m")
 			asked := view(model)
-			callsWhileAsking := provider.recorded()
-			press(t, model, "y")
+			press(t, model, "2")
 
-			if !strings.Contains(asked, selected.toggleAutoMergeQuestion()) || len(callsWhileAsking) != 0 {
-				t.Fatalf("view while asking:\n%s\ncalls = %v", asked, callsWhileAsking)
+			if !strings.Contains(asked, "Merge "+selected.label()) || !strings.Contains(asked, enableAutoMergeOption) {
+				t.Fatalf("view while asking:\n%s", asked)
 			}
 			assertCalls(t, provider, autoMergeCall(selected, true))
+		})
+	}
+}
+
+func TestCopyBranchKeyOnAScreenIsOfferedInItsHelp(t *testing.T) {
+	for name, opener := range screenOpeners {
+		t.Run(name, func(t *testing.T) {
+			model := loadedBoard(t)
+			plugintest.Resize(t, model, 200, 30)
+			press(t, model, opener...)
+
+			if help := helpLine(model); !strings.Contains(help, "y copy branch") {
+				t.Fatalf("help = %q", help)
+			}
 		})
 	}
 }
@@ -626,7 +639,7 @@ func TestScreenHelpOffersTheBoardsChangeKeysBeforeBack(t *testing.T) {
 
 			help := helpLine(model)
 
-			expected := "d draft / ready · t request " + testReviewTeam + " · m auto-merge · a approve · esc back"
+			expected := "d draft / ready · t request " + testReviewTeam + " · m merge · a approve · esc back"
 			if !strings.Contains(help, expected) {
 				t.Fatalf("help = %q, expected it to contain %q", help, expected)
 			}

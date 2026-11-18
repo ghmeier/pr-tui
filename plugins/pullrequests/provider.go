@@ -27,6 +27,9 @@ type Provider interface {
 	PostComment(pullRequest PullRequest, target CommentTarget, body string) error
 	SetDraft(pullRequest PullRequest, draft bool) error
 	SetAutoMerge(pullRequest PullRequest, enabled bool) error
+	// Merge merges the pull request now with a squash commit. On a branch that requires a merge
+	// queue, the provider queues it instead.
+	Merge(pullRequest PullRequest) error
 	RequestTeamReview(pullRequest PullRequest) error
 	Approve(pullRequest PullRequest) error
 }

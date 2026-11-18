@@ -41,6 +41,7 @@ func board(settings settings) plugin.Board {
 			textColumn("Type", false, func(row Row) string { return row.Doc.Type }),
 			textColumn("Title", true, func(row Row) string { return row.Doc.Title }),
 			textColumn("Status", false, func(row Row) string { return row.Doc.Status }),
+			tagsColumn(),
 			textColumn("Updated", false, func(row Row) string { return row.Doc.Updated }),
 			{Header: "Pull requests", Cell: func(row plugin.Row, _ any) []ui.Segment {
 				return pullRequestSegments(row.(Row).Doc.PullRequestNumbers)
@@ -70,6 +71,13 @@ func board(settings settings) plugin.Board {
 			},
 		},
 	}
+}
+
+// tagsColumn is capped because a document can have many tags.
+func tagsColumn() plugin.Column {
+	column := textColumn("Tags", false, func(row Row) string { return strings.Join(row.Doc.Tags, ", ") })
+	column.MaxWidth = 30
+	return column
 }
 
 func textColumn(header string, flexible bool, text func(row Row) string) plugin.Column {
