@@ -1,7 +1,7 @@
 ---
 title: Branch and tags columns
-status: active
-next_step: Implementer is building step 1 on branch-and-tags-columns; then refactor pass and verification.
+status: completed
+next_step: Done; pull request #1 is open for review.
 tags: [pull-requests, agent-plans, host]
 created: 2026-11-18
 updated: 2026-11-18
@@ -50,7 +50,7 @@ be undone; the auto-merge options apply straight away, since picking one is alre
 
 1. One branch, `branch-and-tags-columns`, from `main`: host `MaxWidth` and `Copy`, both
    columns, the `y` action, the merge choice and `Provider.Merge`, README key tables. Verified with `go vet`, `gofmt -l`,
-   `go test ./...`, and a `--once` run.
+   `go test ./...`, and a `--once` run. Done: pull request #1 (commits 8d96a51, ba3f325, and a README rewrap).
 
 ## Risks
 
@@ -59,6 +59,11 @@ be undone; the auto-merge options apply straight away, since picking one is alre
 - Branch names longer than 30 are cut in the table; the `y` action is how to get the full name.
 
 ## Notes and decisions
+
+- 2026-11-18: Built and verified. Left alone: the OSC 52 fallback reports success even if the
+  terminal ignores it (Terminal.app does), and was not tried in a real terminal. The Branch
+  column cuts the rightmost columns in a 120-column terminal; a smaller cap or moving Branch
+  later is the fix if that bothers anyone. Copy with an empty branch does nothing silently.
 
 - 2026-11-18: The user asked for `m` to handle a regular merge as well as auto-merge. A choice
   was picked over guessing from mergeability, because the board does not load merge state.
