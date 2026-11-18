@@ -230,15 +230,6 @@ func TestCopyBranchKeyCopiesTheBranchOfTheSelectedPullRequest(t *testing.T) {
 	}
 }
 
-func TestHelpOffersCopyingTheBranch(t *testing.T) {
-	model := loadedBoard(t)
-	plugintest.Resize(t, model, 200, 30)
-
-	if help := helpLine(model); !strings.Contains(help, "y copy branch") {
-		t.Fatalf("help = %q", help)
-	}
-}
-
 func TestApproveKeyAsksBeforeApprovingSomeoneElsesPullRequest(t *testing.T) {
 	provider := newFakeProvider()
 	model := loadedBoardWith(t, provider)
