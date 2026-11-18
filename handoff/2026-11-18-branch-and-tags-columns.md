@@ -19,6 +19,8 @@ Pull request: https://github.com/ghmeier/pr-tui/pull/1 (branch `branch-and-tags-
   turning auto-merge on or off, which applies straight away. `Provider.Merge` runs
   `gh pr merge <url> --squash`.
 - Agent plans board: a Tags column after Status, capped at 30 characters.
+- Per-column `MaxWidth` on every column whose values vary in length (see the plan's notes for
+  the widths).
 - Host: `Column.MaxWidth`, and mouse handling in `internal/plugin/mouse.go`.
 
 ## Key files

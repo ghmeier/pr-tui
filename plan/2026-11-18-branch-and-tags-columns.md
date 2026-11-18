@@ -68,6 +68,11 @@ be undone; the auto-merge options apply straight away, since picking one is alre
 
 ## Notes and decisions
 
+- 2026-11-18: The user wants `MaxWidth` applied to every column that needs it, each with its own
+  width (a host-wide cap was started and reverted). Commit 1ec9002: pull request board Repo 20,
+  Author 20, Branch 30, Review requested 30, Plan 30; agent plans board Repository 20, Type 12,
+  Status 12, Tags 30. Fixed-length columns and the flexible Title stay uncapped.
+
 - 2026-11-18: Double-click checked in tmux against real data with SGR mouse sequences; a cut
   branch name copied in full. Left alone: `tableRows` still computes the space for rows with its
   own arithmetic, which matches `aboveTable` only while the facet summary is one line.
