@@ -1,7 +1,7 @@
 ---
 title: Branch and tags columns
-status: draft
-next_step: Get approval, then dispatch the implementer for the single step.
+status: active
+next_step: Implementer is building step 1 on branch-and-tags-columns; then refactor pass and verification.
 tags: [pull-requests, agent-plans, host]
 created: 2026-11-18
 updated: 2026-11-18
@@ -11,7 +11,8 @@ updated: 2026-11-18
 ## Goal
 
 The pull request board shows each pull request's head branch, and `y` copies the full branch
-name to the clipboard. The agent plans board shows each document's tags.
+name to the clipboard. `m` offers either merging now or turning auto-merge on or off. The
+agent plans board shows each document's tags.
 
 ## Approach
 
@@ -35,13 +36,20 @@ No configuration changes.
 `Effect{Copy: HeadBranch}`. It also works from the diff and description screens through the
 existing screen-action path.
 
+**Merging**: `m` (label "merge") returns a `Choice` instead of a confirmation. Options:
+`merge now (squash)` and `enable auto-merge (squash)`, or `disable auto-merge` when auto-merge
+is on. Merging now asks its own confirmation ("Merge <label> now (squash)?") because it cannot
+be undone; the auto-merge options apply straight away, since picking one is already deliberate.
+`Provider` gains `Merge(pullRequest PullRequest) error`; GitHub runs
+`gh pr merge <url> --squash` (on a branch that requires a merge queue, gh queues it).
+
 **Agent plans board**: a `Tags` column right after `Status`, `MaxWidth: 30`, tags joined by
 ", ".
 
 ## Steps
 
 1. One branch, `branch-and-tags-columns`, from `main`: host `MaxWidth` and `Copy`, both
-   columns, the `y` action, README key tables. Verified with `go vet`, `gofmt -l`,
+   columns, the `y` action, the merge choice and `Provider.Merge`, README key tables. Verified with `go vet`, `gofmt -l`,
    `go test ./...`, and a `--once` run.
 
 ## Risks
@@ -51,6 +59,9 @@ existing screen-action path.
 - Branch names longer than 30 are cut in the table; the `y` action is how to get the full name.
 
 ## Notes and decisions
+
+- 2026-11-18: The user asked for `m` to handle a regular merge as well as auto-merge. A choice
+  was picked over guessing from mergeability, because the board does not load merge state.
 
 - 2026-11-18: The user chose a Branch column on the pull request board and a Tags column on
   the agent plans board, and wants branch names copyable even when the column is capped.
