@@ -130,51 +130,89 @@ func TestHelpListsTheActionsInTheOrderOfTheBoardAndNamesTheConfiguredEditor(t *t
 	help := helpLine(model)
 
 	expected := "enter diff · p description · o open · v " + testEditorName + " · d draft / ready · t request " + testReviewTeam +
-		" · m auto-merge · a approve · f filters · r refresh · q quit"
+		" · m merge · a approve · f filters · r refresh · q quit"
 	if help != expected {
 		t.Fatalf("help = %q, expected %q", help, expected)
 	}
 }
 
-func TestAutoMergeKeyAsksBeforeEnablingAutoMerge(t *testing.T) {
+func TestMergeKeyOffersMergingNowOrEnablingAutoMergeWhenAutoMergeIsOff(t *testing.T) {
+	provider := newFakeProvider()
+	model := loadedBoardWith(t, provider)
+
+	press(t, model, "m")
+
+	asked := view(model)
+	for _, expected := range []string{"Merge " + provider.pullRequest(1).label(), mergeNowOption, enableAutoMergeOption} {
+		if !strings.Contains(asked, expected) {
+			t.Fatalf("view should contain %q:\n%s", expected, asked)
+		}
+	}
+	if strings.Contains(asked, disableAutoMergeOption) {
+		t.Fatalf("view offers disabling auto-merge that is off:\n%s", asked)
+	}
+	assertCalls(t, provider)
+}
+
+func TestMergeKeyOffersDisablingAutoMergeWhenAutoMergeIsOn(t *testing.T) {
+	provider := newFakeProvider()
+	model := loadedBoardWith(t, provider)
+
+	press(t, model, "down", "m")
+
+	asked := view(model)
+	if !strings.Contains(asked, mergeNowOption) || !strings.Contains(asked, disableAutoMergeOption) {
+		t.Fatalf("view:\n%s", asked)
+	}
+	if strings.Contains(asked, enableAutoMergeOption) {
+		t.Fatalf("view offers enabling auto-merge that is on:\n%s", asked)
+	}
+}
+
+func TestChoosingToEnableAutoMergeEnablesItWithoutAsking(t *testing.T) {
 	provider := newFakeProvider()
 	model := loadedBoardWith(t, provider)
 	selected := provider.pullRequest(1)
 
-	press(t, model, "m")
-	asked := view(model)
-	callsWhileAsking := provider.recorded()
-	press(t, model, "y")
+	press(t, model, "m", "2")
 
-	if !strings.Contains(asked, "Enable auto-merge (squash) on "+selected.label()+"?") || len(callsWhileAsking) != 0 {
-		t.Fatalf("view while asking:\n%s\ncalls = %v", asked, callsWhileAsking)
-	}
 	assertCalls(t, provider, autoMergeCall(selected, true))
 }
 
-func TestAutoMergeKeyDisablesAutoMergeWhenAlreadyEnabled(t *testing.T) {
+func TestChoosingToDisableAutoMergeDisablesItWithoutAsking(t *testing.T) {
 	provider := newFakeProvider()
 	model := loadedBoardWith(t, provider)
 	selected := provider.pullRequest(3)
 
-	press(t, model, "down", "m")
-	asked := view(model)
-	press(t, model, "y")
+	press(t, model, "down", "m", "2")
 
-	if !strings.Contains(asked, "Disable auto-merge on "+selected.label()+"?") {
-		t.Fatalf("view while asking:\n%s", asked)
-	}
 	assertCalls(t, provider, autoMergeCall(selected, false))
 }
 
-func TestDecliningAutoMergeChangesNothing(t *testing.T) {
+func TestChoosingToMergeNowAsksBeforeMerging(t *testing.T) {
+	provider := newFakeProvider()
+	model := loadedBoardWith(t, provider)
+	selected := provider.pullRequest(1)
+
+	press(t, model, "m", "1")
+	asked := view(model)
+	callsWhileAsking := provider.recorded()
+	press(t, model, "y")
+
+	if !strings.Contains(asked, "Merge "+selected.label()+" now (squash)?") || len(callsWhileAsking) != 0 {
+		t.Fatalf("view while asking:\n%s\ncalls = %v", asked, callsWhileAsking)
+	}
+	assertCalls(t, provider, mergeCall(selected))
+}
+
+func TestDecliningTheMergeConfirmationMergesNothing(t *testing.T) {
 	provider := newFakeProvider()
 	model := loadedBoardWith(t, provider)
 
-	press(t, model, "m", "n")
+	press(t, model, "m", "1", "n")
 
 	assertCalls(t, provider)
-	if strings.Contains(view(model), "auto-merge (squash)") {
+	if strings.Contains(view(model), "now (squash)?") {
 		t.Fatalf("the question is still shown:\n%s", view(model))
 	}
 }

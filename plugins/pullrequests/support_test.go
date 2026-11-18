@@ -70,6 +70,10 @@ func autoMergeCall(pr PullRequest, enabled bool) recordedCall {
 	return recordedCall{method: "SetAutoMerge", url: pr.URL, flag: enabled}
 }
 
+func mergeCall(pr PullRequest) recordedCall {
+	return recordedCall{method: "Merge", url: pr.URL}
+}
+
 func teamReviewCall(pr PullRequest) recordedCall {
 	return recordedCall{method: "RequestTeamReview", url: pr.URL}
 }
@@ -116,15 +120,15 @@ func newFakeProvider() *fakeProvider {
 	pullRequests := []PullRequest{
 		{
 			Repository: storefrontRepository, Number: 1, Title: "Draft from a person", URL: "https://example.test/storefront/1",
-			Author: "person", IsDraft: true, HeadCommit: "first-commit", UpdatedAt: updated(12),
+			Author: "person", IsDraft: true, HeadCommit: "first-commit", HeadBranch: "draft-from-a-person", UpdatedAt: updated(12),
 		},
 		{
 			Repository: storefrontRepository, Number: 2, Title: "Dependency update", URL: "https://example.test/storefront/2",
-			Author: "renovate", IsBot: true, UpdatedAt: updated(11),
+			Author: "renovate", IsBot: true, HeadBranch: "renovate/dependency-update", UpdatedAt: updated(11),
 		},
 		{
 			Repository: billingRepository, Number: 3, Title: "Ready with reviewers", URL: "https://example.test/billing/3",
-			Author: "person", AutoMerge: true, UpdatedAt: updated(10),
+			Author: "person", AutoMerge: true, HeadBranch: "ready-with-reviewers", UpdatedAt: updated(10),
 			RequestedUsers: []string{testViewer, "someone-else"}, RequestedTeams: []string{testReviewTeam},
 		},
 	}
@@ -275,6 +279,10 @@ func (fake *fakeProvider) SetDraft(pr PullRequest, draft bool) error {
 
 func (fake *fakeProvider) SetAutoMerge(pr PullRequest, enabled bool) error {
 	return fake.change("SetAutoMerge", recordedCall{url: pr.URL, flag: enabled})
+}
+
+func (fake *fakeProvider) Merge(pr PullRequest) error {
+	return fake.change("Merge", recordedCall{url: pr.URL})
 }
 
 func (fake *fakeProvider) RequestTeamReview(pr PullRequest) error {

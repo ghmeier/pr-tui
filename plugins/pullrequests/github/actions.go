@@ -153,6 +153,11 @@ func (github *provider) SetAutoMerge(pr pullrequests.PullRequest, enabled bool) 
 	return err
 }
 
+func (github *provider) Merge(pr pullrequests.PullRequest) error {
+	_, err := shell.Run("gh", "pr", "merge", pr.URL, "--squash")
+	return err
+}
+
 func (github *provider) Approve(pr pullrequests.PullRequest) error {
 	_, err := shell.Run("gh", "pr", "review", pr.URL, "--approve")
 	return err

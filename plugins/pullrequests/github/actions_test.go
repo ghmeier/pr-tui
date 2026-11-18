@@ -180,6 +180,18 @@ func TestSetAutoMergeDisablesAutoMerge(t *testing.T) {
 	stub.assertCommands(t, []string{"gh", "pr", "merge", pr.URL, "--disable-auto"})
 }
 
+func TestMergeSquashMergesThePullRequestByItsUrl(t *testing.T) {
+	pr := fixturePullRequest(storefront)
+	stub := stubShell(t, "")
+
+	err := providerFor(storefront).Merge(pr)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	stub.assertCommands(t, []string{"gh", "pr", "merge", pr.URL, "--squash"})
+}
+
 func TestRequestTeamReviewGoesToTheOwnerOfThePullRequest(t *testing.T) {
 	pr := fixturePullRequest(partners)
 	stub := stubShell(t, "")
@@ -222,6 +234,7 @@ func TestEveryMethodReturnsTheFailureOfTheCommandItRan(t *testing.T) {
 		"PostComment":       func(p *provider) error { return p.PostComment(pr, target, "body") },
 		"SetDraft":          func(p *provider) error { return p.SetDraft(pr, false) },
 		"SetAutoMerge":      func(p *provider) error { return p.SetAutoMerge(pr, true) },
+		"Merge":             func(p *provider) error { return p.Merge(pr) },
 		"Approve":           func(p *provider) error { return p.Approve(pr) },
 		"RequestTeamReview": func(p *provider) error { return p.RequestTeamReview(pr) },
 	}

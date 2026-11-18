@@ -81,6 +81,8 @@ The State column uses these marks:
 | ⏩ | Auto-merge enabled |
 | 🟢 / 🔴 / 🟡 | CI passing / failing / running |
 
+The board's Branch column shows each pull request's head branch.
+
 Board keys:
 
 | Key | Action |
@@ -91,12 +93,18 @@ Board keys:
 | `v` | Check out the branch with `wt switch` and open it, with its changed files, in the configured editor |
 | `d` | Toggle draft / ready for review |
 | `t` | Request review from the configured team, marking a draft ready for review first |
-| `m` | Enable or disable auto-merge (squash), after a confirmation |
+| `m` | Merge now (squash, after a confirmation), or enable or disable auto-merge (squash) |
 | `a` | Approve someone else's pull request, after a confirmation |
 | `f` | Filter by repository and by people or bots: `j`/`k` move, `space` toggles, `1` to `9` toggle the first nine options, `b` switches people and bots |
 | `tab` / `shift+tab` | Switch boards, when plugins add more than one |
 | `r` | Refresh (also on the configured interval, every 3 minutes by default) |
 | `q` | Quit |
+
+Double-click any cell to copy its full text, including text the table cuts short. Clicking a
+row selects it, and the mouse wheel moves the cursor. Because the app captures the mouse, hold
+Option (iTerm2) or Shift (most other terminals) to select text with the terminal instead.
+Columns whose values vary in length, such as branches, reviewers, and tags, are cut short;
+double-click a cell to copy its full text.
 
 Diff view keys:
 
@@ -109,7 +117,7 @@ Diff view keys:
 | `tab` | Choose the old or new side of a split row for the comment |
 | `d` | Toggle draft / ready for review |
 | `t` | Request review from the configured team, as on the board |
-| `m` | Enable or disable auto-merge (squash), after a confirmation |
+| `m` | Merge now (squash, after a confirmation), or enable or disable auto-merge (squash) |
 | `a` | Approve someone else's pull request, after a confirmation |
 | `esc` | Back |
 
@@ -121,7 +129,7 @@ Description view keys:
 | `e` | Edit the description |
 | `d` | Toggle draft / ready for review |
 | `t` | Request review from the configured team, as on the board |
-| `m` | Enable or disable auto-merge (squash), after a confirmation |
+| `m` | Merge now (squash, after a confirmation), or enable or disable auto-merge (squash) |
 | `a` | Approve someone else's pull request, after a confirmation |
 | `esc` | Back |
 
@@ -129,10 +137,10 @@ Description view keys:
 
 The `agent_plans` plugin adds a board of the `apl` documents
 (plans, research notes, and handoffs) in your local checkouts, newest first, with the pull
-request numbers each document mentions. It needs `apl` on your `PATH` and is off until you add
-`"agent_plans"` to `plugins`. Each entry of `repositories` must be a directory with a `.apl`
-directory inside, and two entries cannot have the same directory name, because the name is how
-the board tells repositories apart. The filter menu (`f`) narrows by repository, type, and
+request numbers each document mentions and, in a Tags column, its tags. It
+needs `apl` on your `PATH` and is off until you add `"agent_plans"` to `plugins`. Each entry
+of `repositories` must be a directory with a `.apl` directory inside, and two entries cannot
+have the same directory name, because the name is how the board tells repositories apart. The filter menu (`f`) narrows by repository, type, and
 status; it starts on plans only. `enter` reads the selected document as rendered markdown
 (front matter left out), and `v` opens its file in your configured editor, from the board or
 from the document. `s` changes the selected document's status, from the board or from the

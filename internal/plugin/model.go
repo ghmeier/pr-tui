@@ -52,6 +52,8 @@ type (
 		board   int
 		err     error
 		refresh bool
+		// successNotice is shown when the command succeeds without a refresh.
+		successNotice string
 	}
 	refreshTickMessage struct{}
 )
@@ -76,6 +78,8 @@ type Model struct {
 	pending      Effect
 	pendingBoard int
 	choice       *Choice
+	// lastClick is the most recent left click on a cell, to recognise a double click.
+	lastClick cellClick
 }
 
 // Model builds the interactive program for the boards the plugins registered.
@@ -243,10 +247,15 @@ func (m *Model) update(message tea.Msg) tea.Cmd {
 		case message.refresh:
 			return m.load(message.board)
 		default:
-			board.notice = ""
+			board.notice = message.successNotice
 		}
 	case refreshTickMessage:
 		return tea.Batch(m.RefreshAll(), m.scheduleRefresh())
+	case tea.MouseMsg:
+		if len(m.screens) > 0 {
+			return m.updateEveryScreen(message)
+		}
+		return m.handleMouse(message)
 	case tea.KeyMsg:
 		if message.String() == "ctrl+c" {
 			return tea.Quit

@@ -286,7 +286,8 @@ return a stable identity, such as an id or a URL. The cursor and any loaded colu
 the key across refreshes, so a key that changes on every load makes the cursor jump.
 
 Each column has a `Header` and a `Cell` function that draws one row as styled segments. At
-most one column may be `Flexible`; it shrinks when the terminal is narrow. The facet adds a
+most one column may be `Flexible`; it shrinks when the terminal is narrow. A column's
+`MaxWidth` caps how wide it is drawn, and longer cells end in `…`. The facet adds a
 choice to the filter menu (`f`): its `Value` function says which option a row has, and with no
 `Selected` set, every option starts selected. A facet with `OptionsFromRows` also gets an option
 for every other value its loaded rows have, so a plugin need not know the values in advance.
@@ -296,8 +297,10 @@ An action is a key and a `Run` function. `Run` does not do the work. It returns 
 line, `Command` runs on a background goroutine and a returned error shows as `Failed: ...`,
 `Confirm` asks a question first, `Choice` asks for one of a few numbered options and applies the
 effect that its `Pick` returns for the one chosen, `Refresh` reloads the board after the command
-succeeds, and `Screen` opens a full-screen view. The host refuses keys it uses itself (for example `f`, `r`,
-`q`, and `tab`) and two actions on one key, and says so when the program starts.
+succeeds, and `Screen` opens a full-screen view. Every board's cells can be copied to the
+clipboard by double-clicking them, so a plugin needs no action for that. The host refuses keys
+it uses itself (for example `f`, `r`, `q`, and `tab`) and two actions on one key, and says so
+when the program starts.
 
 All external commands go through `shell.Run`, which is what tests replace.
 

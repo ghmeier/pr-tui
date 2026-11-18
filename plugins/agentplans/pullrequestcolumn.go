@@ -17,7 +17,8 @@ type linkedDocs []Doc
 // fetch has delivered documents, and for a pull request whose branch has none linked.
 func (settings settings) pullRequestColumn() plugin.Column {
 	return plugin.Column{
-		Header: "Plan",
+		Header:   "Plan",
+		MaxWidth: 30,
 		Cell: func(_ plugin.Row, data any) []ui.Segment {
 			docs, loaded := data.(linkedDocs)
 			if !loaded || len(docs) == 0 {

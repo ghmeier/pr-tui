@@ -120,11 +120,12 @@ func TestBoardListsPullRequestsFromPeopleInTheOrderTheProviderReturnsThem(t *tes
 
 func TestBoardHasTheColumnsOfAPullRequestInOrder(t *testing.T) {
 	model := loadedBoard(t)
+	plugintest.Resize(t, model, 200, 30)
 
 	header := lineWith(t, model, "Review requested")
 
 	last := -1
-	for _, name := range []string{"Repo", "#", "Title", "Author", "Lines", "State", "Review requested", "Updated"} {
+	for _, name := range []string{"Repo", "#", "Title", "Branch", "Author", "Lines", "State", "Review requested", "Updated"} {
 		position := strings.Index(header, name)
 		if position <= last {
 			t.Fatalf("header %q has %q out of order", header, name)
@@ -143,6 +144,29 @@ func TestBoardShowsTheRepositoryNumberAndAuthorOfEachPullRequest(t *testing.T) {
 		if !strings.Contains(line, expected) {
 			t.Fatalf("line %q should contain %q", line, expected)
 		}
+	}
+}
+
+func TestAuthorColumnCutsALongAuthorNameWithAnEllipsis(t *testing.T) {
+	provider := newFakeProvider()
+	provider.pullRequests[0].Author = strings.Repeat("a", 30)
+	pr := provider.pullRequests[0]
+
+	line := lineWith(t, loadedBoardWith(t, provider), pr.Title)
+
+	if !strings.Contains(line, strings.Repeat("a", 19)+"…") || strings.Contains(line, pr.Author) {
+		t.Fatalf("line = %q", line)
+	}
+}
+
+func TestBoardShowsTheHeadBranchOfEachPullRequest(t *testing.T) {
+	provider := newFakeProvider()
+	pr := provider.pullRequest(3)
+
+	line := lineWith(t, loadedBoardWith(t, provider), pr.Title)
+
+	if !strings.Contains(line, pr.HeadBranch) {
+		t.Fatalf("line %q should contain the branch %q", line, pr.HeadBranch)
 	}
 }
 
@@ -176,6 +200,7 @@ func TestLinesAndStateColumnsAreUnknownBeforeTheirDataArrives(t *testing.T) {
 	provider := newFakeProvider()
 
 	model, fetches := loadedWithoutColumnData(t, provider)
+	plugintest.Resize(t, model, 200, 30)
 	before := lineWith(t, model, provider.pullRequest(1).Title)
 	plugintest.Settle(t, model, fetches)
 	after := lineWith(t, model, provider.pullRequest(1).Title)

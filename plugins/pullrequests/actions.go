@@ -27,7 +27,7 @@ func (board *pullRequestBoard) actions() []plugin.Action {
 		actions = append(actions, plugin.Action{Key: "t", Label: "request " + board.reviewTeam, Run: board.requestTeamReview})
 	}
 	return append(actions,
-		plugin.Action{Key: "m", Label: "auto-merge", Run: board.toggleAutoMerge},
+		plugin.Action{Key: "m", Label: "merge", Run: board.chooseMerge},
 		plugin.Action{Key: "a", Label: "approve", Run: board.approve},
 	)
 }
@@ -114,11 +114,45 @@ func (board *pullRequestBoard) toggleDraft(selection plugin.Selection) plugin.Ef
 	}
 }
 
-func (board *pullRequestBoard) toggleAutoMerge(selection plugin.Selection) plugin.Effect {
+const (
+	mergeNowOption         = "merge now (squash)"
+	enableAutoMergeOption  = "enable auto-merge (squash)"
+	disableAutoMergeOption = "disable auto-merge"
+)
+
+// chooseMerge offers merging now or changing auto-merge, which is a different choice for a
+// pull request that has auto-merge on.
+func (board *pullRequestBoard) chooseMerge(selection plugin.Selection) plugin.Effect {
 	pr := pullRequestOf(selection)
+	autoMergeOption := enableAutoMergeOption
+	if pr.AutoMerge {
+		autoMergeOption = disableAutoMergeOption
+	}
+	return plugin.Effect{Choice: &plugin.Choice{
+		Question: "Merge " + pr.label(),
+		Options:  []string{mergeNowOption, autoMergeOption},
+		Pick: func(option string) plugin.Effect {
+			if option == mergeNowOption {
+				return board.mergeNow(pr)
+			}
+			return board.setAutoMerge(pr, option == enableAutoMergeOption)
+		},
+	}}
+}
+
+func (board *pullRequestBoard) mergeNow(pr PullRequest) plugin.Effect {
 	return plugin.Effect{
-		Confirm: pr.toggleAutoMergeQuestion(),
-		Command: func() error { return board.provider.SetAutoMerge(pr, !pr.AutoMerge) },
+		Confirm: "Merge " + pr.label() + " now (squash)? This cannot be undone.",
+		Notice:  "Merging " + pr.label() + "…",
+		Command: func() error { return board.provider.Merge(pr) },
+		Refresh: true,
+	}
+}
+
+func (board *pullRequestBoard) setAutoMerge(pr PullRequest, enabled bool) plugin.Effect {
+	return plugin.Effect{
+		Notice:  pr.autoMergeNotice(enabled),
+		Command: func() error { return board.provider.SetAutoMerge(pr, enabled) },
 		Refresh: true,
 	}
 }
@@ -179,11 +213,11 @@ func (pr PullRequest) toggleDraftNotice() string {
 	return "Converting " + pr.label() + " back to draft…"
 }
 
-func (pr PullRequest) toggleAutoMergeQuestion() string {
-	if pr.AutoMerge {
-		return "Disable auto-merge on " + pr.label() + "?"
+func (pr PullRequest) autoMergeNotice(enabled bool) string {
+	if enabled {
+		return "Enabling auto-merge on " + pr.label() + "…"
 	}
-	return "Enable auto-merge (squash) on " + pr.label() + "? It merges as soon as its requirements are met."
+	return "Disabling auto-merge on " + pr.label() + "…"
 }
 
 func (pr PullRequest) requestTeamReviewNotice(reviewTeam string) string {
