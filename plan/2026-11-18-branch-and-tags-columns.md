@@ -1,7 +1,7 @@
 ---
 title: Branch and tags columns
 status: completed
-next_step: Done; pull request #1 is open for review.
+next_step: Done; pull request #1 merged.
 tags: [pull-requests, agent-plans, host]
 created: 2026-11-18
 updated: 2026-11-18
