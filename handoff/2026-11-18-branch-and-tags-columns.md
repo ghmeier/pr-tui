@@ -47,5 +47,5 @@ Pull request: https://github.com/ghmeier/pr-tui/pull/1 (branch `branch-and-tags-
 
 ## Next steps
 
-- Pull request #1 is merged. If the width bothers anyone, lower the Branch cap or move
+- Pull request #1 is merged and released as v0.3.1. If the width bothers anyone, lower the Branch cap or move
   the column later in the board.
