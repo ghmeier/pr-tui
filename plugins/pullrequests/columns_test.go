@@ -147,6 +147,18 @@ func TestBoardShowsTheRepositoryNumberAndAuthorOfEachPullRequest(t *testing.T) {
 	}
 }
 
+func TestAuthorColumnCutsALongAuthorNameWithAnEllipsis(t *testing.T) {
+	provider := newFakeProvider()
+	provider.pullRequests[0].Author = strings.Repeat("a", 30)
+	pr := provider.pullRequests[0]
+
+	line := lineWith(t, loadedBoardWith(t, provider), pr.Title)
+
+	if !strings.Contains(line, strings.Repeat("a", 19)+"…") || strings.Contains(line, pr.Author) {
+		t.Fatalf("line = %q", line)
+	}
+}
+
 func TestBoardShowsTheHeadBranchOfEachPullRequest(t *testing.T) {
 	provider := newFakeProvider()
 	pr := provider.pullRequest(3)

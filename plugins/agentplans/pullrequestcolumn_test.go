@@ -100,6 +100,19 @@ func TestPlanColumnShowsTheTitleOfTheDocumentLinkedToThePullRequestsBranch(t *te
 	}
 }
 
+func TestPlanColumnCutsALongTitleWithAnEllipsis(t *testing.T) {
+	example := newPlanFixture(t)
+	example.first.title = strings.Repeat("t", 40)
+	example.checkout = example.apl.newCheckout(t, example.linked.Repository.Name, example.first)
+
+	model := example.startedWithPullRequests(t)
+
+	line := lineWith(model, example.linked.Title)
+	if !strings.Contains(line, strings.Repeat("t", 29)+"…") || strings.Contains(line, example.first.title) {
+		t.Fatalf("line = %q", line)
+	}
+}
+
 func TestPlanColumnIsEmptyForAPullRequestWhoseBranchHasNoLinkedDocument(t *testing.T) {
 	example := newPlanFixture(t)
 

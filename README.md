@@ -81,7 +81,7 @@ The State column uses these marks:
 | ⏩ | Auto-merge enabled |
 | 🟢 / 🔴 / 🟡 | CI passing / failing / running |
 
-The board's Branch column shows each pull request's head branch, cut at 30 characters.
+The board's Branch column shows each pull request's head branch.
 
 Board keys:
 
@@ -103,6 +103,8 @@ Board keys:
 Double-click any cell to copy its full text, including text the table cuts short. Clicking a
 row selects it, and the mouse wheel moves the cursor. Because the app captures the mouse, hold
 Option (iTerm2) or Shift (most other terminals) to select text with the terminal instead.
+Columns whose values vary in length, such as branches, reviewers, and tags, are cut short;
+double-click a cell to copy its full text.
 
 Diff view keys:
 
@@ -135,7 +137,7 @@ Description view keys:
 
 The `agent_plans` plugin adds a board of the `apl` documents
 (plans, research notes, and handoffs) in your local checkouts, newest first, with the pull
-request numbers each document mentions and, in a Tags column cut at 30 characters, its tags. It
+request numbers each document mentions and, in a Tags column, its tags. It
 needs `apl` on your `PATH` and is off until you add `"agent_plans"` to `plugins`. Each entry
 of `repositories` must be a directory with a `.apl` directory inside, and two entries cannot
 have the same directory name, because the name is how the board tells repositories apart. The filter menu (`f`) narrows by repository, type, and

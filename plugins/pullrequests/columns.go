@@ -129,7 +129,7 @@ func (pr PullRequest) age() string {
 // repository at a time and the table shows the pull requests without waiting for them.
 func (board *pullRequestBoard) columns() []plugin.Column {
 	return []plugin.Column{
-		{Header: "Repo", Cell: func(row plugin.Row, _ any) []ui.Segment {
+		{Header: "Repo", MaxWidth: 20, Cell: func(row plugin.Row, _ any) []ui.Segment {
 			return ui.PlainSegments(row.(Row).PullRequest.Repository.Name)
 		}},
 		{Header: "#", Cell: func(row plugin.Row, _ any) []ui.Segment {
@@ -141,7 +141,7 @@ func (board *pullRequestBoard) columns() []plugin.Column {
 		{Header: "Branch", MaxWidth: 30, Cell: func(row plugin.Row, _ any) []ui.Segment {
 			return ui.PlainSegments(row.(Row).PullRequest.HeadBranch)
 		}},
-		{Header: "Author", Cell: func(row plugin.Row, _ any) []ui.Segment {
+		{Header: "Author", MaxWidth: 20, Cell: func(row plugin.Row, _ any) []ui.Segment {
 			pr := row.(Row).PullRequest
 			if pr.IsBot {
 				return []ui.Segment{{Text: pr.Author, Style: ui.DimStyle}}
@@ -154,7 +154,7 @@ func (board *pullRequestBoard) columns() []plugin.Column {
 		{Header: stateHeader, Cell: func(row plugin.Row, data any) []ui.Segment {
 			return ui.PlainSegments(row.(Row).stateMarks(board.reviewTeam, data))
 		}, Load: board.loadCIStates},
-		{Header: "Review requested", Cell: func(row plugin.Row, _ any) []ui.Segment {
+		{Header: "Review requested", MaxWidth: 30, Cell: func(row plugin.Row, _ any) []ui.Segment {
 			return row.(Row).reviewSegments(board.reviewTeam)
 		}},
 		{Header: "Updated", Cell: func(row plugin.Row, _ any) []ui.Segment {

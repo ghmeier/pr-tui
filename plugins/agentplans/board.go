@@ -37,12 +37,12 @@ func board(settings settings) plugin.Board {
 			}},
 		},
 		Columns: []plugin.Column{
-			textColumn("Repository", false, func(row Row) string { return row.Repository }),
-			textColumn("Type", false, func(row Row) string { return row.Doc.Type }),
-			textColumn("Title", true, func(row Row) string { return row.Doc.Title }),
-			textColumn("Status", false, func(row Row) string { return row.Doc.Status }),
-			tagsColumn(),
-			textColumn("Updated", false, func(row Row) string { return row.Doc.Updated }),
+			textColumn("Repository", false, 20, func(row Row) string { return row.Repository }),
+			textColumn("Type", false, 12, func(row Row) string { return row.Doc.Type }),
+			textColumn("Title", true, 0, func(row Row) string { return row.Doc.Title }),
+			textColumn("Status", false, 12, func(row Row) string { return row.Doc.Status }),
+			textColumn("Tags", false, 30, func(row Row) string { return strings.Join(row.Doc.Tags, ", ") }),
+			textColumn("Updated", false, 0, func(row Row) string { return row.Doc.Updated }),
 			{Header: "Pull requests", Cell: func(row plugin.Row, _ any) []ui.Segment {
 				return pullRequestSegments(row.(Row).Doc.PullRequestNumbers)
 			}},
@@ -73,15 +73,9 @@ func board(settings settings) plugin.Board {
 	}
 }
 
-// tagsColumn is capped because a document can have many tags.
-func tagsColumn() plugin.Column {
-	column := textColumn("Tags", false, func(row Row) string { return strings.Join(row.Doc.Tags, ", ") })
-	column.MaxWidth = 30
-	return column
-}
-
-func textColumn(header string, flexible bool, text func(row Row) string) plugin.Column {
-	return plugin.Column{Header: header, Flexible: flexible, Cell: func(row plugin.Row, _ any) []ui.Segment {
+// textColumn draws plain text; a maxWidth of zero means no limit.
+func textColumn(header string, flexible bool, maxWidth int, text func(row Row) string) plugin.Column {
+	return plugin.Column{Header: header, Flexible: flexible, MaxWidth: maxWidth, Cell: func(row plugin.Row, _ any) []ui.Segment {
 		return ui.PlainSegments(text(row.(Row)))
 	}}
 }

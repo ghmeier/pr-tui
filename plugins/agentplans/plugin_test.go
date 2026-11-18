@@ -214,10 +214,31 @@ func TestTagsColumnShowsTheTagsOfADocumentJoinedByCommas(t *testing.T) {
 	}
 }
 
+func TestRepositoryColumnCutsALongRepositoryNameWithAnEllipsis(t *testing.T) {
+	apl := installFakeApl(t, false)
+	longName := strings.Repeat("r", 30)
+	titled := doc{file: "plan/titled.md", kind: "plan", title: "Titled plan", updated: "2026-11-12"}
+	checkout := apl.newCheckout(t, longName, titled)
+
+	model := startedModel(t, checkout)
+
+	line := lineWith(model, titled.title)
+	if !strings.Contains(line, strings.Repeat("r", 19)+"…") || strings.Contains(line, longName) {
+		t.Fatalf("line = %q", line)
+	}
+}
+
 func TestTagsColumnIsEmptyForADocumentWithoutTags(t *testing.T) {
 	row := Row{Doc: Doc{Tags: nil}}
 
-	cell := ui.PlainText(tagsColumn().Cell(row, nil))
+	var tags plugin.Column
+	for _, column := range board(settings{}).Columns {
+		if column.Header == "Tags" {
+			tags = column
+		}
+	}
+
+	cell := ui.PlainText(tags.Cell(row, nil))
 
 	if cell != "" {
 		t.Fatalf("cell = %q", cell)
