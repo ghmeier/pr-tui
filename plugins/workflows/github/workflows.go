@@ -23,13 +23,14 @@ const workflowFilesQuery = `query($owner: String!, $name: String!) {
 }`
 
 // Workflows lists the repository's active workflows. The answer is kept, because workflow
-// files rarely change.
+// files rarely change, and each caller gets its own copy, because callers filter what they get
+// in place.
 func (github *provider) Workflows(repository workflows.Repository) ([]workflows.Workflow, error) {
 	github.mutex.Lock()
 	known, cached := github.workflowsByRepository[repository]
 	github.mutex.Unlock()
 	if cached {
-		return known, nil
+		return slices.Clone(known), nil
 	}
 	listed, err := fetchWorkflows(repository)
 	if err != nil {
@@ -38,7 +39,7 @@ func (github *provider) Workflows(repository workflows.Repository) ([]workflows.
 	github.mutex.Lock()
 	github.workflowsByRepository[repository] = listed
 	github.mutex.Unlock()
-	return listed, nil
+	return slices.Clone(listed), nil
 }
 
 func fetchWorkflows(repository workflows.Repository) ([]workflows.Workflow, error) {
