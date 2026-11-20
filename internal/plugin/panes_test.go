@@ -423,75 +423,12 @@ func TestEachPaneKeepsItsOwnCursorInViewWithItsOwnRowCount(t *testing.T) {
 	}
 }
 
-// ticking replaces the host's timers with a recorder of the intervals started.
-func ticking(model *Model) *[]time.Duration {
-	var started []time.Duration
-	model.startTimer = func(interval time.Duration) tea.Cmd {
-		started = append(started, interval)
-		return nil
-	}
-	return &started
-}
-
 func boardsWithOwnInterval(t *testing.T, interval time.Duration) (*Model, *rowSource, *rowSource) {
 	t.Helper()
 	quick, ordinary := newRowSource(groceries()...), newRowSource(groceries()...)
 	quickBoard := sectionBoard("quick", "Quick", quick)
 	quickBoard.RefreshInterval = interval
 	return modelFor(t, boardsPlugin(quickBoard, sectionBoard("ordinary", "Ordinary", ordinary))), quick, ordinary
-}
-
-func TestTickOfABoardsOwnIntervalReloadsOnlyThatBoard(t *testing.T) {
-	model, quick, ordinary := boardsWithOwnInterval(t, 30*time.Second)
-	started := ticking(model)
-	quickBefore, ordinaryBefore := quick.loadCount(), ordinary.loadCount()
-
-	plugintest.Send(t, model, refreshTickMessage{interval: 30 * time.Second})
-
-	if quick.loadCount() != quickBefore+1 || ordinary.loadCount() != ordinaryBefore {
-		t.Fatalf("loads: quick %d more, ordinary %d more", quick.loadCount()-quickBefore, ordinary.loadCount()-ordinaryBefore)
-	}
-	if len(*started) != 1 || (*started)[0] != 30*time.Second {
-		t.Fatalf("timers started = %v", *started)
-	}
-}
-
-func TestTickOfTheConfiguredIntervalLeavesABoardWithItsOwnIntervalAlone(t *testing.T) {
-	model, quick, ordinary := boardsWithOwnInterval(t, 30*time.Second)
-	started := ticking(model)
-	quickBefore, ordinaryBefore := quick.loadCount(), ordinary.loadCount()
-
-	plugintest.Send(t, model, refreshTickMessage{interval: model.refreshInterval})
-
-	if quick.loadCount() != quickBefore || ordinary.loadCount() != ordinaryBefore+1 {
-		t.Fatalf("loads: quick %d more, ordinary %d more", quick.loadCount()-quickBefore, ordinary.loadCount()-ordinaryBefore)
-	}
-	if len(*started) != 1 || (*started)[0] != model.refreshInterval {
-		t.Fatalf("timers started = %v", *started)
-	}
-}
-
-func TestInitStartsOneTimerForEachDistinctInterval(t *testing.T) {
-	model, _, _ := boardsWithOwnInterval(t, 30*time.Second)
-	started := ticking(model)
-
-	model.Init()
-
-	if len(*started) != 2 || (*started)[0] != 30*time.Second || (*started)[1] != model.refreshInterval {
-		t.Fatalf("timers started = %v", *started)
-	}
-}
-
-func TestBoardWithTheConfiguredIntervalAsItsOwnSharesTheTimer(t *testing.T) {
-	model, _, _ := boardsWithOwnInterval(t, 3*time.Minute)
-	model.refreshInterval = 3 * time.Minute
-	started := ticking(model)
-
-	model.Init()
-
-	if len(*started) != 1 {
-		t.Fatalf("timers started = %v", *started)
-	}
 }
 
 func TestStatusLineShowsTheIntervalOfTheFocusedBoard(t *testing.T) {

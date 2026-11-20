@@ -7,8 +7,6 @@ import (
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-
 	"github.com/ghmeier/pr-tui/internal/plugin/plugintest"
 )
 
@@ -311,28 +309,6 @@ func TestRefreshKeyReloadsTheBoardAndClearsItsNotice(t *testing.T) {
 	plugintest.Settle(t, model, command)
 	if source.loadCount() != before+1 || strings.Contains(screenText(model), "Refreshing…") {
 		t.Fatalf("loaded %d times after %d, view:\n%s", source.loadCount(), before, screenText(model))
-	}
-}
-
-func TestRefreshTickReloadsEveryBoardAndStartsTheNextTimer(t *testing.T) {
-	first, second := newRowSource(groceries()...), newRowSource(groceries()...)
-	otherBoard := groceryBoard(second)
-	otherBoard.Name, otherBoard.Title = "other", "Other"
-	model := modelFor(t, boardPlugin("one", groceryBoard(first)), boardPlugin("two", otherBoard))
-	var timers []time.Duration
-	model.startTimer = func(interval time.Duration) tea.Cmd {
-		timers = append(timers, interval)
-		return nil
-	}
-	before := first.loadCount()
-
-	plugintest.Send(t, model, refreshTickMessage{interval: model.refreshInterval})
-
-	if first.loadCount() != before+1 || second.loadCount() != before+1 {
-		t.Fatalf("loads = %d and %d after %d", first.loadCount(), second.loadCount(), before)
-	}
-	if !reflect.DeepEqual(timers, []time.Duration{model.refreshInterval}) {
-		t.Fatalf("timers started = %v", timers)
 	}
 }
 

@@ -28,9 +28,17 @@ type boardState struct {
 	facets         []facetState
 	menuCursor     int
 	loadedAt       time.Time
-	cursor         int
-	offset         int
-	notice         string
+	// loading is true from the start of a load until the newest load's result arrives, so that
+	// a timer never starts a second load alongside it.
+	loading bool
+	// finishedAt is when the newest load's result last arrived, whether or not it succeeded.
+	finishedAt time.Time
+	// timerGeneration numbers the refresh timers of this board. Only the newest one counts, so
+	// a board never has two timers that matter.
+	timerGeneration int
+	cursor          int
+	offset          int
+	notice          string
 	// failure is the text of the last notice that reported a failure. A success does not clear
 	// a notice that still says so, because the failure has not been read yet.
 	failure string
