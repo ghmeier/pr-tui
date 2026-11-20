@@ -95,7 +95,7 @@ func (m *Model) panesOf(tabIndex int) []pane {
 				paneWidth = usable - width*(inRow-1)
 			}
 			panes = append(panes, pane{board: boards[first+position], x: x, y: y, width: paneWidth, height: height, titled: len(boards) > 1})
-			x += paneWidth + len(paneSeparator)
+			x += paneWidth + lipgloss.Width(paneSeparator)
 		}
 		y += height
 	}

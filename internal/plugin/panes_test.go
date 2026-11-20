@@ -539,3 +539,17 @@ func TestActionsOnTheFocusKeysAreRejected(t *testing.T) {
 		}
 	}
 }
+
+func TestEachPaneStartsOneColumnAfterTheSeparatorDrawnBeforeIt(t *testing.T) {
+	model := threeSections(t, 200, 40)
+
+	screen := lines(model)
+
+	for boardIndex := 1; boardIndex < 3; boardIndex++ {
+		shown := model.paneOf(boardIndex)
+		drawn := []rune(screen[shown.headerLine()])
+		if string(drawn[shown.x-1]) != paneSeparator {
+			t.Fatalf("pane %d starts at column %d, but column %d is %q:\n%s", boardIndex, shown.x, shown.x-1, string(drawn[shown.x-1]), screenText(model))
+		}
+	}
+}
