@@ -4,7 +4,7 @@ status: completed
 tags: [pull-requests, host, workflows]
 created: 2026-11-20
 updated: 2026-11-20
-next_step: Done; pull requests #2 to #6 merged. A release (v0.4.0) is the user's call.
+next_step: Done; pull requests #2 to #8 merged. A release (v0.4.0) is the user's call.
 ---
 # Single-row refresh and a workflows board
 
@@ -171,6 +171,8 @@ A section with `kind = "runs"` also has a Workflow facet built from its rows.
 
 Steps 2 and 3 can be one pull request or two; the user is fine with either.
 
+6. **`dynamic-refresh`**: per-board timers scheduled after each load, `Board.Busy` so a pane is quick only while something is in progress, slower hidden tabs that catch up when shown, and a Last run column that needs one call per repository plus fallbacks. Added after the user saw the 30-second refresh fire every pane at once. Done: pull request #8, merged.
+
 ## Risks
 
 - **Stale overwrites.** A full load started before an action finishes can arrive after the
@@ -199,3 +201,5 @@ Steps 2 and 3 can be one pull request or two; the user is fine with either.
 - 2026-11-19: Step 3 layout: sections form a grid, at least 60 columns each, wrapping to more rows on a narrow terminal. One status and help line for the focused section. `[workflows] refresh_interval` sets the board's own interval.
 - 2026-11-19: Step 3: fixed pane placement after a separator (it used the byte length of "│", three, instead of its width, one) with a test against the drawn screen. Run rows now lead with status, then repository, workflow, title, start time, and duration, because a 66-column pane cut the status off. Checked live in tmux at 200 columns.
 - 2026-11-20: Step 5: the form heading and confirmation say "Start <workflow>", because "Run Run Command" read badly. Checked live by opening the form for gazebo's Run Command and cancelling; nothing was submitted.
+- 2026-11-20: After release testing, the first 30-second refresh emptied the panes. The provider's cached workflow list was filtered in place by the sections. Fixed in pull request #7 by returning a copy. The user approved per-board dynamic refreshing (step 6) with no new settings.
+- 2026-11-20: Step 6 measured with a gh wrapper over 73 seconds on the Workflows tab: 174 calls before, 61 after. Left alone: at start-up, several sections fetch the same repository's workflow list before the cache fills (4 listings per repository). Gazebo's daily scheduled workflows are often missing from its 100 most recent runs, so the Last run column still falls back per workflow for many of them every 2 minutes.

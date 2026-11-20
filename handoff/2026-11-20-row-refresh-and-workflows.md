@@ -8,7 +8,7 @@ updated: 2026-11-20
 ---
 # Single-row refresh and the workflows tab
 
-Continues [the plan](../plan/2026-11-19-row-refresh-and-workflows.md). All five steps merged: pull requests #2 to #6 on ghmeier/pr-tui. Not yet released; the last tag is v0.3.1.
+Continues [the plan](../plan/2026-11-19-row-refresh-and-workflows.md). All steps merged: pull requests #2 to #8 on ghmeier/pr-tui. Not yet released; the last tag is v0.3.1.
 
 ## What was built
 
@@ -16,6 +16,7 @@ Continues [the plan](../plan/2026-11-19-row-refresh-and-workflows.md). All five 
 - **Workflows plugin (#3).** `plugins/workflows` (neutral types, `Provider`) and `plugins/workflows/github`. `[workflows]` holds the repositories, and each `[[workflows.sections]]` entry is a pane. Kinds are `runs`, `workflows`, and `merge_queue`. `enter` opens a run screen with jobs, steps, and durations.
 - **Shared tabs (#4).** `Board.Tab` groups boards into one tab of panes in a grid, each at least 60 columns wide. `←`/`→` and `h`/`l` move the focus. `Board.RefreshInterval` gives a board its own timer, set for workflows by `[workflows] refresh_interval`.
 - **Merge queue (#5).** `Provider.MergeQueue`, one GraphQL query per repository.
+- **Cache fix (#7) and dynamic refresh (#8).** Cached workflow lists are returned as copies. Each board has its own timer after each load, `Board.Busy` keeps a pane quick only while something is in progress, hidden tabs slow down and catch up when shown, and Last run uses one call per repository plus fallbacks.
 - **Start and re-run (#6).** `x` on a workflow opens a form of its manual-run inputs, and `x` on a run offers a re-run. Both always confirm first.
 
 ## Key files
@@ -40,6 +41,8 @@ Continues [the plan](../plan/2026-11-19-row-refresh-and-workflows.md). All five 
 - Tag a release, v0.4.0, when the user wants it.
 - Add workflows sections to the user's own `~/.config/prs/config.toml`.
 - Possible follow-ups:
+  - share one in-flight workflow listing per repository at start-up;
+  - remember the last runs of rarely run workflows between refreshes;
   - an elapsed-time tick for running runs between refreshes;
   - a narrower Workflow column in runs panes;
   - choices for `environment` inputs from the repository's environments.
