@@ -29,6 +29,11 @@ type boardState struct {
 	cursor         int
 	offset         int
 	notice         string
+	// failure is the text of the last notice that reported a failure. A success does not clear
+	// a notice that still says so, because the failure has not been read yet.
+	failure string
+	// running counts the commands of effects that have started and not yet finished.
+	running int
 }
 
 func (board *boardState) selected() (Row, bool) {
@@ -89,6 +94,38 @@ func (board *boardState) selectionOf(row Row) Selection {
 		Row:        row,
 		Data:       func(header string) any { return loaded[header] },
 		boardIndex: board.index,
+	}
+}
+
+// reportFailure shows a failure notice that later successes leave in place until a load or a
+// new effect replaces it.
+func (board *boardState) reportFailure(notice string) {
+	board.notice = notice
+	board.failure = notice
+}
+
+// reportFinished replaces the notice once no command is running, unless it still shows a
+// failure that has not been read.
+func (board *boardState) reportFinished(notice string) {
+	if board.running == 0 && (board.failure == "" || board.notice != board.failure) {
+		board.notice = notice
+	}
+}
+
+// rowsChanged rebuilds what is derived from the rows: the facet options and the visible rows.
+func (board *boardState) rowsChanged() {
+	for facet := range board.facets {
+		board.facets[facet].refreshOptionsFromRows(board.rows)
+	}
+	board.menuCursor = max(0, min(board.menuCursor, optionCount(board.facets)-1))
+	board.applyFilters()
+}
+
+// forgetData drops the column values held for a row.
+func (board *boardState) forgetData(key string) {
+	for column, values := range board.data {
+		delete(values, key)
+		delete(board.dataGenerations[column], key)
 	}
 }
 

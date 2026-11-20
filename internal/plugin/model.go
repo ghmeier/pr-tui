@@ -52,8 +52,20 @@ type (
 		board   int
 		err     error
 		refresh bool
+		// refreshRow is the row to reload when the command succeeds, or nil.
+		refreshRow Row
 		// successNotice is shown when the command succeeds without a refresh.
 		successNotice string
+	}
+	// rowReloadedMessage carries the reloaded version of one row, or nil in row when the row no
+	// longer belongs on the board. The generation is the board's load generation when the
+	// reload started.
+	rowReloadedMessage struct {
+		board      int
+		generation int
+		key        string
+		row        Row
+		err        error
 	}
 	refreshTickMessage struct{}
 )
@@ -140,17 +152,27 @@ func (m *Model) load(index int) tea.Cmd {
 	}
 }
 
-// fetchCommands starts every column fetch of a board for the rows that the given load
-// produced. The rows given to a column are a copy, because the fetches run while the board
-// goes on changing.
-func (m *Model) fetchCommands(index, generation int) []tea.Cmd {
+// reloadRow reloads one row of a board in the background.
+func (m *Model) reloadRow(index int, row Row) tea.Cmd {
+	generation := m.boards[index].loadGeneration
+	reload := m.boards[index].spec.Reload
+	return func() tea.Msg {
+		reloaded, err := reload(row)
+		return rowReloadedMessage{board: index, generation: generation, key: row.Key(), row: reloaded, err: err}
+	}
+}
+
+// fetchCommands starts every column fetch of a board for the given rows, which came from the
+// load of the given generation. The rows given to a column are a copy, because the fetches run
+// while the board goes on changing.
+func (m *Model) fetchCommands(index int, rows []Row, generation int) []tea.Cmd {
 	board := m.boards[index]
 	var commands []tea.Cmd
 	for columnIndex, column := range board.spec.Columns {
 		if column.Load == nil {
 			continue
 		}
-		for _, fetch := range column.Load(slices.Clone(board.rows)) {
+		for _, fetch := range column.Load(slices.Clone(rows)) {
 			commands = append(commands, func() tea.Msg {
 				values, err := fetch()
 				return columnLoadedMessage{board: index, generation: generation, column: columnIndex, values: values, err: err}
@@ -180,12 +202,31 @@ func (m *Model) finishLoad(index int, rows []Row, generation int) []tea.Cmd {
 			}
 		}
 	}
-	for facet := range board.facets {
-		board.facets[facet].refreshOptionsFromRows(rows)
+	board.rowsChanged()
+	return m.fetchCommands(index, board.rows, generation)
+}
+
+// finishRowReload shows the reloaded version of one row, or drops the row when it no longer
+// belongs on the board, and returns the commands that fetch the row's column data again.
+func (m *Model) finishRowReload(message rowReloadedMessage) []tea.Cmd {
+	board := m.boards[message.board]
+	position := slices.IndexFunc(board.rows, func(row Row) bool { return row.Key() == message.key })
+	if position < 0 {
+		return nil
 	}
-	board.menuCursor = max(0, min(board.menuCursor, optionCount(board.facets)-1))
-	board.applyFilters()
-	return m.fetchCommands(index, generation)
+	// The slice is copied because the previous load handed it over and may still share it.
+	board.rows = slices.Clone(board.rows)
+	if message.row == nil {
+		board.rows = slices.Delete(board.rows, position, position+1)
+		board.forgetData(message.key)
+	} else {
+		board.rows[position] = message.row
+	}
+	board.rowsChanged()
+	if message.row == nil {
+		return nil
+	}
+	return m.fetchCommands(message.board, []Row{message.row}, board.rowsGeneration)
 }
 
 func (m *Model) keepCursorVisible() {
@@ -225,6 +266,17 @@ func (m *Model) update(message tea.Msg) tea.Cmd {
 			return nil
 		}
 		return tea.Batch(m.finishLoad(message.board, message.rows, message.generation)...)
+	case rowReloadedMessage:
+		board := m.boards[message.board]
+		if message.generation < board.rowsGeneration {
+			return nil
+		}
+		if message.err != nil {
+			board.reportFailure("Refresh failed: " + ui.FirstLine(message.err))
+			return nil
+		}
+		board.reportFinished("")
+		return tea.Batch(m.finishRowReload(message)...)
 	case columnLoadedMessage:
 		if message.err != nil {
 			return nil
@@ -241,13 +293,16 @@ func (m *Model) update(message tea.Msg) tea.Cmd {
 		board.applyFilters()
 	case commandFinishedMessage:
 		board := m.boards[message.board]
+		board.running--
 		switch {
 		case message.err != nil:
-			board.notice = "Failed: " + ui.FirstLine(message.err)
-		case message.refresh:
+			board.reportFailure("Failed: " + ui.FirstLine(message.err))
+		case message.refreshRow != nil && board.spec.Reload != nil:
+			return m.reloadRow(message.board, message.refreshRow)
+		case message.refresh || message.refreshRow != nil:
 			return m.load(message.board)
 		default:
-			board.notice = message.successNotice
+			board.reportFinished(message.successNotice)
 		}
 	case refreshTickMessage:
 		return tea.Batch(m.RefreshAll(), m.scheduleRefresh())
@@ -385,6 +440,17 @@ func (m *Model) applyEffect(index int, effect Effect) tea.Cmd {
 	return m.execute(index, effect)
 }
 
+// startCommand counts a command as running on a board until its finished message arrives. The
+// message given is completed with the board and the command's error.
+func (m *Model) startCommand(index int, run func() error, finished commandFinishedMessage) tea.Cmd {
+	m.boards[index].running++
+	return func() tea.Msg {
+		finished.board = index
+		finished.err = run()
+		return finished
+	}
+}
+
 // execute carries out an effect, with its confirmation already answered.
 func (m *Model) execute(index int, effect Effect) tea.Cmd {
 	var commands []tea.Cmd
@@ -392,10 +458,8 @@ func (m *Model) execute(index int, effect Effect) tea.Cmd {
 		m.boards[index].notice = effect.Notice
 	}
 	if effect.Command != nil {
-		run := effect.Command
-		commands = append(commands, func() tea.Msg {
-			return commandFinishedMessage{board: index, err: run(), refresh: effect.Refresh}
-		})
+		commands = append(commands, m.startCommand(index, effect.Command,
+			commandFinishedMessage{refresh: effect.Refresh, refreshRow: effect.RefreshRow}))
 	}
 	if effect.Screen != nil {
 		m.screens = append(m.screens, effect.Screen)

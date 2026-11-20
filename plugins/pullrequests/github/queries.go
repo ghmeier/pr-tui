@@ -14,31 +14,43 @@ import (
 const pullRequestFields = `
 fragment pullRequestFields on Repository {
   pullRequests(states: OPEN, first: 100, orderBy: {field: UPDATED_AT, direction: DESC}) {
+    nodes { ...pullRequestNodeFields }
+  }
+}
+`
+
+const pullRequestNodeFields = `
+fragment pullRequestNodeFields on PullRequest {
+  number
+  title
+  url
+  isDraft
+  headRefOid
+  headRefName
+  autoMergeRequest { enabledAt }
+  isInMergeQueue
+  updatedAt
+  reviewDecision
+  author { login __typename }
+  reviewRequests(first: 20) {
     nodes {
-      number
-      title
-      url
-      isDraft
-      headRefOid
-      headRefName
-      autoMergeRequest { enabledAt }
-      isInMergeQueue
-      updatedAt
-      reviewDecision
-      author { login __typename }
-      reviewRequests(first: 20) {
-        nodes {
-          requestedReviewer {
-            __typename
-            ... on User { login }
-            ... on Team { slug }
-          }
-        }
+      requestedReviewer {
+        __typename
+        ... on User { login }
+        ... on Team { slug }
       }
     }
   }
 }
 `
+
+const pullRequestQuery = `
+query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) {
+    pullRequest(number: $number) { state ...pullRequestNodeFields }
+  }
+}
+` + pullRequestNodeFields
 
 const lineCountsQuery = `
 query($owner: String!, $name: String!) {
@@ -146,7 +158,7 @@ func (github *provider) PullRequests() (pullRequests []pullrequests.PullRequest,
 	for index, source := range github.repositories {
 		fmt.Fprintf(&selections, "repository%d: repository(owner: %q, name: %q) { ...pullRequestFields }\n", index, source.Owner, source.Name)
 	}
-	query := "query { viewer { login }\n" + selections.String() + "}\n" + pullRequestFields
+	query := "query { viewer { login }\n" + selections.String() + "}\n" + pullRequestFields + pullRequestNodeFields
 
 	output, err := shell.Run("gh", "api", "graphql", "-f", "query="+query)
 	if err != nil {
@@ -177,6 +189,33 @@ func (github *provider) PullRequests() (pullRequests []pullrequests.PullRequest,
 		return pullRequests[i].UpdatedAt.After(pullRequests[j].UpdatedAt)
 	})
 	return pullRequests, viewerNode.Login, nil
+}
+
+// PullRequest asks for one pull request again, to refresh a row without loading every
+// repository. A pull request that was merged or closed is no longer open.
+func (github *provider) PullRequest(pr pullrequests.PullRequest) (pullrequests.PullRequest, bool, error) {
+	output, err := shell.Run(
+		"gh", "api", "graphql", "-f", "query="+pullRequestQuery,
+		"-f", "owner="+pr.Repository.Owner, "-f", "name="+pr.Repository.Name, "-F", fmt.Sprintf("number=%d", pr.Number),
+	)
+	if err != nil {
+		return pullrequests.PullRequest{}, false, err
+	}
+	var response struct {
+		Data struct {
+			Repository struct {
+				PullRequest struct {
+					State string
+					pullRequestNode
+				}
+			}
+		}
+	}
+	if err := json.Unmarshal(output, &response); err != nil {
+		return pullrequests.PullRequest{}, false, err
+	}
+	found := response.Data.Repository.PullRequest
+	return found.pullRequest(pr.Repository), found.State == "OPEN", nil
 }
 
 // LineCounts and CIStates are separate from PullRequests because GitHub computes both

@@ -30,6 +30,17 @@ func (provider *Provider) PullRequests() ([]pullrequests.PullRequest, string, er
 	return provider.Open, "viewer", nil
 }
 
+// PullRequest answers with the listed pull request that has the same URL, or reports it as not
+// open when the list no longer has it.
+func (provider *Provider) PullRequest(pullRequest pullrequests.PullRequest) (pullrequests.PullRequest, bool, error) {
+	for _, open := range provider.Open {
+		if open.URL == pullRequest.URL {
+			return open, true, nil
+		}
+	}
+	return pullRequest, false, nil
+}
+
 func (provider *Provider) LineCounts(pullrequests.Repository) (map[string]pullrequests.LineCount, error) {
 	return nil, nil
 }

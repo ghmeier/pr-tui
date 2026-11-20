@@ -3,6 +3,7 @@ package pullrequests
 import (
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -350,4 +351,100 @@ func TestEditorKeyShowsTheFailureWhenTheWorktreeCannotBeOpened(t *testing.T) {
 	if !strings.Contains(view(model), "Failed: "+errorForTests.Error()) {
 		t.Fatalf("view:\n%s", view(model))
 	}
+}
+
+// rowRefreshingActions are the keys of each action that changes one pull request, which the
+// board answers by reloading that pull request alone.
+var rowRefreshingActions = map[string][]string{
+	"draft":             {"d"},
+	"request review":    {"t"},
+	"approve":           {"a", "y"},
+	"merge now":         {"m", "1", "y"},
+	"enable auto-merge": {"m", "2"},
+}
+
+func TestActionsReloadOnlyTheChangedPullRequest(t *testing.T) {
+	for name, keys := range rowRefreshingActions {
+		t.Run(name, func(t *testing.T) {
+			provider := newFakeProvider()
+			model := loadedBoardWith(t, provider)
+			selected := provider.pullRequest(1)
+			listingsBefore, _ := provider.loads()
+
+			press(t, model, keys...)
+
+			listings, reloaded := provider.loads()
+			if listings != listingsBefore {
+				t.Fatalf("every pull request was loaded %d more times", listings-listingsBefore)
+			}
+			if expected := []string{selected.URL}; !slices.Equal(reloaded, expected) {
+				t.Fatalf("reloaded %v, expected %v", reloaded, expected)
+			}
+		})
+	}
+}
+
+func TestActionThatFailsReloadsNothing(t *testing.T) {
+	provider := newFakeProvider()
+	provider.fail("Approve", errorForTests)
+	model := loadedBoardWith(t, provider)
+	listingsBefore, _ := provider.loads()
+
+	press(t, model, "a", "y")
+
+	listings, reloaded := provider.loads()
+	if listings != listingsBefore || len(reloaded) != 0 {
+		t.Fatalf("loaded every pull request %d more times and reloaded %v", listings-listingsBefore, reloaded)
+	}
+}
+
+func TestMergedPullRequestDisappearsFromTheBoard(t *testing.T) {
+	provider := newFakeProvider()
+	model := loadedBoardWith(t, provider)
+	merged, others := provider.pullRequest(1), []PullRequest{provider.pullRequest(3)}
+
+	press(t, model, "m", "1", "y")
+
+	if strings.Contains(view(model), merged.Title) {
+		t.Fatalf("the merged pull request is still listed:\n%s", view(model))
+	}
+	for _, other := range others {
+		if !strings.Contains(view(model), other.Title) {
+			t.Fatalf("%q is no longer listed:\n%s", other.Title, view(model))
+		}
+	}
+}
+
+func TestPullRequestThatStaysOpenAfterAnActionStaysOnTheBoard(t *testing.T) {
+	provider := newFakeProvider()
+	model := loadedBoardWith(t, provider)
+
+	press(t, model, "m", "2")
+
+	assertShown(t, model, provider, provider.pullRequest(1), provider.pullRequest(3))
+}
+
+func TestReloadedPullRequestShowsItsNewState(t *testing.T) {
+	provider := newFakeProvider()
+	model := loadedBoardWith(t, provider)
+	provider.pullRequests[0].Title = "Retitled"
+
+	press(t, model, "d")
+
+	if !strings.Contains(view(model), provider.pullRequests[0].Title) {
+		t.Fatalf("the row was not reloaded:\n%s", view(model))
+	}
+}
+
+func TestReloadFailureShowsTheErrorAndKeepsTheRow(t *testing.T) {
+	provider := newFakeProvider()
+	provider.fail("PullRequest", errorForTests)
+	model := loadedBoardWith(t, provider)
+
+	press(t, model, "d")
+
+	if !strings.Contains(view(model), "Refresh failed: "+errorForTests.Error()) {
+		t.Fatalf("view:\n%s", view(model))
+	}
+	assertShown(t, model, provider, provider.pullRequest(1), provider.pullRequest(3))
 }

@@ -75,7 +75,6 @@ func (m *Model) handleClick(x, y int) tea.Cmd {
 		return nil
 	}
 	boardIndex := m.active
-	return func() tea.Msg {
-		return commandFinishedMessage{board: boardIndex, err: writeClipboard(text), successNotice: "Copied " + text}
-	}
+	return m.startCommand(boardIndex, func() error { return writeClipboard(text) },
+		commandFinishedMessage{successNotice: "Copied " + text})
 }

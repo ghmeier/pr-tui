@@ -110,6 +110,10 @@ type fakeProvider struct {
 	failures    map[string]error
 	calls       []recordedCall
 	diffFetches int
+	// listings counts the loads of every pull request, and reloaded holds the URL of each
+	// pull request that was loaded on its own.
+	listings int
+	reloaded []string
 }
 
 // newFakeProvider has three pull requests, newest first: a draft from a person and a bot's
@@ -196,10 +200,33 @@ func (fake *fakeProvider) ReviewTeam() string { return fake.reviewTeam }
 func (fake *fakeProvider) PullRequests() ([]PullRequest, string, error) {
 	fake.mutex.Lock()
 	defer fake.mutex.Unlock()
+	fake.listings++
 	if err := fake.failures["PullRequests"]; err != nil {
 		return nil, "", err
 	}
 	return slices.Clone(fake.pullRequests), testViewer, nil
+}
+
+// PullRequest reports a pull request that the fixture no longer has as not open.
+func (fake *fakeProvider) PullRequest(pr PullRequest) (PullRequest, bool, error) {
+	fake.mutex.Lock()
+	defer fake.mutex.Unlock()
+	fake.reloaded = append(fake.reloaded, pr.URL)
+	if err := fake.failures["PullRequest"]; err != nil {
+		return PullRequest{}, false, err
+	}
+	for _, stored := range fake.pullRequests {
+		if stored.URL == pr.URL {
+			return stored, true, nil
+		}
+	}
+	return pr, false, nil
+}
+
+func (fake *fakeProvider) loads() (listings int, reloaded []string) {
+	fake.mutex.Lock()
+	defer fake.mutex.Unlock()
+	return fake.listings, slices.Clone(fake.reloaded)
 }
 
 func (fake *fakeProvider) LineCounts(source Repository) (map[string]LineCount, error) {
@@ -281,8 +308,16 @@ func (fake *fakeProvider) SetAutoMerge(pr PullRequest, enabled bool) error {
 	return fake.change("SetAutoMerge", recordedCall{url: pr.URL, flag: enabled})
 }
 
+// Merge also removes the pull request from the fixture when it succeeds, because a merged pull
+// request is no longer open.
 func (fake *fakeProvider) Merge(pr PullRequest) error {
-	return fake.change("Merge", recordedCall{url: pr.URL})
+	err := fake.change("Merge", recordedCall{url: pr.URL})
+	fake.mutex.Lock()
+	defer fake.mutex.Unlock()
+	if err == nil {
+		fake.pullRequests = slices.DeleteFunc(fake.pullRequests, func(stored PullRequest) bool { return stored.URL == pr.URL })
+	}
+	return err
 }
 
 func (fake *fakeProvider) RequestTeamReview(pr PullRequest) error {
