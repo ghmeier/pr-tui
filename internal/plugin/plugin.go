@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"slices"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -197,12 +198,29 @@ type Facet struct {
 	CycleKey string
 }
 
+// displayTitle is the title that tells a board apart from every other, which is the title of
+// its tab followed by its own when it shares a tab.
+func (board Board) displayTitle() string {
+	if board.Tab == "" {
+		return board.Title
+	}
+	return board.Tab + " · " + board.Title
+}
+
 // Board is a table of rows with its own columns, actions and facets.
 type Board struct {
 	// Name is what other plugins pass to AddColumn and AddAction.
 	Name string
-	// Title is the label of the board's tab.
+	// Title labels the board: it is the title of the board's tab, or of its pane when the board
+	// shares a tab.
 	Title string
+	// Tab, when set, groups this board with the other boards of the same Tab into one tab with
+	// that title, drawn side by side in registration order. The tab sits where its first board
+	// was registered. Boards without a Tab get a tab of their own, titled by Title.
+	Tab string
+	// RefreshInterval, when set, is how often this board reloads instead of the configured
+	// refresh_interval.
+	RefreshInterval time.Duration
 	// RowNoun says what the rows are, such as "open pull requests", for the status line.
 	RowNoun string
 	// Load fetches the rows. It runs on a background goroutine. State that it shares with a

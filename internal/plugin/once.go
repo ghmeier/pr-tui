@@ -18,7 +18,7 @@ func (host *Host) PrintOnce(out io.Writer, width int) error {
 		rows, err := board.spec.Load()
 		if err != nil {
 			if len(model.boards) > 1 {
-				return fmt.Errorf("%s: %w", board.spec.Title, err)
+				return fmt.Errorf("%s: %w", board.spec.displayTitle(), err)
 			}
 			return err
 		}
@@ -36,7 +36,7 @@ func (host *Host) PrintOnce(out io.Writer, width int) error {
 			if index > 0 {
 				fmt.Fprintln(out)
 			}
-			fmt.Fprintln(out, ui.BoldStyle.Render(board.spec.Title))
+			fmt.Fprintln(out, ui.BoldStyle.Render(board.spec.displayTitle()))
 		}
 		fmt.Fprintln(out, facetSummary(board.facets))
 		fmt.Fprintln(out, board.table(width, -1, 0, len(board.visible)))

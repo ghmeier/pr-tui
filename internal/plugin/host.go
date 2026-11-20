@@ -10,7 +10,7 @@ import (
 )
 
 // reservedKeys are the keys the host handles itself on a board, so no action may claim them.
-var reservedKeys = []string{"up", "k", "down", "j", "pgup", "pgdown", "home", "end", "f", "r", "q", "tab", "shift+tab", "ctrl+c"}
+var reservedKeys = []string{"up", "k", "down", "j", "pgup", "pgdown", "home", "end", "f", "r", "q", "tab", "shift+tab", "left", "right", "h", "l", "ctrl+c"}
 
 // filterMenuKeys are the keys the filter menu handles itself, so no facet may use one as its
 // cycle key.
@@ -138,6 +138,9 @@ func validateBoard(board Board, owner string) error {
 	if board.Load == nil {
 		return fmt.Errorf("plugin %q registers board %q without a Load function", owner, board.Name)
 	}
+	if board.RefreshInterval < 0 {
+		return fmt.Errorf("plugin %q registers board %q with a negative RefreshInterval", owner, board.Name)
+	}
 	flexible := 0
 	for _, column := range board.Columns {
 		if column.Cell == nil {
@@ -195,7 +198,8 @@ func (host *Host) Enabled(pluginName string) bool {
 
 func (host *Host) Editor() config.Editor { return host.file.Editor }
 
-// AddBoard registers a board, shown as a tab after the boards registered before it.
+// AddBoard registers a board, shown as a tab after the boards registered before it, or as a
+// pane of the tab named by the board's Tab.
 func (host *Host) AddBoard(board Board) {
 	host.boards = append(host.boards, board)
 	host.boardOwners = append(host.boardOwners, host.current)
