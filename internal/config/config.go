@@ -265,12 +265,16 @@ repositories = ["your-organization/your-repository"]
 # must contain a .apl directory, and no two may share a directory name.
 # repositories = ["~/git/your-repository"]
 
-# Only read when "workflows" is in the plugins list above. Each section is its own tab.
+# Only read when "workflows" is in the plugins list above. Every section is drawn side by side
+# in one tab titled "Workflows".
 # [workflows]
 # Where runs come from. Only "github" is supported today; it uses the login of gh.
 # provider = "github"
 # Required. Each entry is "owner/name"; the owners may differ. A section can use its own list.
 # repositories = ["your-organization/your-repository", "your-organization/another-repository"]
+# How often the sections reload, so that running workflows stay current. A Go duration, at
+# least 1s; leave it out to use the refresh_interval above.
+# refresh_interval = "30s"
 #
 # With no sections, one tab titled "Recent runs" lists every recent run.
 #
@@ -280,7 +284,7 @@ repositories = ["your-organization/your-repository"]
 # workflows = ["Deploy", "deploy.yaml"]   # a workflow's name or its file name; empty means all
 # status = ["queued", "running"]     # runs only: queued, running, succeeded, failed, cancelled
 # trigger = ["push"]                 # push, pull_request, schedule, manual, merge_queue
-# repositories = ["your-organization/your-repository"]   # replaces the list above for this tab
+# repositories = ["your-organization/your-repository"]   # replaces the list above for this section
 # limit = 20                         # runs only: recent runs per named workflow, or per repository
 #                                    # when no workflows are named; 1 to 100
 #

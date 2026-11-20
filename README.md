@@ -99,7 +99,8 @@ Board keys:
 | `m` | Merge now (squash, after a confirmation), or enable or disable auto-merge (squash) |
 | `a` | Approve someone else's pull request, after a confirmation |
 | `f` | Filter by repository and by people or bots: `j`/`k` move, `space` toggles, `1` to `9` toggle the first nine options, `b` switches people and bots |
-| `tab` / `shift+tab` | Switch boards, when plugins add more than one |
+| `tab` / `shift+tab` | Switch tabs, when plugins add more than one |
+| `←` / `→` or `h` / `l` | Move between the boards that share a tab, such as the workflow sections |
 | `r` | Refresh (also on the configured interval, every 3 minutes by default) |
 | `q` | Quit |
 
@@ -158,13 +159,18 @@ and `+N` when more documents are linked.
 
 The `workflows` plugin adds boards of CI/CD workflow runs across several repositories. It is
 off until you add `"workflows"` to `plugins`, and it needs `gh` to be logged in, like the
-pull request board. Each `[[workflows.sections]]` entry is its own tab; with none, you get one
-tab titled "Recent runs" that lists every recent run of every repository.
+pull request board. Every section is drawn side by side in one tab titled "Workflows", so you see
+Deploys, CI, and the rest at once; with no sections, you get one section titled "Recent runs"
+that lists every recent run of every repository. Use `←` / `→` or `h` / `l` to move between
+the sections, and every other key applies to the section with the focus. Each section keeps its
+own cursor and its own filters, and `r` reloads only the focused section. Sections sit in a
+row when each can be at least 60 columns wide, and wrap onto further rows in a narrower terminal.
 
 ```toml
 [workflows]
 provider = "github"                # only "github" is supported; default "github"
 repositories = ["acme/storefront", "acme/billing"]   # required; owner/name
+refresh_interval = "30s"           # a Go duration, at least 1s; default: the top-level refresh_interval
 
 [[workflows.sections]]
 title = "Deploys"                  # required, and different for each section

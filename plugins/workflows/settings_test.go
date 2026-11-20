@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ghmeier/pr-tui/internal/config/configtest"
 )
@@ -87,6 +88,36 @@ func TestSettingsAcceptEveryStatusAndTriggerWord(t *testing.T) {
 	if err != nil || len(loaded.sections[0].statuses) != 5 || len(loaded.sections[0].triggers) != 5 {
 		t.Fatalf("settings = %+v, error = %v", loaded, err)
 	}
+}
+
+func TestSettingsReadTheRefreshIntervalOfTheTable(t *testing.T) {
+	loaded, err := loadSettingsFrom(t, tablePrefix+"refresh_interval = \"30s\"\n")
+
+	if err != nil || loaded.refreshInterval != 30*time.Second {
+		t.Fatalf("settings = %+v, error = %v", loaded, err)
+	}
+}
+
+func TestSettingsLeaveTheRefreshIntervalToTheProgramWhenTheTableHasNone(t *testing.T) {
+	loaded, err := loadSettingsFrom(t, tablePrefix)
+
+	if err != nil || loaded.refreshInterval != 0 {
+		t.Fatalf("settings = %+v, error = %v", loaded, err)
+	}
+}
+
+func TestSettingsAcceptARefreshIntervalOfExactlyOneSecond(t *testing.T) {
+	if _, err := loadSettingsFrom(t, tablePrefix+"refresh_interval = \"1s\"\n"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSettingsRejectARefreshIntervalThatIsNotADurationNamingTheTableAndKey(t *testing.T) {
+	assertRejected(t, tablePrefix+"refresh_interval = \"soon\"\n", "[workflows] refresh_interval", `"soon"`, "duration")
+}
+
+func TestSettingsRejectARefreshIntervalUnderOneSecond(t *testing.T) {
+	assertRejected(t, tablePrefix+"refresh_interval = \"500ms\"\n", "[workflows] refresh_interval", "at least one second")
 }
 
 func TestSettingsRejectMissingRepositoriesNamingTheTableAndKey(t *testing.T) {

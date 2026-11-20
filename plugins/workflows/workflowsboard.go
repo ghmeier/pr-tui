@@ -33,6 +33,7 @@ func workflowsBoard(provider Provider, configured section) plugin.Board {
 	return plugin.Board{
 		Name:    boardName(configured.title),
 		Title:   configured.title,
+		Tab:     tabTitle,
 		RowNoun: "workflows",
 		Load:    func() ([]plugin.Row, error) { return loadWorkflows(provider, configured) },
 		Columns: []plugin.Column{

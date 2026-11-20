@@ -299,8 +299,13 @@ line, `Command` runs on a background goroutine and a returned error shows as `Fa
 effect that its `Pick` returns for the one chosen, `Refresh` reloads the board after the command
 succeeds, and `Screen` opens a full-screen view. Every board's cells can be copied to the
 clipboard by double-clicking them, so a plugin needs no action for that. The host refuses keys
-it uses itself (for example `f`, `r`, `q`, and `tab`) and two actions on one key, and says so
-when the program starts.
+it uses itself (for example `f`, `r`, `q`, `tab`, and the focus keys `left`, `right`, `h`, and
+`l`) and two actions on one key, and says so when the program starts.
+
+A board is a tab of its own unless it sets `Tab`. Boards that set the same `Tab` share one tab
+with that title and are drawn side by side, each with its own cursor and filters; the keys apply
+to the board with the focus. A board that needs fresher data than the rest can set
+`RefreshInterval` to reload on its own schedule instead of the configured `refresh_interval`.
 
 All external commands go through `shell.Run`, which is what tests replace.
 

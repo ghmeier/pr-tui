@@ -23,6 +23,7 @@ func runsBoard(provider Provider, configured section) plugin.Board {
 	return plugin.Board{
 		Name:    boardName(configured.title),
 		Title:   configured.title,
+		Tab:     tabTitle,
 		RowNoun: "runs",
 		Load:    func() ([]plugin.Row, error) { return loadRuns(provider, configured) },
 		Columns: []plugin.Column{
