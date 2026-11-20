@@ -19,6 +19,11 @@ type Provider interface {
 	// MergeQueue lists the pull requests in the repository's merge queue, front first. A
 	// repository without a merge queue has an empty one.
 	MergeQueue(repository Repository) ([]QueueEntry, error)
+	// StartWorkflow starts a manual run of the workflow on the branch with the given input
+	// values, keyed by input name.
+	StartWorkflow(workflow Workflow, branch string, inputs map[string]string) error
+	// Rerun runs a finished run again, only its failed jobs when failedOnly is set.
+	Rerun(run Run, failedOnly bool) error
 }
 
 // ProviderFactory makes a provider. A provider reads nothing from the configuration file: the

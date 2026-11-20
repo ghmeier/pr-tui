@@ -222,7 +222,27 @@ they failed, 🟡 while they run, and ⏳ when none have started. Its state read
 | --- | --- |
 | `enter` | Open the run's jobs; on a workflow, the jobs of its latest run |
 | `o` | Open the run, the workflow, or the queued pull request in the browser |
+| `x` | On a workflow, fill in a form and start a manual run; on a finished run, run it again |
 | `f` | Filter by repository and by workflow |
+
+`x` on a workflow opens a form with the branch, which starts as the repository's default branch,
+and then each input the workflow declares for manual runs, in the order the file declares them.
+A workflow that cannot be started by hand says so instead. Starting a run never happens without
+a confirmation: `ctrl+s` submits the form, and the board then asks you to confirm the branch and
+the values before anything is started. The new run appears in a runs section when it next
+reloads.
+
+| Key in the form | Action |
+| --- | --- |
+| `↑` / `↓`, `tab` / `shift+tab` | Move between fields |
+| `←` / `→` (also `h` / `l` outside text fields) | Cycle the options of a choice |
+| `space` | Toggle a boolean |
+| `ctrl+s` | Submit; a required field that is empty, or a number field that is not a number, is marked and nothing is submitted |
+| `esc` | Cancel without starting anything |
+
+`x` on a run that has finished offers to re-run its failed jobs (only when it failed) or all of its
+jobs, and asks for a confirmation before doing either. A run that is still queued or running
+only shows a notice.
 
 On the jobs screen, `j`/`k` or the arrow keys move between jobs and show the steps of the
 selected one, `o` opens the selected job in the browser, `r` reloads the jobs, and `esc` or

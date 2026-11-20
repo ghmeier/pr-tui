@@ -15,6 +15,7 @@ import (
 // The owner and name are variables, so they are never written into the query text.
 const workflowFilesQuery = `query($owner: String!, $name: String!) {
   repository(owner: $owner, name: $name) {
+    defaultBranchRef { name }
     object(expression: "HEAD:.github/workflows") {
       ... on Tree { entries { name object { ... on Blob { text } } } }
     }
@@ -59,7 +60,7 @@ func fetchWorkflows(repository workflows.Repository) ([]workflows.Workflow, erro
 	if len(listed.Workflows) == 0 {
 		return nil, nil
 	}
-	texts, err := fetchWorkflowTexts(repository)
+	texts, defaultBranch, err := fetchWorkflowTexts(repository)
 	if err != nil {
 		return nil, err
 	}
@@ -72,22 +73,27 @@ func fetchWorkflows(repository workflows.Repository) ([]workflows.Workflow, erro
 		triggers, schedules := parseTriggers(texts[file])
 		result = append(result, workflows.Workflow{
 			Repository: repository, Name: entry.Name, File: file, URL: entry.URL, Triggers: triggers, Schedules: schedules,
+			Inputs: parseInputs(texts[file]), DefaultBranch: defaultBranch,
 		})
 	}
 	return result, nil
 }
 
-// fetchWorkflowTexts returns the text of each file of the workflows directory by its name. Files
-// that are not text, and a repository with no such directory, are left out.
-func fetchWorkflowTexts(repository workflows.Repository) (map[string]string, error) {
+// fetchWorkflowTexts returns the text of each file of the workflows directory by its name, and
+// the repository's default branch. Files that are not text, and a repository with no such
+// directory, are left out.
+func fetchWorkflowTexts(repository workflows.Repository) (map[string]string, string, error) {
 	output, err := shell.Run("gh", "api", "graphql",
 		"-f", "query="+workflowFilesQuery, "-f", "owner="+repository.Owner, "-f", "name="+repository.Name)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	var response struct {
 		Data struct {
 			Repository struct {
+				DefaultBranchRef struct {
+					Name string `json:"name"`
+				} `json:"defaultBranchRef"`
 				Object struct {
 					Entries []struct {
 						Name   string `json:"name"`
@@ -100,36 +106,31 @@ func fetchWorkflowTexts(repository workflows.Repository) (map[string]string, err
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(output, &response); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	texts := map[string]string{}
 	for _, entry := range response.Data.Repository.Object.Entries {
 		texts[entry.Name] = entry.Object.Text
 	}
-	return texts, nil
+	return texts, response.Data.Repository.DefaultBranchRef.Name, nil
 }
 
 // parseTriggers reads what the "on" key of a workflow file says: one event, a list of events,
 // or a table of events, one of which may be the schedule with its cron expressions. A file
 // with no "on" key, or one that cannot be read, has none; the workflow still belongs on the board.
 func parseTriggers(text string) (triggers []workflows.Trigger, schedules []string) {
-	var file struct {
-		On yaml.Node `yaml:"on"`
-	}
-	if err := yaml.Unmarshal([]byte(text), &file); err != nil {
-		return nil, nil
-	}
+	on := onNode(text)
 	var events []string
-	switch file.On.Kind {
+	switch on.Kind {
 	case yaml.ScalarNode:
-		events = []string{file.On.Value}
+		events = []string{on.Value}
 	case yaml.SequenceNode:
-		for _, event := range file.On.Content {
+		for _, event := range on.Content {
 			events = append(events, event.Value)
 		}
 	case yaml.MappingNode:
-		for index := 0; index+1 < len(file.On.Content); index += 2 {
-			event, definition := file.On.Content[index].Value, file.On.Content[index+1]
+		for index := 0; index+1 < len(on.Content); index += 2 {
+			event, definition := on.Content[index].Value, on.Content[index+1]
 			events = append(events, event)
 			if event == "schedule" {
 				schedules = cronExpressions(definition)
@@ -143,6 +144,18 @@ func parseTriggers(text string) (triggers []workflows.Trigger, schedules []strin
 		}
 	}
 	return triggers, schedules
+}
+
+// onNode is the value of a workflow file's "on" key, or an empty node when the file has none or
+// cannot be read.
+func onNode(text string) yaml.Node {
+	var file struct {
+		On yaml.Node `yaml:"on"`
+	}
+	if err := yaml.Unmarshal([]byte(text), &file); err != nil {
+		return yaml.Node{}
+	}
+	return file.On
 }
 
 func cronExpressions(schedule *yaml.Node) []string {

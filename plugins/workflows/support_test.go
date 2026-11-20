@@ -36,6 +36,19 @@ type fakeProvider struct {
 	failures   map[string]error
 	queries    []RunQuery
 	jobLoads   int
+	started    []startedWorkflow
+	reruns     []rerunRequest
+}
+
+type startedWorkflow struct {
+	workflow Workflow
+	branch   string
+	inputs   map[string]string
+}
+
+type rerunRequest struct {
+	run        Run
+	failedOnly bool
 }
 
 func latestRunKey(workflow Workflow) string {
@@ -71,7 +84,7 @@ func newFakeProvider() *fakeProvider {
 		Actor: "scheduler", CreatedAt: at(10, 0),
 	}
 	storefrontWorkflows := []Workflow{
-		{Repository: storefrontRepository, Name: "Deploy", File: "deploy.yaml", URL: "https://example.test/storefront/deploy", Triggers: []Trigger{TriggerPush, TriggerManual}},
+		{Repository: storefrontRepository, Name: "Deploy", File: "deploy.yaml", URL: "https://example.test/storefront/deploy", Triggers: []Trigger{TriggerPush, TriggerManual}, DefaultBranch: "main", Inputs: deployInputs},
 		{Repository: storefrontRepository, Name: "Checks", File: "checks.yml", URL: "https://example.test/storefront/checks", Triggers: []Trigger{TriggerPullRequest}},
 		{Repository: storefrontRepository, Name: "Nightly", File: "nightly.yaml", URL: "https://example.test/storefront/nightly", Triggers: []Trigger{TriggerSchedule}, Schedules: []string{"0 6 * * *", "0 18 * * *"}},
 	}
@@ -190,6 +203,32 @@ func (fake *fakeProvider) MergeQueue(repository Repository) ([]QueueEntry, error
 	fake.mutex.Lock()
 	defer fake.mutex.Unlock()
 	return slices.Clone(fake.queues[repository]), fake.failures["MergeQueue"]
+}
+
+func (fake *fakeProvider) StartWorkflow(workflow Workflow, branch string, inputs map[string]string) error {
+	fake.mutex.Lock()
+	defer fake.mutex.Unlock()
+	fake.started = append(fake.started, startedWorkflow{workflow: workflow, branch: branch, inputs: inputs})
+	return fake.failures["StartWorkflow"]
+}
+
+func (fake *fakeProvider) Rerun(run Run, failedOnly bool) error {
+	fake.mutex.Lock()
+	defer fake.mutex.Unlock()
+	fake.reruns = append(fake.reruns, rerunRequest{run: run, failedOnly: failedOnly})
+	return fake.failures["Rerun"]
+}
+
+func (fake *fakeProvider) startedWorkflows() []startedWorkflow {
+	fake.mutex.Lock()
+	defer fake.mutex.Unlock()
+	return slices.Clone(fake.started)
+}
+
+func (fake *fakeProvider) rerunRequests() []rerunRequest {
+	fake.mutex.Lock()
+	defer fake.mutex.Unlock()
+	return slices.Clone(fake.reruns)
 }
 
 func registerTestProvider(t *testing.T, name string, factory ProviderFactory) {

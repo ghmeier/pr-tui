@@ -40,6 +40,9 @@ func runsBoard(provider Provider, configured section) plugin.Board {
 			{Key: "enter", Label: "jobs", Run: func(selection plugin.Selection) plugin.Effect {
 				return plugin.Effect{Screen: newRunScreen(provider, runOf(selection.Row), selection)}
 			}},
+			{Key: "x", Label: "re-run", Run: func(selection plugin.Selection) plugin.Effect {
+				return rerunEffect(provider, runOf(selection.Row))
+			}},
 			{Key: "o", Label: "open", Run: func(selection plugin.Selection) plugin.Effect {
 				return openInBrowser(runOf(selection.Row).URL)
 			}},
@@ -91,6 +94,40 @@ func runsOfNamedWorkflows(provider Provider, configured section, query RunQuery)
 		perWorkflow.WorkflowFile = workflow.File
 		return provider.Runs(perWorkflow)
 	})
+}
+
+const (
+	rerunFailedJobs = "re-run failed jobs"
+	rerunAllJobs    = "re-run all jobs"
+)
+
+// rerunEffect asks which jobs of a finished run to run again, and then confirms. Running only
+// the failed jobs is offered only for a run that failed.
+func rerunEffect(provider Provider, run Run) plugin.Effect {
+	if !run.Status.finished() {
+		return plugin.Effect{Notice: run.Workflow + " is still running"}
+	}
+	options := []string{rerunAllJobs}
+	if run.Status == RunStatusFailed {
+		options = []string{rerunFailedJobs, rerunAllJobs}
+	}
+	return plugin.Effect{Choice: &plugin.Choice{
+		Question: "Re-run " + run.Workflow + " in " + run.Repository.Name,
+		Options:  options,
+		Pick: func(option string) plugin.Effect {
+			failedOnly := option == rerunFailedJobs
+			which := "all jobs"
+			if failedOnly {
+				which = "the failed jobs"
+			}
+			return plugin.Effect{
+				Confirm: "Re-run " + which + " of " + run.Workflow + " " + run.Title + "?",
+				Notice:  "Re-running " + run.Workflow + "…",
+				Command: func() error { return provider.Rerun(run, failedOnly) },
+				Refresh: true,
+			}
+		},
+	}}
 }
 
 // openInBrowser is the effect of the o key, on the board and on the screens.

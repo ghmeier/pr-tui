@@ -54,6 +54,13 @@ func workflowsBoard(provider Provider, configured section) plugin.Board {
 				}
 				return plugin.Effect{Screen: newRunScreen(provider, latest.run, selection)}
 			}},
+			{Key: "x", Label: "run", Run: func(selection plugin.Selection) plugin.Effect {
+				workflow := workflowOf(selection.Row)
+				if !workflow.startableByHand() {
+					return plugin.Effect{Notice: workflow.Name + " cannot be started by hand"}
+				}
+				return plugin.Effect{Screen: newFormScreen(provider, workflow, selection)}
+			}},
 			{Key: "o", Label: "open", Run: func(selection plugin.Selection) plugin.Effect {
 				return openInBrowser(workflowOf(selection.Row).URL)
 			}},
