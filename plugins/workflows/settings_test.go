@@ -191,3 +191,42 @@ func TestSettingsRejectASectionRepositoryNotWrittenAsOwnerAndName(t *testing.T) 
 func TestSettingsRejectASectionWithAnEmptyRepositoryList(t *testing.T) {
 	assertRejected(t, sectionText(`title = "Deploys"`, "repositories = []"), `"Deploys"`, "repositories must list at least one")
 }
+
+func TestSettingsReadAMergeQueueSectionWithItsOwnRepositories(t *testing.T) {
+	loaded, err := loadSettingsFrom(t, sectionText(`title = "Merge queue"`, `kind = "merge_queue"`, `repositories = ["acme/billing"]`))
+
+	if err != nil || len(loaded.sections) != 1 {
+		t.Fatalf("settings = %+v, error = %v", loaded, err)
+	}
+	if configured := loaded.sections[0]; configured.kind != sectionKindMergeQueue || !reflect.DeepEqual(configured.repositories, []Repository{billingRepository}) {
+		t.Fatalf("section = %+v", configured)
+	}
+}
+
+func TestSettingsGiveAMergeQueueSectionTheRepositoriesOfTheTableWhenItListsNone(t *testing.T) {
+	loaded, err := loadSettingsFrom(t, sectionText(`title = "Merge queue"`, `kind = "merge_queue"`))
+
+	if err != nil || !reflect.DeepEqual(loaded.sections[0].repositories, []Repository{storefrontRepository, billingRepository}) {
+		t.Fatalf("settings = %+v, error = %v", loaded, err)
+	}
+}
+
+func TestSettingsRejectKeysThatDoNotApplyToAMergeQueueSection(t *testing.T) {
+	for key, line := range map[string]string{
+		"workflows": `workflows = ["deploy.yaml"]`,
+		"status":    `status = ["failed"]`,
+		"trigger":   `trigger = ["push"]`,
+		"limit":     "limit = 5",
+	} {
+		assertRejected(t, sectionText(`title = "Merge queue"`, `kind = "merge_queue"`, line),
+			`[[workflows.sections]] "Merge queue"`, key+` does not apply to sections of kind "merge_queue"`)
+	}
+}
+
+func TestSettingsStillAcceptTheKeysThatMergeQueueSectionsRejectOnARunsSection(t *testing.T) {
+	_, err := loadSettingsFrom(t, sectionText(`title = "Deploys"`, `workflows = ["deploy.yaml"]`, `status = ["failed"]`, `trigger = ["push"]`, "limit = 5"))
+
+	if err != nil {
+		t.Fatal(err)
+	}
+}

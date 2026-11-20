@@ -27,6 +27,34 @@ const (
 	RunStatusSkipped
 )
 
+// QueueState is where a pull request stands in a merge queue.
+type QueueState int
+
+const (
+	QueueStateQueued QueueState = iota
+	QueueStateAwaitingChecks
+	QueueStateMergeable
+	QueueStateUnmergeable
+	QueueStateLocked
+)
+
+// QueueEntry is one pull request waiting in a repository's merge queue.
+type QueueEntry struct {
+	Repository Repository
+	// Position counts from the front of the queue, which is the next to merge.
+	Position int
+	State    QueueState
+	// Checks is the combined state of the entry's checks.
+	Checks     RunStatus
+	Number     int
+	Title      string
+	URL        string
+	Author     string
+	EnqueuedAt time.Time
+	// EstimatedTimeToMerge is zero when the forge gives no estimate.
+	EstimatedTimeToMerge time.Duration
+}
+
 // Trigger is what started a run, or what starts a workflow.
 type Trigger int
 
@@ -134,6 +162,21 @@ func (status RunStatus) mark() string {
 		return "⚪"
 	}
 	return "⏭️"
+}
+
+// word is how a queue state reads in a cell.
+func (state QueueState) word() string {
+	switch state {
+	case QueueStateAwaitingChecks:
+		return "awaiting checks"
+	case QueueStateMergeable:
+		return "mergeable"
+	case QueueStateUnmergeable:
+		return "unmergeable"
+	case QueueStateLocked:
+		return "locked"
+	}
+	return "queued"
 }
 
 // word is how a trigger reads in a cell.

@@ -41,6 +41,8 @@ func (*workflowsPlugin) Setup(host *plugin.Host) error {
 			board = runsBoard(provider, configured)
 		case sectionKindWorkflows:
 			board = workflowsBoard(provider, configured)
+		case sectionKindMergeQueue:
+			board = mergeQueueBoard(provider, configured)
 		}
 		board.RefreshInterval = settings.refreshInterval
 		host.AddBoard(board)
@@ -49,7 +51,7 @@ func (*workflowsPlugin) Setup(host *plugin.Host) error {
 }
 
 // boardName is the name another plugin passes to AddColumn and AddAction to add to a section's
-// board. The rows of a runs section are RunRow, and those of a workflows section WorkflowRow.
+// board. The rows of a runs section are RunRow, and those of a workflows section WorkflowRow, and those of a merge queue section QueueRow.
 func boardName(title string) string {
 	return pluginName + ":" + title
 }

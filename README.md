@@ -174,19 +174,28 @@ refresh_interval = "30s"           # a Go duration, at least 1s; default: the to
 
 [[workflows.sections]]
 title = "Deploys"                  # required, and different for each section
-kind = "runs"                      # "runs" (default) or "workflows"
+kind = "runs"                      # "runs" (default), "workflows", or "merge_queue"
 workflows = ["Deploy CI", "deploy.yaml"]   # a workflow's name or its file name; default: all
 status = ["queued", "running"]     # runs only: queued, running, succeeded, failed, cancelled
-trigger = ["push"]                 # push, pull_request, schedule, manual, merge_queue
+trigger = ["push"]                 # runs and workflows: push, pull_request, schedule, manual, merge_queue
 repositories = ["acme/storefront"] # replaces the list above for this section
 limit = 20                         # runs only: recent runs per workflow, or per repository; 1 to 100; default 20
+
+[[workflows.sections]]
+title = "Merge queue"
+kind = "merge_queue"               # takes only title and repositories
 ```
 
 A section of kind `runs` lists runs, newest first, with the status, repository, workflow, title,
 how long ago it started, how long it took, branch, and trigger, so the parts that matter most
 stay visible in a narrow pane. A section of kind `workflows`
 lists the workflows themselves, with their cron schedules and the status of their latest run,
-which fills in after the table appears. A section's filters combine: a run or workflow must
+which fills in after the table appears. A section of kind `merge_queue` lists the pull requests in
+each repository's merge queue for its default branch, repository by repository and front of the
+queue first: whether their checks pass, the repository, the position, the pull request, its title,
+its state, how long it has waited, GitHub's estimate of when it will merge (empty when GitHub has
+none), and the author. It rejects `workflows`, `status`, `trigger`, and `limit`, and a repository
+without a merge queue lists nothing. A section's filters combine: a run or workflow must
 match the names, the statuses, and the triggers that the section lists.
 
 The `limit` is the number of recent runs fetched for each workflow the section names, in each
@@ -205,10 +214,14 @@ Status marks:
 | ⚪ | cancelled |
 | ⏭️ | skipped |
 
+The checks mark of a queued pull request uses the same marks: 🟢 when its checks passed, 🔴 when
+they failed, 🟡 while they run, and ⏳ when none have started. Its state reads `queued`,
+`awaiting checks`, `mergeable`, `unmergeable`, or `locked`.
+
 | Key | Action |
 | --- | --- |
 | `enter` | Open the run's jobs; on a workflow, the jobs of its latest run |
-| `o` | Open the run, or the workflow, in the browser |
+| `o` | Open the run, the workflow, or the queued pull request in the browser |
 | `f` | Filter by repository and by workflow |
 
 On the jobs screen, `j`/`k` or the arrow keys move between jobs and show the steps of the

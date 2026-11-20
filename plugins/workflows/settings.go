@@ -21,6 +21,7 @@ type sectionKind int
 const (
 	sectionKindRuns sectionKind = iota
 	sectionKindWorkflows
+	sectionKindMergeQueue
 )
 
 // section is one configured board, with the plugin-level repositories already applied.
@@ -154,8 +155,25 @@ func parseSection(label string, entry rawSection, pluginRepositories []Repositor
 		parsed.kind = sectionKindRuns
 	case "workflows":
 		parsed.kind = sectionKindWorkflows
+	case "merge_queue":
+		parsed.kind = sectionKindMergeQueue
 	default:
-		return section{}, fmt.Errorf(`%s: kind %q is not one of runs, workflows`, label, entry.Kind)
+		return section{}, fmt.Errorf(`%s: kind %q is not one of runs, workflows, merge_queue`, label, entry.Kind)
+	}
+	if parsed.kind == sectionKindMergeQueue {
+		for _, unused := range []struct {
+			key     string
+			present bool
+		}{
+			{"workflows", len(entry.Workflows) > 0},
+			{"status", len(entry.Status) > 0},
+			{"trigger", len(entry.Trigger) > 0},
+			{"limit", entry.Limit != nil},
+		} {
+			if unused.present {
+				return section{}, fmt.Errorf(`%s: %s does not apply to sections of kind "merge_queue"`, label, unused.key)
+			}
+		}
 	}
 	if parsed.kind == sectionKindWorkflows {
 		if len(entry.Status) > 0 {
