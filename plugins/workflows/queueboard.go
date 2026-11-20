@@ -55,17 +55,16 @@ func mergeQueueBoard(provider Provider, configured section) plugin.Board {
 func loadMergeQueue(provider Provider, configured section) ([]plugin.Row, error) {
 	entries, err := inEach(configured.repositories, func(repository Repository) ([]QueueEntry, error) {
 		queue, err := provider.MergeQueue(repository)
+		if err != nil {
+			return nil, err
+		}
 		slices.SortStableFunc(queue, func(left, right QueueEntry) int { return left.Position - right.Position })
-		return queue, err
+		return queue, nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	rows := make([]plugin.Row, len(entries))
-	for index, entry := range entries {
-		rows[index] = QueueRow{Entry: entry}
-	}
-	return rows, nil
+	return rowsOf(entries, func(entry QueueEntry) plugin.Row { return QueueRow{Entry: entry} }), nil
 }
 
 func waitingText(entry QueueEntry) string {

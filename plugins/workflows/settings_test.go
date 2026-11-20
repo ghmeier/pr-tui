@@ -219,11 +219,11 @@ func TestSettingsRejectKeysThatDoNotApplyToAMergeQueueSection(t *testing.T) {
 		"limit":     "limit = 5",
 	} {
 		assertRejected(t, sectionText(`title = "Merge queue"`, `kind = "merge_queue"`, line),
-			`[[workflows.sections]] "Merge queue"`, key+` does not apply to sections of kind "merge_queue"`)
+			`[[workflows.sections]] "Merge queue"`, key+" only applies to sections of kind")
 	}
 }
 
-func TestSettingsStillAcceptTheKeysThatMergeQueueSectionsRejectOnARunsSection(t *testing.T) {
+func TestSettingsAcceptOnARunsSectionTheKeysAMergeQueueSectionRejects(t *testing.T) {
 	_, err := loadSettingsFrom(t, sectionText(`title = "Deploys"`, `workflows = ["deploy.yaml"]`, `status = ["failed"]`, `trigger = ["push"]`, "limit = 5"))
 
 	if err != nil {

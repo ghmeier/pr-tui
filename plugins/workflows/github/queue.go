@@ -24,6 +24,9 @@ const mergeQueueQuery = `query($owner: String!, $name: String!) {
   }
 }`
 
+// ghostLogin is what GitHub calls the author of a pull request whose account was deleted.
+const ghostLogin = "ghost"
+
 // MergeQueue lists the queue of the repository's default branch, front first. A repository
 // without a merge queue answers null, which is an empty queue.
 func (*provider) MergeQueue(repository workflows.Repository) ([]workflows.QueueEntry, error) {
@@ -73,7 +76,7 @@ func (*provider) MergeQueue(repository workflows.Repository) ([]workflows.QueueE
 		entry := workflows.QueueEntry{
 			Repository: repository, Position: node.Position, State: queueStateFrom(node.State),
 			Checks: workflows.RunStatusQueued, Number: node.PullRequest.Number, Title: node.PullRequest.Title,
-			URL: node.PullRequest.URL, Author: "ghost", EnqueuedAt: node.EnqueuedAt,
+			URL: node.PullRequest.URL, Author: ghostLogin, EnqueuedAt: node.EnqueuedAt,
 		}
 		if node.PullRequest.Author != nil {
 			entry.Author = node.PullRequest.Author.Login
