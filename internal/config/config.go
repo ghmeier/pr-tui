@@ -299,6 +299,13 @@ repositories = ["your-organization/your-repository"]
 # kind = "workflows"
 # trigger = ["schedule"]
 #
+# A workflows section lists the workflows themselves. Press x on one that accepts manual runs to
+# fill in its inputs and start it, after a confirmation.
+# [[workflows.sections]]
+# title = "Run command"
+# kind = "workflows"
+# workflows = ["Run Command"]
+#
 # A merge queue section takes only a title and, optionally, repositories.
 # [[workflows.sections]]
 # title = "Merge queue"

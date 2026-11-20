@@ -20,7 +20,7 @@ const listedWorkflows = `{"workflows": [
 
 // workflowFiles is what the GraphQL query answers: the text of each file of the directory, and
 // a file that the workflows endpoint does not list.
-const workflowFiles = `{"data": {"repository": {"object": {"entries": [
+const workflowFiles = `{"data": {"repository": {"defaultBranchRef": {"name": "trunk"}, "object": {"entries": [
   {"name": "actions.lock", "object": {"text": "not: [a workflow"}},
   {"name": "checks.yml", "object": {"text": "name: Checks\non: pull_request\n"}},
   {"name": "deploy.yaml", "object": {"text": "name: Deploy CI\non:\n  - push\n  - workflow_dispatch\n"}},
@@ -48,7 +48,8 @@ func TestWorkflowsListsTheEndpointAndThenFetchesTheFilesWithTheOwnerAndNameAsVar
 		apiCommand(workflowsEndpoint),
 		[]string{"gh", "api", "graphql", "-f", "query=" + workflowFilesQuery, "-f", "owner=acme", "-f", "name=storefront"},
 	)
-	if strings.Contains(workflowFilesQuery, "acme") || !strings.Contains(workflowFilesQuery, "HEAD:.github/workflows") {
+	if strings.Contains(workflowFilesQuery, "acme") || !strings.Contains(workflowFilesQuery, "HEAD:.github/workflows") ||
+		!strings.Contains(workflowFilesQuery, "defaultBranchRef { name }") {
 		t.Fatalf("query = %s", workflowFilesQuery)
 	}
 }
@@ -61,16 +62,16 @@ func TestWorkflowsJoinsEachActiveWorkflowWithTheTriggersOfItsFile(t *testing.T) 
 	expected := []workflows.Workflow{
 		{
 			Repository: storefront, Name: "Deploy CI", File: "deploy.yaml", URL: "https://github.com/acme/storefront/actions/workflows/deploy.yaml",
-			Triggers: []workflows.Trigger{workflows.TriggerPush, workflows.TriggerManual},
+			Triggers: []workflows.Trigger{workflows.TriggerPush, workflows.TriggerManual}, DefaultBranch: "trunk",
 		},
 		{
 			Repository: storefront, Name: "Checks", File: "checks.yml", URL: "https://github.com/acme/storefront/actions/workflows/checks.yml",
-			Triggers: []workflows.Trigger{workflows.TriggerPullRequest},
+			Triggers: []workflows.Trigger{workflows.TriggerPullRequest}, DefaultBranch: "trunk",
 		},
 		{
 			Repository: storefront, Name: "Nightly", File: "nightly.yaml", URL: "https://github.com/acme/storefront/actions/workflows/nightly.yaml",
 			Triggers:  []workflows.Trigger{workflows.TriggerSchedule, workflows.TriggerManual},
-			Schedules: []string{"0 6 * * *", "30 18 * * 1-5"},
+			Schedules: []string{"0 6 * * *", "30 18 * * 1-5"}, DefaultBranch: "trunk",
 		},
 	}
 	if err != nil || !reflect.DeepEqual(found, expected) {

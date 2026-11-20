@@ -1,6 +1,7 @@
 package workflows
 
 import (
+	"slices"
 	"time"
 
 	"github.com/ghmeier/pr-tui/internal/ui"
@@ -96,6 +97,38 @@ type Workflow struct {
 	Triggers []Trigger
 	// Schedules are the cron expressions as written in the workflow.
 	Schedules []string
+	// Inputs are what a manual run asks for, in the order the workflow declares them.
+	Inputs []WorkflowInput
+	// DefaultBranch is the branch a manual run starts on unless told otherwise.
+	DefaultBranch string
+}
+
+// InputKind is how a workflow input is entered.
+type InputKind int
+
+const (
+	InputKindText InputKind = iota
+	InputKindChoice
+	InputKindBoolean
+	InputKindNumber
+	InputKindEnvironment
+)
+
+// WorkflowInput is a value that a manual run of a workflow asks for.
+type WorkflowInput struct {
+	Name        string
+	Description string
+	Required    bool
+	// Default is the value as written in the workflow, and empty when it has none.
+	Default string
+	Kind    InputKind
+	// Options are the values a choice allows, in the order the workflow lists them.
+	Options []string
+}
+
+// startableByHand says whether the workflow accepts manual runs.
+func (workflow Workflow) startableByHand() bool {
+	return slices.Contains(workflow.Triggers, TriggerManual)
 }
 
 type Job struct {
