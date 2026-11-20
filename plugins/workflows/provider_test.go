@@ -9,7 +9,7 @@ func TestNewProviderBuildsTheRegisteredProvider(t *testing.T) {
 	expected := newFakeProvider()
 	registerTestProvider(t, "fake", func() (Provider, error) { return expected, nil })
 
-	provider, err := NewProvider("fake")
+	provider, err := newProvider("fake")
 
 	if err != nil || provider != Provider(expected) {
 		t.Fatalf("provider = %v, error = %v", provider, err)
@@ -19,7 +19,7 @@ func TestNewProviderBuildsTheRegisteredProvider(t *testing.T) {
 func TestNewProviderRejectsAnUnknownNameNamingTheKeyAndTheSupportedProviders(t *testing.T) {
 	registerTestProvider(t, "fake", func() (Provider, error) { return newFakeProvider(), nil })
 
-	_, err := NewProvider("gitlab")
+	_, err := newProvider("gitlab")
 
 	if err == nil || !strings.Contains(err.Error(), "[workflows] provider") || !strings.Contains(err.Error(), `"gitlab"`) || !strings.Contains(err.Error(), "fake") {
 		t.Fatalf("error = %v", err)

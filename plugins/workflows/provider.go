@@ -42,7 +42,7 @@ func providerNames() []string {
 	return names
 }
 
-func NewProvider(name string) (Provider, error) {
+func newProvider(name string) (Provider, error) {
 	factory, known := providerFactories[name]
 	if !known {
 		return nil, fmt.Errorf(

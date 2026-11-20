@@ -27,7 +27,7 @@ func (*workflowsPlugin) Setup(host *plugin.Host) error {
 	if err != nil {
 		return err
 	}
-	provider, err := NewProvider(settings.providerName)
+	provider, err := newProvider(settings.providerName)
 	if err != nil {
 		return err
 	}

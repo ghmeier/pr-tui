@@ -30,8 +30,6 @@ type runScreen struct {
 	run      Run
 	// selection is what the screen was opened from, and how it hands effects to the board.
 	selection plugin.Selection
-	width     int
-	height    int
 	loading   bool
 	jobs      []Job
 	cursor    int
@@ -39,7 +37,7 @@ type runScreen struct {
 }
 
 func newRunScreen(provider Provider, run Run, selection plugin.Selection) *runScreen {
-	return &runScreen{provider: provider, run: run, selection: selection, width: 120, height: 30, loading: true}
+	return &runScreen{provider: provider, run: run, selection: selection, loading: true}
 }
 
 func (screen *runScreen) Init() tea.Cmd {
@@ -131,9 +129,8 @@ func durationSuffix(duration time.Duration) string {
 	return ""
 }
 
-// View adopts the size it is drawn at, and scrolls so that the cursor stays on screen.
+// View scrolls so that the cursor stays on screen.
 func (screen *runScreen) View(width, height int) string {
-	screen.width, screen.height = width, height
 	now := time.Now()
 	run := screen.run
 	status := run.Status.mark() + " " + run.Status.name()
@@ -147,11 +144,11 @@ func (screen *runScreen) View(width, height int) string {
 	}
 
 	rows := max(height-headerLines-footerLines, 1)
-	body := []string{ui.DimStyle.Render("Loading jobs…")}
+	var body []string
 	switch {
 	case screen.loading:
+		body = []string{ui.DimStyle.Render("Loading jobs…")}
 	case screen.notice != "":
-		body = nil
 	case len(screen.jobs) == 0:
 		body = []string{ui.DimStyle.Render("This run has no jobs.")}
 	default:

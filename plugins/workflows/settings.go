@@ -55,8 +55,8 @@ var (
 	}
 )
 
-// repositoryPartPattern is what GitHub allows in an owner or a name, which is also what is
-// safe to put in a command line.
+// repositoryPartPattern is the characters allowed in an owner or a name, which are also safe
+// to put in a command line.
 var repositoryPartPattern = regexp.MustCompile("^[A-Za-z0-9_.-]+$")
 
 func parseRepository(text string) (Repository, bool) {
@@ -67,21 +67,25 @@ func parseRepository(text string) (Repository, bool) {
 	return Repository{Owner: owner, Name: name}, true
 }
 
+// rawSection is a [[workflows.sections]] entry as written. Limit is a pointer so that a limit
+// left out can be told from one that was given.
+type rawSection struct {
+	Title        string   `toml:"title"`
+	Kind         string   `toml:"kind"`
+	Workflows    []string `toml:"workflows"`
+	Status       []string `toml:"status"`
+	Trigger      []string `toml:"trigger"`
+	Repositories []string `toml:"repositories"`
+	Limit        *int     `toml:"limit"`
+}
+
 // loadSettings reads the [workflows] table and checks it. Every error names the table and the
 // key, and a section's errors also name its title.
 func loadSettings(decodeSection func(name string, target any) error) (boardSettings, error) {
 	var raw struct {
-		Provider     string   `toml:"provider"`
-		Repositories []string `toml:"repositories"`
-		Sections     []struct {
-			Title        string   `toml:"title"`
-			Kind         string   `toml:"kind"`
-			Workflows    []string `toml:"workflows"`
-			Status       []string `toml:"status"`
-			Trigger      []string `toml:"trigger"`
-			Repositories []string `toml:"repositories"`
-			Limit        *int     `toml:"limit"`
-		} `toml:"sections"`
+		Provider     string       `toml:"provider"`
+		Repositories []string     `toml:"repositories"`
+		Sections     []rawSection `toml:"sections"`
 	}
 	if err := decodeSection(pluginName, &raw); err != nil {
 		return boardSettings{}, err
@@ -99,65 +103,74 @@ func loadSettings(decodeSection func(name string, target any) error) (boardSetti
 		return loaded, nil
 	}
 	for index, entry := range raw.Sections {
-		label := sectionLabel(index, entry.Title)
-		if entry.Title == "" {
-			return boardSettings{}, fmt.Errorf("%s: title is required", label)
+		parsed, err := parseSection(sectionLabel(index, entry.Title), entry, pluginRepositories)
+		if err != nil {
+			return boardSettings{}, err
 		}
 		for _, earlier := range loaded.sections {
-			if earlier.title == entry.Title {
-				return boardSettings{}, fmt.Errorf("%s: title is used by more than one section, and the title is what tells the tabs apart", label)
+			if earlier.title == parsed.title {
+				return boardSettings{}, fmt.Errorf("%s: title is used by more than one section, and the title is what tells the tabs apart", sectionLabel(index, entry.Title))
 			}
 		}
-		next := section{title: entry.Title, workflows: entry.Workflows, limit: defaultLimit, repositories: pluginRepositories}
-		switch entry.Kind {
-		case "", "runs":
-			next.kind = sectionKindRuns
-		case "workflows":
-			next.kind = sectionKindWorkflows
-		default:
-			return boardSettings{}, fmt.Errorf(`%s: kind %q is not one of runs, workflows`, label, entry.Kind)
-		}
-		if next.kind == sectionKindWorkflows {
-			if len(entry.Status) > 0 {
-				return boardSettings{}, fmt.Errorf(`%s: status only applies to sections of kind "runs"`, label)
-			}
-			if entry.Limit != nil {
-				return boardSettings{}, fmt.Errorf(`%s: limit only applies to sections of kind "runs"`, label)
-			}
-		}
-		for _, text := range entry.Status {
-			status, known := parseStatus(text)
-			if !known {
-				return boardSettings{}, fmt.Errorf("%s: status %q is not one of %s", label, text, statusNames())
-			}
-			next.statuses = append(next.statuses, status)
-		}
-		for _, text := range entry.Trigger {
-			trigger, known := parseTrigger(text)
-			if !known {
-				return boardSettings{}, fmt.Errorf("%s: trigger %q is not one of %s", label, text, triggerNames())
-			}
-			next.triggers = append(next.triggers, trigger)
-		}
-		if entry.Limit != nil {
-			if *entry.Limit < 1 || *entry.Limit > maximumLimit {
-				return boardSettings{}, fmt.Errorf("%s: limit %d must be between 1 and %d", label, *entry.Limit, maximumLimit)
-			}
-			next.limit = *entry.Limit
-		}
-		if entry.Repositories != nil {
-			overridden, err := parseRepositories(label+": repositories", entry.Repositories)
-			if err != nil {
-				return boardSettings{}, err
-			}
-			if len(overridden) == 0 {
-				return boardSettings{}, fmt.Errorf("%s: repositories must list at least one repository, or be left out to use the list of [workflows]", label)
-			}
-			next.repositories = overridden
-		}
-		loaded.sections = append(loaded.sections, next)
+		loaded.sections = append(loaded.sections, parsed)
 	}
 	return loaded, nil
+}
+
+// parseSection checks one section. The repositories of the plugin apply unless the section
+// lists its own.
+func parseSection(label string, entry rawSection, pluginRepositories []Repository) (section, error) {
+	if entry.Title == "" {
+		return section{}, fmt.Errorf("%s: title is required", label)
+	}
+	parsed := section{title: entry.Title, workflows: entry.Workflows, limit: defaultLimit, repositories: pluginRepositories}
+	switch entry.Kind {
+	case "", "runs":
+		parsed.kind = sectionKindRuns
+	case "workflows":
+		parsed.kind = sectionKindWorkflows
+	default:
+		return section{}, fmt.Errorf(`%s: kind %q is not one of runs, workflows`, label, entry.Kind)
+	}
+	if parsed.kind == sectionKindWorkflows {
+		if len(entry.Status) > 0 {
+			return section{}, fmt.Errorf(`%s: status only applies to sections of kind "runs"`, label)
+		}
+		if entry.Limit != nil {
+			return section{}, fmt.Errorf(`%s: limit only applies to sections of kind "runs"`, label)
+		}
+	}
+	for _, text := range entry.Status {
+		status, known := parseStatus(text)
+		if !known {
+			return section{}, fmt.Errorf("%s: status %q is not one of %s", label, text, statusNames())
+		}
+		parsed.statuses = append(parsed.statuses, status)
+	}
+	for _, text := range entry.Trigger {
+		trigger, known := parseTrigger(text)
+		if !known {
+			return section{}, fmt.Errorf("%s: trigger %q is not one of %s", label, text, triggerNames())
+		}
+		parsed.triggers = append(parsed.triggers, trigger)
+	}
+	if entry.Limit != nil {
+		if *entry.Limit < 1 || *entry.Limit > maximumLimit {
+			return section{}, fmt.Errorf("%s: limit %d must be between 1 and %d", label, *entry.Limit, maximumLimit)
+		}
+		parsed.limit = *entry.Limit
+	}
+	if entry.Repositories != nil {
+		overridden, err := parseRepositories(label+": repositories", entry.Repositories)
+		if err != nil {
+			return section{}, err
+		}
+		if len(overridden) == 0 {
+			return section{}, fmt.Errorf("%s: repositories must list at least one repository, or be left out to use the list of [workflows]", label)
+		}
+		parsed.repositories = overridden
+	}
+	return parsed, nil
 }
 
 // sectionLabel names a section in an error by its title, or by its position when it has none.

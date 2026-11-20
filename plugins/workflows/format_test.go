@@ -3,6 +3,8 @@ package workflows
 import (
 	"testing"
 	"time"
+
+	"github.com/ghmeier/pr-tui/internal/ui"
 )
 
 func TestDurationTextKeepsSecondsOnlyForShortDurations(t *testing.T) {
@@ -70,10 +72,19 @@ func TestEveryStatusHasADistinctMarkAndName(t *testing.T) {
 }
 
 func TestAgeTextIsEmptyForAnUnknownTime(t *testing.T) {
-	if text := ageText(time.Time{}); text != "" {
+	text := ageText(time.Time{})
+
+	if text != "" {
 		t.Fatalf("age = %q", text)
 	}
-	if text := ageText(time.Now().Add(-4*time.Minute - time.Second)); text != "4m ago" {
-		t.Fatalf("age = %q", text)
+}
+
+func TestAgeTextSaysHowLongAgoAKnownTimeWas(t *testing.T) {
+	since := time.Now().Add(-4*time.Minute - time.Second)
+
+	text := ageText(since)
+
+	if expected := ui.AgeText(since) + " ago"; text != expected {
+		t.Fatalf("age = %q, expected %q", text, expected)
 	}
 }

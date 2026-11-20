@@ -86,10 +86,10 @@ func triggerOfEvent(event string) workflows.Trigger {
 	return workflows.TriggerOther
 }
 
-// filterOf is the value of the status parameter that selects exactly the runs of one status,
+// statusParameterOf is the value of the status parameter that selects exactly the runs of one status,
 // or "" when no single value does. Some statuses are several of GitHub's, which the
 // parameter cannot ask for together.
-func filterOf(status workflows.RunStatus) string {
+func statusParameterOf(status workflows.RunStatus) string {
 	switch status {
 	case workflows.RunStatusRunning:
 		return "in_progress"
@@ -101,9 +101,9 @@ func filterOf(status workflows.RunStatus) string {
 	return ""
 }
 
-// eventFilterOf is the value of the event parameter that selects exactly the runs of one
+// eventParameterOf is the value of the event parameter that selects exactly the runs of one
 // trigger, or "" when no single value does.
-func eventFilterOf(trigger workflows.Trigger) string {
+func eventParameterOf(trigger workflows.Trigger) string {
 	switch trigger {
 	case workflows.TriggerPush:
 		return "push"
@@ -118,18 +118,18 @@ func eventFilterOf(trigger workflows.Trigger) string {
 }
 
 // Runs lists the runs of one workflow when the query names its file, and of the whole
-// repository otherwise. It asks GitHub to narrow the runs by status or by event only when one value does it
-// exactly, and narrows by the rest here.
+// repository otherwise. It asks GitHub to narrow the runs by status or by event only when one
+// value does it exactly, and narrows by the rest here.
 func (github *provider) Runs(query workflows.RunQuery) ([]workflows.Run, error) {
 	endpoint := fmt.Sprintf("repos/%s/actions/runs?per_page=%d", query.Repository.FullName(), query.Limit)
 	if query.WorkflowFile != "" {
 		endpoint = fmt.Sprintf("repos/%s/actions/workflows/%s/runs?per_page=%d", query.Repository.FullName(), query.WorkflowFile, query.Limit)
 	}
-	if len(query.Statuses) == 1 && filterOf(query.Statuses[0]) != "" {
-		endpoint += "&status=" + filterOf(query.Statuses[0])
+	if len(query.Statuses) == 1 && statusParameterOf(query.Statuses[0]) != "" {
+		endpoint += "&status=" + statusParameterOf(query.Statuses[0])
 	}
-	if len(query.Triggers) == 1 && eventFilterOf(query.Triggers[0]) != "" {
-		endpoint += "&event=" + eventFilterOf(query.Triggers[0])
+	if len(query.Triggers) == 1 && eventParameterOf(query.Triggers[0]) != "" {
+		endpoint += "&event=" + eventParameterOf(query.Triggers[0])
 	}
 	output, err := shell.Run("gh", "api", endpoint)
 	if err != nil {
