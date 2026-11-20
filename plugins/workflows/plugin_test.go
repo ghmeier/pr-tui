@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	deploysSection = `
+	allWorkflowsSection = "\n[[workflows.sections]]\ntitle = \"All\"\nkind = \"workflows\"\n"
+	deploysSection      = `
 [[workflows.sections]]
 title = "Deploys"
 workflows = ["Deploy"]
@@ -120,6 +121,43 @@ func TestSectionBoardsRefreshOnTheConfiguredIntervalOfTheTable(t *testing.T) {
 	model := startedModel(t, newFakeProvider(), "refresh_interval = \"30s\"\n"+deploysSection)
 
 	assertShows(t, model, "refreshes every 30 seconds")
+}
+
+func TestWorkflowsSectionRefreshesOnTheProgramsIntervalWhateverTheTableSays(t *testing.T) {
+	model := startedModel(t, newFakeProvider(), "refresh_interval = \"30s\"\n"+nightlySection)
+
+	assertHides(t, model, "30 seconds")
+	assertShows(t, model, "refreshes every 3 minutes")
+}
+
+func TestRunsSectionIsBusyOnlyWhileARunIsQueuedOrRunning(t *testing.T) {
+	board := runsBoard(newFakeProvider(), section{title: "Deploys", kind: sectionKindRuns})
+	runWith := func(status RunStatus) plugin.Row {
+		return RunRow{Run: Run{URL: "https://example.test/" + status.mark(), Status: status}}
+	}
+	finished := runWith(RunStatusSucceeded)
+
+	for _, status := range []RunStatus{RunStatusQueued, RunStatusRunning} {
+		if !board.Busy([]plugin.Row{finished, runWith(status)}) {
+			t.Errorf("a %v run should make the section busy", status)
+		}
+	}
+	for _, status := range []RunStatus{RunStatusSucceeded, RunStatusFailed, RunStatusCancelled, RunStatusSkipped} {
+		if board.Busy([]plugin.Row{runWith(status)}) {
+			t.Errorf("a %v run should not make the section busy", status)
+		}
+	}
+	if board.Busy(nil) {
+		t.Errorf("a section without runs should not be busy")
+	}
+}
+
+func TestMergeQueueSectionIsBusyOnlyWhileTheQueueHasAnEntry(t *testing.T) {
+	board := mergeQueueBoard(newFakeProvider(), section{title: "Queue", kind: sectionKindMergeQueue})
+
+	if !board.Busy([]plugin.Row{QueueRow{Entry: QueueEntry{Number: 1}}}) || board.Busy(nil) {
+		t.Fatalf("busy with an entry = %v, with none = %v", board.Busy([]plugin.Row{QueueRow{}}), board.Busy(nil))
+	}
 }
 
 func TestSectionBoardsRefreshOnTheProgramsIntervalWithoutOneInTheTable(t *testing.T) {
@@ -342,9 +380,64 @@ func TestLastRunColumnShowsTheMarkOfTheLatestRunAndSaysNeverForAWorkflowWithoutO
 	}
 }
 
+func TestLastRunColumnAsksForRecentRunsOncePerRepositoryAndForAWorkflowOnlyWhenItIsMissingFromThem(t *testing.T) {
+	provider := newFakeProvider()
+	checks := provider.workflows[storefrontRepository][1]
+	provider.outsideRecentRuns[latestRunKey(checks)] = true
+
+	startedModel(t, provider, allWorkflowsSection)
+
+	repositories := provider.recentRunRepositories()
+	slices.SortFunc(repositories, func(left, right Repository) int { return strings.Compare(left.Name, right.Name) })
+	if !slices.Equal(repositories, []Repository{billingRepository, storefrontRepository}) {
+		t.Fatalf("recent runs were asked for %v", repositories)
+	}
+	// Two more workflows never ran, so they are missing from the recent runs too.
+	lookups := provider.latestRunWorkflows()
+	expected := []string{
+		latestRunKey(checks),
+		latestRunKey(provider.workflows[storefrontRepository][2]),
+		latestRunKey(provider.workflows[billingRepository][1]),
+	}
+	slices.Sort(lookups)
+	slices.Sort(expected)
+	if !slices.Equal(lookups, expected) {
+		t.Fatalf("latest runs were asked for %v, expected %v", lookups, expected)
+	}
+}
+
+func TestLastRunColumnShowsEachWorkflowItsOwnRunWhetherItCameFromRecentRunsOrItsOwnLookup(t *testing.T) {
+	provider := newFakeProvider()
+	provider.outsideRecentRuns[latestRunKey(provider.workflows[storefrontRepository][1])] = true
+
+	model := startedModel(t, provider, allWorkflowsSection)
+
+	if line := lineWith(model, "Checks"); !strings.Contains(line, RunStatusFailed.mark()) {
+		t.Fatalf("the row %q should show the run found by its own lookup", line)
+	}
+	if line := lineWith(model, "Deploy"); !strings.Contains(line, RunStatusRunning.mark()) {
+		t.Fatalf("the row %q should show the run from the recent runs", line)
+	}
+}
+
+func TestLastRunColumnStaysUnloadedForAWorkflowWhoseOwnLookupFails(t *testing.T) {
+	provider := newFakeProvider()
+	provider.outsideRecentRuns[latestRunKey(provider.workflows[storefrontRepository][1])] = true
+	provider.fail("LatestRun", errorForTests)
+
+	model := startedModel(t, provider, allWorkflowsSection)
+
+	if line := lineWith(model, "Checks"); !strings.Contains(line, "…") {
+		t.Fatalf("the row %q should show the placeholder", line)
+	}
+	if line := lineWith(model, "Deploy"); strings.Contains(line, "…") {
+		t.Fatalf("the row %q should not wait for another workflow's lookup", line)
+	}
+}
+
 func TestLastRunColumnStaysUnloadedWhenTheLookupFails(t *testing.T) {
 	provider := newFakeProvider()
-	provider.fail("LatestRun", errorForTests)
+	provider.fail("LatestRuns", errorForTests)
 
 	model := startedModel(t, provider, "\n[[workflows.sections]]\ntitle = \"All\"\nkind = \"workflows\"\n")
 

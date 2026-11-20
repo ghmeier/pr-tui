@@ -31,7 +31,7 @@ func (m *Model) statusLine(board *boardState) string {
 	}
 	return ui.DimStyle.Render(fmt.Sprintf(
 		"%d of %d %s · updated %s · refreshes every %s",
-		len(board.visible), len(board.rows), board.spec.RowNoun, board.loadedAt.Format("15:04"), intervalText(m.refreshIntervalOf(board)),
+		len(board.visible), len(board.rows), board.spec.RowNoun, board.loadedAt.Format("15:04"), intervalText(m.delayOf(board)),
 	))
 }
 

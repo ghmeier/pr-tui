@@ -39,8 +39,8 @@ type section struct {
 // boardSettings is what the boards need besides their provider.
 type boardSettings struct {
 	providerName string
-	// refreshInterval is how often the boards reload, or zero for the configured refresh_interval
-	// of the whole program.
+	// refreshInterval is how often a runs or merge queue section reloads while something in it is
+	// in progress, or zero for the configured refresh_interval of the whole program.
 	refreshInterval time.Duration
 	sections        []section
 }

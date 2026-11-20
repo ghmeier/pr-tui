@@ -44,7 +44,11 @@ func (*workflowsPlugin) Setup(host *plugin.Host) error {
 		case sectionKindMergeQueue:
 			board = mergeQueueBoard(provider, configured)
 		}
-		board.RefreshInterval = settings.refreshInterval
+		// Only boards that can tell when they are idle may refresh quickly, because the
+		// workflows list has no run in progress to watch.
+		if board.Busy != nil {
+			board.RefreshInterval = settings.refreshInterval
+		}
 		host.AddBoard(board)
 	}
 	return nil

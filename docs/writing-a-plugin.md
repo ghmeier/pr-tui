@@ -305,7 +305,10 @@ it uses itself (for example `f`, `r`, `q`, `tab`, and the focus keys `left`, `ri
 A board is a tab of its own unless it sets `Tab`. Boards that set the same `Tab` share one tab
 with that title and are drawn side by side, each with its own cursor and filters; the keys apply
 to the board with the focus. A board that needs fresher data than the rest can set
-`RefreshInterval` to reload on its own schedule instead of the configured `refresh_interval`.
+`RefreshInterval` to reload on its own schedule instead of the configured `refresh_interval`, and
+`Busy` to say when the loaded rows have nothing in progress, so that it is only quick while there
+is something to watch. Each board schedules its next load when its previous one finishes, and a
+board in a tab that is not shown never reloads faster than the configured interval.
 
 All external commands go through `shell.Run`, which is what tests replace.
 

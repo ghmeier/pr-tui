@@ -219,8 +219,14 @@ type Board struct {
 	// was registered. Boards without a Tab get a tab of their own, titled by Title.
 	Tab string
 	// RefreshInterval, when set, is how often this board reloads instead of the configured
-	// refresh_interval.
+	// refresh_interval, unless Busy says there is nothing in progress. A board whose tab is not
+	// shown never reloads faster than the configured refresh_interval.
 	RefreshInterval time.Duration
+	// Busy is optional. When it is set and reports false for the loaded rows, the board
+	// refreshes at the configured refresh_interval instead of its RefreshInterval, so a board
+	// that only needs to be quick while something is in progress does not stay quick. It runs on
+	// the update loop and must return quickly.
+	Busy func(rows []Row) bool
 	// RowNoun says what the rows are, such as "open pull requests", for the status line.
 	RowNoun string
 	// Load fetches the rows. It runs on a background goroutine. State that it shares with a

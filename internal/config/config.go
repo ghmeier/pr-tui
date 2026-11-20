@@ -272,8 +272,10 @@ repositories = ["your-organization/your-repository"]
 # provider = "github"
 # Required. Each entry is "owner/name"; the owners may differ. A section can use its own list.
 # repositories = ["your-organization/your-repository", "your-organization/another-repository"]
-# How often the sections reload, so that running workflows stay current. A Go duration, at
-# least 1s; leave it out to use the refresh_interval above.
+# How often a runs or merge queue section reloads while something in it is in progress, so that
+# running workflows stay current. Otherwise the sections reload at the refresh_interval above, and
+# so do sections of tabs that are not on screen. A Go duration, at least 1s; leave it out to use
+# the refresh_interval above.
 # refresh_interval = "30s"
 #
 # With no sections, one tab titled "Recent runs" lists every recent run.

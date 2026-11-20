@@ -170,6 +170,8 @@ row when each can be at least 60 columns wide, and wrap onto further rows in a n
 [workflows]
 provider = "github"                # only "github" is supported; default "github"
 repositories = ["acme/storefront", "acme/billing"]   # required; owner/name
+# How often a runs or merge queue section refreshes while something in it is in progress. Otherwise
+# sections refresh at the top-level refresh_interval, and so do tabs that are not on screen.
 refresh_interval = "30s"           # a Go duration, at least 1s; default: the top-level refresh_interval
 
 [[workflows.sections]]

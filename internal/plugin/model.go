@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"cmp"
+	"math"
 	"slices"
 	"strconv"
 	"time"
@@ -68,8 +69,12 @@ type (
 		row        Row
 		err        error
 	}
-	// refreshTickMessage is the timer of one refresh interval going off.
-	refreshTickMessage struct{ interval time.Duration }
+	// refreshTickMessage is the refresh timer of one board going off. It is ignored when the
+	// board has started a newer timer since.
+	refreshTickMessage struct {
+		board      int
+		generation int
+	}
 )
 
 // tab is a group of boards drawn side by side, with the one that has the focus.
@@ -89,13 +94,16 @@ type Model struct {
 	// screenBoards is the board each open screen was opened for, parallel to screens.
 	screenBoards    []int
 	refreshInterval time.Duration
-	// startTimer starts the timer for the next scheduled refresh. Tests replace it, because a
-	// real timer would make them wait.
-	startTimer func(interval time.Duration) tea.Cmd
-	width      int
-	height     int
-	mode       mode
-	question   string
+	// startTimer returns a command that delivers the board's refresh tick after the delay. It is
+	// nil until Init sets it, so a model that is only driven by messages in a test starts no real
+	// timers. Tests that watch the timers set it themselves before Init.
+	startTimer func(board, generation int, delay time.Duration) tea.Cmd
+	// now is the clock that decides how old a board's data is. Tests replace it.
+	now      func() time.Time
+	width    int
+	height   int
+	mode     mode
+	question string
 	// pending is the effect waiting for an answer to its question, and pendingBoard the board
 	// it applies to, whether the question is a confirmation or a choice.
 	pending      Effect
@@ -107,7 +115,7 @@ type Model struct {
 
 // Model builds the interactive program for the boards the plugins registered.
 func (host *Host) Model() *Model {
-	model := &Model{refreshInterval: host.file.RefreshInterval, startTimer: startRefreshTimer, width: 120, height: 30}
+	model := &Model{refreshInterval: host.file.RefreshInterval, now: time.Now, width: 120, height: 30}
 	for index, spec := range host.boards {
 		next := &boardState{
 			spec:            spec,
@@ -169,13 +177,23 @@ func (m *Model) moveFocus(step int) {
 }
 
 // switchTab shows the next or previous tab, wrapping around, with the board that had its focus.
-func (m *Model) switchTab(step int) {
+// The boards of the tab catch up on what they missed while it was hidden.
+func (m *Model) switchTab(step int) tea.Cmd {
 	next := (m.currentTab() + step + len(m.tabs)) % len(m.tabs)
 	m.active = m.tabs[next].focused
+	var commands []tea.Cmd
+	for _, index := range m.tabs[next].boards {
+		commands = append(commands, m.loadWhenDue(index))
+	}
+	return tea.Batch(commands...)
 }
 
+// Init loads every board. Each board then schedules its own next load when its load finishes.
 func (m *Model) Init() tea.Cmd {
-	return tea.Batch(m.RefreshAll(), m.scheduleRefreshes())
+	if m.startTimer == nil {
+		m.startTimer = startRefreshTimer
+	}
+	return m.RefreshAll()
 }
 
 // RefreshAll reloads every board.
@@ -187,46 +205,69 @@ func (m *Model) RefreshAll() tea.Cmd {
 	return tea.Batch(commands...)
 }
 
-func startRefreshTimer(interval time.Duration) tea.Cmd {
-	return tea.Tick(interval, func(time.Time) tea.Msg { return refreshTickMessage{interval: interval} })
+func startRefreshTimer(board, generation int, delay time.Duration) tea.Cmd {
+	return tea.Tick(delay, func(time.Time) tea.Msg { return refreshTickMessage{board: board, generation: generation} })
 }
 
-// refreshIntervalOf is how often the board reloads: its own interval, or else the configured
-// one.
-func (m *Model) refreshIntervalOf(board *boardState) time.Duration {
-	return cmp.Or(board.spec.RefreshInterval, m.refreshInterval)
+// delayOf is how long the board waits after a load before the next one. A board that is quick
+// only while something is in progress is quick only then, and a board that is not on screen
+// waits at least the configured interval.
+func (m *Model) delayOf(board *boardState) time.Duration {
+	delay := m.refreshInterval
+	if board.spec.RefreshInterval > 0 && (board.spec.Busy == nil || board.spec.Busy(board.rows)) {
+		delay = board.spec.RefreshInterval
+	}
+	if board.tab != m.currentTab() {
+		delay = max(delay, m.refreshInterval)
+	}
+	return delay
 }
 
-// scheduleRefreshes starts one timer for each distinct refresh interval, so that boards on the
-// same interval reload together.
-func (m *Model) scheduleRefreshes() tea.Cmd {
-	var intervals []time.Duration
-	for _, board := range m.boards {
-		if interval := m.refreshIntervalOf(board); !slices.Contains(intervals, interval) {
-			intervals = append(intervals, interval)
-		}
+// ageOf is how long ago the board's newest load finished. A board that has not finished one
+// is as old as can be.
+func (m *Model) ageOf(board *boardState) time.Duration {
+	if board.finishedAt.IsZero() {
+		return math.MaxInt64
 	}
-	commands := make([]tea.Cmd, len(intervals))
-	for index, interval := range intervals {
-		commands[index] = m.startTimer(interval)
-	}
-	return tea.Batch(commands...)
+	return m.now().Sub(board.finishedAt)
 }
 
-// refreshBoardsOn reloads the boards that refresh on the interval.
-func (m *Model) refreshBoardsOn(interval time.Duration) tea.Cmd {
-	var commands []tea.Cmd
-	for index, board := range m.boards {
-		if m.refreshIntervalOf(board) == interval {
-			commands = append(commands, m.load(index))
-		}
+// scheduleRefresh starts the board's next timer, which makes any earlier timer of the board
+// out of date.
+func (m *Model) scheduleRefresh(index int, delay time.Duration) tea.Cmd {
+	if m.startTimer == nil {
+		return nil
 	}
-	return tea.Batch(commands...)
+	board := m.boards[index]
+	board.timerGeneration++
+	return m.startTimer(index, board.timerGeneration, delay)
+}
+
+// refreshDue handles a board's timer going off. A timer that has been replaced does nothing.
+func (m *Model) refreshDue(message refreshTickMessage) tea.Cmd {
+	if message.generation != m.boards[message.board].timerGeneration {
+		return nil
+	}
+	return m.loadWhenDue(message.board)
+}
+
+// loadWhenDue loads the board if its data is older than its delay, and otherwise waits out the
+// rest of the delay. A board that is loading does nothing.
+func (m *Model) loadWhenDue(index int) tea.Cmd {
+	board := m.boards[index]
+	if board.loading {
+		return nil
+	}
+	if age, delay := m.ageOf(board), m.delayOf(board); age < delay {
+		return m.scheduleRefresh(index, delay-age)
+	}
+	return m.load(index)
 }
 
 func (m *Model) load(index int) tea.Cmd {
 	board := m.boards[index]
 	board.loadGeneration++
+	board.loading = true
 	generation := board.loadGeneration
 	load := board.spec.Load
 	return func() tea.Msg {
@@ -341,14 +382,15 @@ func (m *Model) update(message tea.Msg) tea.Cmd {
 		return m.runBoardAction(message.board, board.selectionOf(row), message.key)
 	case loadedMessage:
 		board := m.boards[message.board]
-		if message.generation < board.rowsGeneration {
-			return nil
+		commands := m.applyLoaded(message)
+		// Only the newest load schedules the next one, so that a result overtaken by a newer
+		// load does not start a second timer.
+		if message.generation == board.loadGeneration {
+			board.loading = false
+			board.finishedAt = m.now()
+			commands = append(commands, m.scheduleRefresh(message.board, m.delayOf(board)))
 		}
-		if message.err != nil {
-			board.notice = "Refresh failed: " + ui.FirstLine(message.err)
-			return nil
-		}
-		return tea.Batch(m.finishLoad(message.board, message.rows, message.generation)...)
+		return tea.Batch(commands...)
 	case rowReloadedMessage:
 		board := m.boards[message.board]
 		if message.generation < board.rowsGeneration {
@@ -388,7 +430,7 @@ func (m *Model) update(message tea.Msg) tea.Cmd {
 			board.reportFinished(message.successNotice)
 		}
 	case refreshTickMessage:
-		return tea.Batch(m.refreshBoardsOn(message.interval), m.startTimer(message.interval))
+		return m.refreshDue(message)
 	case tea.MouseMsg:
 		if len(m.screens) > 0 {
 			return m.updateEveryScreen(message)
@@ -410,6 +452,20 @@ func (m *Model) update(message tea.Msg) tea.Cmd {
 		return m.updateEveryScreen(message)
 	}
 	return nil
+}
+
+// applyLoaded shows a load's rows, or its failure, unless a newer load's rows are already
+// shown, and returns the commands that fetch the rows' column data.
+func (m *Model) applyLoaded(message loadedMessage) []tea.Cmd {
+	board := m.boards[message.board]
+	if message.generation < board.rowsGeneration {
+		return nil
+	}
+	if message.err != nil {
+		board.notice = "Refresh failed: " + ui.FirstLine(message.err)
+		return nil
+	}
+	return m.finishLoad(message.board, message.rows, message.generation)
 }
 
 func (m *Model) updateTopScreen(message tea.Msg) tea.Cmd {
@@ -481,9 +537,9 @@ func (m *Model) handleKey(key string) tea.Cmd {
 	case "right", "l":
 		m.moveFocus(1)
 	case "tab":
-		m.switchTab(1)
+		return m.switchTab(1)
 	case "shift+tab":
-		m.switchTab(-1)
+		return m.switchTab(-1)
 	default:
 		return m.runAction(key)
 	}

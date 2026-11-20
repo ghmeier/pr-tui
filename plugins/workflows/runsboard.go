@@ -26,6 +26,12 @@ func runsBoard(provider Provider, configured section) plugin.Board {
 		Tab:     tabTitle,
 		RowNoun: "runs",
 		Load:    func() ([]plugin.Row, error) { return loadRuns(provider, configured) },
+		Busy: func(rows []plugin.Row) bool {
+			return slices.ContainsFunc(rows, func(row plugin.Row) bool {
+				status := runOf(row).Status
+				return status == RunStatusQueued || status == RunStatusRunning
+			})
+		},
 		Columns: []plugin.Column{
 			textColumn("Status", 0, false, func(row plugin.Row) string { return runOf(row).Status.mark() }),
 			textColumn("Repo", 0, false, func(row plugin.Row) string { return runOf(row).Repository.Name }),
