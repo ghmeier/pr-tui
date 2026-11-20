@@ -67,7 +67,7 @@ func TestRunKeyOnAWorkflowWithoutTheManualTriggerShowsANoticeAndOpensNoForm(t *t
 	plugintest.Press(t, model, "x")
 
 	assertShows(t, model, checks.Name+" cannot be started by hand")
-	assertHides(t, model, "Run "+checks.Name+" in", "ctrl+s")
+	assertHides(t, model, "Start "+checks.Name+" in", "ctrl+s")
 }
 
 func TestRunKeyOnAWorkflowWithTheManualTriggerOpensTheFormUnderAHeaderNamingTheRepository(t *testing.T) {
@@ -76,7 +76,7 @@ func TestRunKeyOnAWorkflowWithTheManualTriggerOpensTheFormUnderAHeaderNamingTheR
 
 	model := openedForm(t, provider)
 
-	assertShows(t, model, "Run "+deploy.Name+" in "+deploy.Repository.FullName())
+	assertShows(t, model, "Start "+deploy.Name+" in "+deploy.Repository.FullName())
 }
 
 func TestFormListsTheBranchAndThenTheInputsInDeclaredOrderWithTheirDefaults(t *testing.T) {
@@ -242,7 +242,7 @@ func TestSubmittingWithAnEmptyRequiredFieldMarksItAndDoesNotAsk(t *testing.T) {
 	if line := lineWith(model, branchLabel); strings.Contains(line, "required") {
 		t.Fatalf("the branch is drawn as %q", line)
 	}
-	assertHides(t, model, "Run "+deploy.Name+" in "+deploy.Repository.Name+" on")
+	assertHides(t, model, "Start "+deploy.Name+" in "+deploy.Repository.Name+" on")
 	plugintest.Press(t, model, "y")
 	assertNothingStarted(t, provider)
 }
@@ -288,7 +288,7 @@ func TestSubmittingAsksToConfirmWithTheValuesInTheQuestionAndStartsNothingYet(t 
 	model := openedForm(t, provider)
 	fillInCommand(t, model)
 
-	question := fmt.Sprintf("Run %s in %s on %s with environment=%s, size=%s, command=make deploy, verbose=true?",
+	question := fmt.Sprintf("Start %s in %s on %s with environment=%s, size=%s, command=make deploy, verbose=true?",
 		deploy.Name, deploy.Repository.Name, deploy.DefaultBranch, deploy.Inputs[0].Default, deploy.Inputs[1].Default)
 	assertShows(t, model, question)
 	assertHides(t, model, "replicas=", "ctrl+s")

@@ -197,7 +197,7 @@ func (screen *formScreen) submit() (plugin.Screen, tea.Cmd) {
 			given = append(given, field.name+"="+value)
 		}
 	}
-	question := fmt.Sprintf("Run %s in %s on %s", screen.workflow.Name, screen.workflow.Repository.Name, branch)
+	question := fmt.Sprintf("Start %s in %s on %s", screen.workflow.Name, screen.workflow.Repository.Name, branch)
 	if len(given) > 0 {
 		question += " with " + strings.Join(given, ", ")
 	}
@@ -269,7 +269,7 @@ func (screen *formScreen) help() string {
 
 // View scrolls so that the focused field stays on screen.
 func (screen *formScreen) View(width, height int) string {
-	title := ui.BoldStyle.Render("Run " + screen.workflow.Name + " in " + screen.workflow.Repository.FullName())
+	title := ui.BoldStyle.Render("Start " + screen.workflow.Name + " in " + screen.workflow.Repository.FullName())
 	lines, focusedLine := screen.fieldLines(width)
 	rows := max(height-formHeaderLines-formFooterLines, 1)
 	first := max(0, min(focusedLine-rows/2, len(lines)-rows))
