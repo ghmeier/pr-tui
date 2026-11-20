@@ -11,7 +11,9 @@ type boardState struct {
 	spec Board
 	// index is the board's position among the host's boards, which messages from background
 	// work carry back to find it.
-	index   int
+	index int
+	// tab is the position of the board's tab among the host's tabs.
+	tab     int
 	rows    []Row
 	visible []Row
 	// data holds, for each column, the values its fetches delivered, by row key.

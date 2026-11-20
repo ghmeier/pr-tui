@@ -326,7 +326,7 @@ func TestRefreshTickReloadsEveryBoardAndStartsTheNextTimer(t *testing.T) {
 	}
 	before := first.loadCount()
 
-	plugintest.Send(t, model, refreshTickMessage{})
+	plugintest.Send(t, model, refreshTickMessage{interval: model.refreshInterval})
 
 	if first.loadCount() != before+1 || second.loadCount() != before+1 {
 		t.Fatalf("loads = %d and %d after %d", first.loadCount(), second.loadCount(), before)

@@ -6,21 +6,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/ghmeier/pr-tui/internal/ui"
 )
 
+// tableRows is how many rows of its table the focused board shows.
 func (m *Model) tableRows() int {
-	rows := m.height - 4
-	if len(m.boards) > 1 {
-		rows--
-	}
-	if m.mode == filterMode {
-		rows -= lipgloss.Height(filterMenu(m.current().facets, m.current().menuCursor))
-	}
-	return max(rows, 1)
+	return m.paneOf(m.active).tableRows()
 }
 
 func (m *Model) statusLine(board *boardState) string {
@@ -38,7 +31,7 @@ func (m *Model) statusLine(board *boardState) string {
 	}
 	return ui.DimStyle.Render(fmt.Sprintf(
 		"%d of %d %s · updated %s · refreshes every %s",
-		len(board.visible), len(board.rows), board.spec.RowNoun, board.loadedAt.Format("15:04"), intervalText(m.refreshInterval),
+		len(board.visible), len(board.rows), board.spec.RowNoun, board.loadedAt.Format("15:04"), intervalText(m.refreshIntervalOf(board)),
 	))
 }
 
@@ -72,56 +65,35 @@ func (m *Model) help() string {
 	if len(m.current().facets) > 0 {
 		keysAndLabels = append(keysAndLabels, "f", "filters")
 	}
+	if len(m.tabs[m.currentTab()].boards) > 1 {
+		keysAndLabels = append(keysAndLabels, "←/→", "section")
+	}
 	return ui.HelpLine(append(keysAndLabels, "r", "refresh", "q", "quit")...)
 }
 
 func (m *Model) tabBar() string {
-	tabs := make([]string, len(m.boards))
-	for index, board := range m.boards {
-		if index == m.active {
-			tabs[index] = ui.SelectedStyle.Render(" " + board.spec.Title + " ")
+	tabs := make([]string, len(m.tabs))
+	for index, shown := range m.tabs {
+		if index == m.currentTab() {
+			tabs[index] = ui.SelectedStyle.Render(" " + shown.title + " ")
 		} else {
-			tabs[index] = ui.DimStyle.Render(" " + board.spec.Title + " ")
+			tabs[index] = ui.DimStyle.Render(" " + shown.title + " ")
 		}
 	}
 	return strings.Join(tabs, " ") + "  " + ui.HelpLine("tab", "next")
-}
-
-// aboveTable is everything drawn over the table: the tab bar when there is more than one board,
-// the summary of the filters, and the filter menu while it is open.
-func (m *Model) aboveTable() string {
-	board := m.current()
-	var sections []string
-	if len(m.boards) > 1 {
-		sections = append(sections, ansi.Truncate(m.tabBar(), m.width, "…"))
-	}
-	sections = append(sections, facetSummary(board.facets))
-	if m.mode == filterMode {
-		sections = append(sections, filterMenu(board.facets, board.menuCursor))
-	}
-	return strings.Join(sections, "\n")
-}
-
-// firstRowLine is the line of the screen where the table's first row is drawn, below the lines
-// above the table and the header.
-func (m *Model) firstRowLine() int {
-	return strings.Count(m.aboveTable(), "\n") + 2
 }
 
 func (m *Model) View() string {
 	if len(m.screens) > 0 {
 		return m.viewTopScreen()
 	}
-	board := m.current()
-	rows := m.tableRows()
-	table := board.table(m.width, board.cursor, board.offset, rows)
-	blankLines := rows + 1 - lipgloss.Height(table)
-	return strings.Join([]string{
-		m.aboveTable(),
-		table + strings.Repeat("\n", max(blankLines, 0)),
-		ansi.Truncate(m.statusLine(board), m.width, "…"),
+	lines := m.aboveLines(m.currentTab())
+	lines = append(lines, m.renderPanes(m.panesOf(m.currentTab()))...)
+	lines = append(lines,
+		ansi.Truncate(m.statusLine(m.current()), m.width, "…"),
 		ansi.Truncate(m.help(), m.width, "…"),
-	}, "\n")
+	)
+	return strings.Join(lines, "\n")
 }
 
 // viewTopScreen draws the top screen. While a question or choice is pending or its board has a

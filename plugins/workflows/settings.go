@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 )
 
 const (
@@ -37,7 +38,10 @@ type section struct {
 // boardSettings is what the boards need besides their provider.
 type boardSettings struct {
 	providerName string
-	sections     []section
+	// refreshInterval is how often the boards reload, or zero for the configured refresh_interval
+	// of the whole program.
+	refreshInterval time.Duration
+	sections        []section
 }
 
 // The statuses and triggers a section can filter on, in the order error messages list them.
@@ -83,9 +87,10 @@ type rawSection struct {
 // key, and a section's errors also name its title.
 func loadSettings(decodeSection func(name string, target any) error) (boardSettings, error) {
 	var raw struct {
-		Provider     string       `toml:"provider"`
-		Repositories []string     `toml:"repositories"`
-		Sections     []rawSection `toml:"sections"`
+		Provider        string       `toml:"provider"`
+		Repositories    []string     `toml:"repositories"`
+		RefreshInterval string       `toml:"refresh_interval"`
+		Sections        []rawSection `toml:"sections"`
 	}
 	if err := decodeSection(pluginName, &raw); err != nil {
 		return boardSettings{}, err
@@ -97,7 +102,11 @@ func loadSettings(decodeSection func(name string, target any) error) (boardSetti
 	if len(pluginRepositories) == 0 {
 		return boardSettings{}, fmt.Errorf(`[%s] repositories is required; list each one as "owner/name"`, pluginName)
 	}
-	loaded := boardSettings{providerName: cmp.Or(raw.Provider, defaultProviderName)}
+	refreshInterval, err := parseRefreshInterval(raw.RefreshInterval)
+	if err != nil {
+		return boardSettings{}, err
+	}
+	loaded := boardSettings{providerName: cmp.Or(raw.Provider, defaultProviderName), refreshInterval: refreshInterval}
 	if len(raw.Sections) == 0 {
 		loaded.sections = []section{{title: defaultSectionTitle, repositories: pluginRepositories, limit: defaultLimit}}
 		return loaded, nil
@@ -115,6 +124,22 @@ func loadSettings(decodeSection func(name string, target any) error) (boardSetti
 		loaded.sections = append(loaded.sections, parsed)
 	}
 	return loaded, nil
+}
+
+// parseRefreshInterval reads the interval at which the boards reload. Text that is left out
+// gives zero, which means the interval of the whole program.
+func parseRefreshInterval(text string) (time.Duration, error) {
+	if text == "" {
+		return 0, nil
+	}
+	interval, err := time.ParseDuration(text)
+	if err != nil {
+		return 0, fmt.Errorf(`[%s] refresh_interval %q is not a duration such as "30s" or "2m"`, pluginName, text)
+	}
+	if interval < time.Second {
+		return 0, fmt.Errorf("[%s] refresh_interval %q must be at least one second", pluginName, text)
+	}
+	return interval, nil
 }
 
 // parseSection checks one section. The repositories of the plugin apply unless the section

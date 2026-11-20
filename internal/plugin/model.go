@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"cmp"
 	"slices"
 	"strconv"
 	"time"
@@ -67,12 +68,22 @@ type (
 		row        Row
 		err        error
 	}
-	refreshTickMessage struct{}
+	// refreshTickMessage is the timer of one refresh interval going off.
+	refreshTickMessage struct{ interval time.Duration }
 )
+
+// tab is a group of boards drawn side by side, with the one that has the focus.
+type tab struct {
+	title   string
+	boards  []int
+	focused int
+}
 
 // Model is the root Bubble Tea model: the boards with their tabs, and the screens above them.
 type Model struct {
-	boards  []*boardState
+	boards []*boardState
+	tabs   []tab
+	// active is the board with the focus, which also says which tab is shown.
 	active  int
 	screens []Screen
 	// screenBoards is the board each open screen was opened for, parallel to screens.
@@ -111,17 +122,60 @@ func (host *Host) Model() *Model {
 		for _, facet := range spec.Facets {
 			next.facets = append(next.facets, newFacetState(facet))
 		}
+		next.tab = model.tabFor(spec, index)
 		model.boards = append(model.boards, next)
 	}
 	return model
+}
+
+// tabFor finds the tab the board at the given index belongs in, adding the board to it. A
+// board that names a tab joins the first tab with that title, and any other board gets a tab of
+// its own.
+func (m *Model) tabFor(spec Board, index int) int {
+	if spec.Tab != "" {
+		for position := range m.tabs {
+			if m.tabs[position].title == spec.Tab {
+				m.tabs[position].boards = append(m.tabs[position].boards, index)
+				return position
+			}
+		}
+	}
+	title := cmp.Or(spec.Tab, spec.Title)
+	m.tabs = append(m.tabs, tab{title: title, boards: []int{index}, focused: index})
+	return len(m.tabs) - 1
 }
 
 func (m *Model) current() *boardState {
 	return m.boards[m.active]
 }
 
+func (m *Model) currentTab() int {
+	return m.current().tab
+}
+
+// focus gives a board the focus, and its tab remembers that.
+func (m *Model) focus(index int) {
+	m.active = index
+	m.tabs[m.boards[index].tab].focused = index
+}
+
+// moveFocus moves the focus to the neighbouring board of the same tab, and stops at the ends.
+func (m *Model) moveFocus(step int) {
+	boards := m.tabs[m.currentTab()].boards
+	next := slices.Index(boards, m.active) + step
+	if next >= 0 && next < len(boards) {
+		m.focus(boards[next])
+	}
+}
+
+// switchTab shows the next or previous tab, wrapping around, with the board that had its focus.
+func (m *Model) switchTab(step int) {
+	next := (m.currentTab() + step + len(m.tabs)) % len(m.tabs)
+	m.active = m.tabs[next].focused
+}
+
 func (m *Model) Init() tea.Cmd {
-	return tea.Batch(m.RefreshAll(), m.scheduleRefresh())
+	return tea.Batch(m.RefreshAll(), m.scheduleRefreshes())
 }
 
 // RefreshAll reloads every board.
@@ -134,11 +188,40 @@ func (m *Model) RefreshAll() tea.Cmd {
 }
 
 func startRefreshTimer(interval time.Duration) tea.Cmd {
-	return tea.Tick(interval, func(time.Time) tea.Msg { return refreshTickMessage{} })
+	return tea.Tick(interval, func(time.Time) tea.Msg { return refreshTickMessage{interval: interval} })
 }
 
-func (m *Model) scheduleRefresh() tea.Cmd {
-	return m.startTimer(m.refreshInterval)
+// refreshIntervalOf is how often the board reloads: its own interval, or else the configured
+// one.
+func (m *Model) refreshIntervalOf(board *boardState) time.Duration {
+	return cmp.Or(board.spec.RefreshInterval, m.refreshInterval)
+}
+
+// scheduleRefreshes starts one timer for each distinct refresh interval, so that boards on the
+// same interval reload together.
+func (m *Model) scheduleRefreshes() tea.Cmd {
+	var intervals []time.Duration
+	for _, board := range m.boards {
+		if interval := m.refreshIntervalOf(board); !slices.Contains(intervals, interval) {
+			intervals = append(intervals, interval)
+		}
+	}
+	commands := make([]tea.Cmd, len(intervals))
+	for index, interval := range intervals {
+		commands[index] = m.startTimer(interval)
+	}
+	return tea.Batch(commands...)
+}
+
+// refreshBoardsOn reloads the boards that refresh on the interval.
+func (m *Model) refreshBoardsOn(interval time.Duration) tea.Cmd {
+	var commands []tea.Cmd
+	for index, board := range m.boards {
+		if m.refreshIntervalOf(board) == interval {
+			commands = append(commands, m.load(index))
+		}
+	}
+	return tea.Batch(commands...)
 }
 
 func (m *Model) load(index int) tea.Cmd {
@@ -230,10 +313,10 @@ func (m *Model) finishRowReload(message rowReloadedMessage) []tea.Cmd {
 }
 
 func (m *Model) keepCursorVisible() {
-	for _, board := range m.boards {
+	for index, board := range m.boards {
 		board.cursor = max(0, min(board.cursor, len(board.visible)-1))
 		board.offset = min(board.offset, board.cursor)
-		board.offset = max(board.offset, board.cursor-m.tableRows()+1)
+		board.offset = max(board.offset, board.cursor-m.paneOf(index).tableRows()+1)
 	}
 }
 
@@ -305,7 +388,7 @@ func (m *Model) update(message tea.Msg) tea.Cmd {
 			board.reportFinished(message.successNotice)
 		}
 	case refreshTickMessage:
-		return tea.Batch(m.RefreshAll(), m.scheduleRefresh())
+		return tea.Batch(m.refreshBoardsOn(message.interval), m.startTimer(message.interval))
 	case tea.MouseMsg:
 		if len(m.screens) > 0 {
 			return m.updateEveryScreen(message)
@@ -393,10 +476,14 @@ func (m *Model) handleKey(key string) tea.Cmd {
 	case "r":
 		board.notice = "Refreshing…"
 		return m.load(m.active)
+	case "left", "h":
+		m.moveFocus(-1)
+	case "right", "l":
+		m.moveFocus(1)
 	case "tab":
-		m.active = (m.active + 1) % len(m.boards)
+		m.switchTab(1)
 	case "shift+tab":
-		m.active = (m.active + len(m.boards) - 1) % len(m.boards)
+		m.switchTab(-1)
 	default:
 		return m.runAction(key)
 	}

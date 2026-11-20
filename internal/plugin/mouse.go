@@ -18,35 +18,54 @@ var now = time.Now
 // cellClick remembers a left click on a cell. A row is identified by its key, because the
 // rows may be reordered or reloaded between the two clicks of a double click.
 type cellClick struct {
+	board  int
 	rowKey string
 	column int
 	at     time.Time
 }
 
-// handleMouse applies a mouse event to the board. While a filter menu, question, or choice is
-// open, the mouse does nothing.
+// handleMouse applies a mouse event to the pane it happened in. While a filter menu, question,
+// or choice is open, the mouse does nothing.
 func (m *Model) handleMouse(event tea.MouseMsg) tea.Cmd {
 	if m.mode != boardMode {
 		return nil
 	}
-	board := m.current()
 	switch {
 	case event.Button == tea.MouseButtonWheelUp && event.Action == tea.MouseActionPress:
-		board.cursor--
+		m.scrollPaneAt(event.X, event.Y, -1)
 	case event.Button == tea.MouseButtonWheelDown && event.Action == tea.MouseActionPress:
-		board.cursor++
+		m.scrollPaneAt(event.X, event.Y, 1)
 	case event.Button == tea.MouseButtonLeft && event.Action == tea.MouseActionPress:
 		return m.handleClick(event.X, event.Y)
 	}
 	return nil
 }
 
-// handleClick selects the row that was clicked, and copies the cell's text when the click is the
-// second on that cell within the double click interval.
+// scrollPaneAt moves the cursor of the board under the pointer, without changing the focus. A
+// tab with one board scrolls it wherever the pointer is.
+func (m *Model) scrollPaneAt(x, y, step int) {
+	panes := m.panesOf(m.currentTab())
+	target, found := m.paneAt(x, y)
+	if !found && len(panes) == 1 {
+		target, found = panes[0], true
+	}
+	if found {
+		m.boards[target.board].cursor += step
+	}
+}
+
+// handleClick focuses the pane that was clicked and selects the row that was clicked, and
+// copies the cell's text when the click is the second on that cell within the double click
+// interval.
 func (m *Model) handleClick(x, y int) tea.Cmd {
-	board := m.current()
-	rowOnScreen := y - m.firstRowLine()
-	if rowOnScreen < 0 || rowOnScreen >= m.tableRows() || x < 0 || x >= m.width {
+	clicked, found := m.paneAt(x, y)
+	if !found {
+		return nil
+	}
+	m.focus(clicked.board)
+	board := m.boards[clicked.board]
+	rowOnScreen := y - clicked.headerLine() - 1
+	if rowOnScreen < 0 || rowOnScreen >= clicked.tableRows() {
 		return nil
 	}
 	rowIndex := board.offset + rowOnScreen
@@ -54,17 +73,17 @@ func (m *Model) handleClick(x, y int) tea.Cmd {
 		return nil
 	}
 	cells := board.cells()
-	column, found := columnAt(columnWidths(board.spec.Columns, cells, m.width), x)
+	column, found := columnAt(columnWidths(board.spec.Columns, cells, clicked.width), x-clicked.x)
 	if !found {
 		return nil
 	}
 	board.cursor = rowIndex
 
 	row := board.visible[rowIndex]
-	click := cellClick{rowKey: row.Key(), column: column, at: now()}
+	click := cellClick{board: clicked.board, rowKey: row.Key(), column: column, at: now()}
 	previous := m.lastClick
 	m.lastClick = click
-	isDoubleClick := previous.rowKey == click.rowKey && previous.column == click.column &&
+	isDoubleClick := previous.board == click.board && previous.rowKey == click.rowKey && previous.column == click.column &&
 		click.at.Sub(previous.at) <= doubleClickInterval
 	if !isDoubleClick {
 		return nil
@@ -74,7 +93,6 @@ func (m *Model) handleClick(x, y int) tea.Cmd {
 	if text == "" {
 		return nil
 	}
-	boardIndex := m.active
-	return m.startCommand(boardIndex, func() error { return writeClipboard(text) },
+	return m.startCommand(clicked.board, func() error { return writeClipboard(text) },
 		commandFinishedMessage{successNotice: "Copied " + text})
 }

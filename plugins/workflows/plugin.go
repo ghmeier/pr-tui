@@ -11,6 +11,9 @@ import (
 
 const pluginName = "workflows"
 
+// tabTitle is the one tab that every section is a pane of.
+const tabTitle = "Workflows"
+
 func init() {
 	plugin.Register(&workflowsPlugin{})
 }
@@ -32,12 +35,15 @@ func (*workflowsPlugin) Setup(host *plugin.Host) error {
 		return err
 	}
 	for _, configured := range settings.sections {
+		var board plugin.Board
 		switch configured.kind {
 		case sectionKindRuns:
-			host.AddBoard(runsBoard(provider, configured))
+			board = runsBoard(provider, configured)
 		case sectionKindWorkflows:
-			host.AddBoard(workflowsBoard(provider, configured))
+			board = workflowsBoard(provider, configured)
 		}
+		board.RefreshInterval = settings.refreshInterval
+		host.AddBoard(board)
 	}
 	return nil
 }

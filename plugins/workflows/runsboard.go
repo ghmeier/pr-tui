@@ -23,17 +23,18 @@ func runsBoard(provider Provider, configured section) plugin.Board {
 	return plugin.Board{
 		Name:    boardName(configured.title),
 		Title:   configured.title,
+		Tab:     tabTitle,
 		RowNoun: "runs",
 		Load:    func() ([]plugin.Row, error) { return loadRuns(provider, configured) },
 		Columns: []plugin.Column{
+			textColumn("Status", 0, false, func(row plugin.Row) string { return runOf(row).Status.mark() }),
 			textColumn("Repo", 0, false, func(row plugin.Row) string { return runOf(row).Repository.Name }),
 			textColumn("Workflow", 24, false, func(row plugin.Row) string { return runOf(row).Workflow }),
 			textColumn("Title", 0, true, func(row plugin.Row) string { return runOf(row).Title }),
-			textColumn("Branch", 30, false, func(row plugin.Row) string { return runOf(row).Branch }),
-			textColumn("Trigger", 0, false, func(row plugin.Row) string { return runOf(row).Trigger.word() }),
-			textColumn("Status", 0, false, func(row plugin.Row) string { return runOf(row).Status.mark() }),
 			textColumn("Started", 0, false, func(row plugin.Row) string { return ageText(runOf(row).startedAt()) }),
 			textColumn("Duration", 0, false, func(row plugin.Row) string { return runDuration(runOf(row)) }),
+			textColumn("Branch", 30, false, func(row plugin.Row) string { return runOf(row).Branch }),
+			textColumn("Trigger", 0, false, func(row plugin.Row) string { return runOf(row).Trigger.word() }),
 		},
 		Actions: []plugin.Action{
 			{Key: "enter", Label: "jobs", Run: func(selection plugin.Selection) plugin.Effect {

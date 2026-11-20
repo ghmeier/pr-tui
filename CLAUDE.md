@@ -48,7 +48,7 @@ contribution can target a board that another plugin owns:
 
 | Contribution | What it is |
 | --- | --- |
-| Board | A tab. The plugin supplies how to load rows, the columns, actions, and filter facets. The host owns the table, cursor, filter menu, refresh, status line, confirmation prompt, and tabs. |
+| Board | A tab, or one pane of a tab that several boards share through `Board.Tab`. The plugin supplies how to load rows, the columns, actions, and filter facets. The host owns the table, cursor, filter menu, refresh, status line, confirmation prompt, and tabs. |
 | Column | A column on any board, with an optional background loader that delivers values keyed by row. |
 | Action | A key on a board's rows. It returns an `Effect` that describes what to do (notice, confirmation, command, refresh, screen) and the host carries it out. |
 | Screen | A full-screen view that an action opens, such as the diff view. A screen keeps the `Selection` it was opened with and calls `selection.Run(effect)` to have the host do something for that board: set a notice, ask, run a command, refresh, or open another screen. |

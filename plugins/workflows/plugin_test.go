@@ -83,19 +83,48 @@ func TestWithoutSectionsOneBoardListsEveryRunNewestFirstAcrossRepositories(t *te
 	}
 }
 
-func TestEachSectionIsItsOwnBoardInTheOrderOfTheFile(t *testing.T) {
+func TestEverySectionIsAPaneOfOneTabInTheOrderOfTheFile(t *testing.T) {
 	model := startedModel(t, newFakeProvider(), deploysSection+nightlySection)
 
-	first := screen(model)
-	plugintest.Press(t, model, "tab")
-	second := screen(model)
+	titles := strings.Split(screen(model), "\n")[0]
 
-	if !strings.Contains(first, "Deploys") || !strings.Contains(first, "Scheduled") {
-		t.Fatalf("the tabs do not name both sections:%s", describe(model))
+	deploys, scheduled := strings.Index(titles, "Deploys"), strings.Index(titles, "Scheduled")
+	if deploys < 0 || scheduled < deploys {
+		t.Fatalf("the first line does not name both sections in order:%s", describe(model))
 	}
-	if first == second || !strings.Contains(second, "Workflow") || strings.Contains(second, "Duration") {
-		t.Fatalf("the second tab is not the workflows section:%s", describe(model))
+}
+
+func TestRightMovesTheFocusFromOneSectionToTheNext(t *testing.T) {
+	model := startedModel(t, newFakeProvider(), deploysSection+nightlySection)
+
+	onDeploys := lineWith(model, "of")
+	plugintest.Press(t, model, "right")
+
+	if !strings.Contains(onDeploys, "runs") || !strings.Contains(lineWith(model, "of"), "workflows") {
+		t.Fatalf("the status line before is %q and after is %q", onDeploys, lineWith(model, "of"))
 	}
+}
+
+func TestEverySectionBoardIsAPaneOfTheWorkflowsTab(t *testing.T) {
+	runs := runsBoard(newFakeProvider(), section{title: "Deploys", kind: sectionKindRuns})
+	workflows := workflowsBoard(newFakeProvider(), section{title: "Scheduled", kind: sectionKindWorkflows})
+
+	if runs.Tab != tabTitle || workflows.Tab != tabTitle {
+		t.Fatalf("tabs = %q and %q", runs.Tab, workflows.Tab)
+	}
+}
+
+func TestSectionBoardsRefreshOnTheConfiguredIntervalOfTheTable(t *testing.T) {
+	model := startedModel(t, newFakeProvider(), "refresh_interval = \"30s\"\n"+deploysSection)
+
+	assertShows(t, model, "refreshes every 30 seconds")
+}
+
+func TestSectionBoardsRefreshOnTheProgramsIntervalWithoutOneInTheTable(t *testing.T) {
+	model := startedModel(t, newFakeProvider(), deploysSection)
+
+	assertHides(t, model, "30 seconds")
+	assertShows(t, model, "refreshes every 3 minutes")
 }
 
 func TestRunsSectionKeepsOnlyTheRunsOfTheNamedWorkflows(t *testing.T) {
