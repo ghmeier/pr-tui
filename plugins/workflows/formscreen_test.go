@@ -48,6 +48,13 @@ func openedForm(t *testing.T, provider *fakeProvider) *plugin.Model {
 	return model
 }
 
+func assertNothingStarted(t *testing.T, provider *fakeProvider) {
+	t.Helper()
+	if started := provider.startedWorkflows(); len(started) != 0 {
+		t.Fatalf("started %v", started)
+	}
+}
+
 func deployWorkflow(provider *fakeProvider) Workflow {
 	return provider.workflows[storefrontRepository][0]
 }
@@ -237,9 +244,7 @@ func TestSubmittingWithAnEmptyRequiredFieldMarksItAndDoesNotAsk(t *testing.T) {
 	}
 	assertHides(t, model, "Run "+deploy.Name+" in "+deploy.Repository.Name+" on")
 	plugintest.Press(t, model, "y")
-	if started := provider.startedWorkflows(); len(started) != 0 {
-		t.Fatalf("started %v", started)
-	}
+	assertNothingStarted(t, provider)
 }
 
 func TestSubmittingWithAnEmptyBranchMarksTheBranch(t *testing.T) {
@@ -287,9 +292,7 @@ func TestSubmittingAsksToConfirmWithTheValuesInTheQuestionAndStartsNothingYet(t 
 		deploy.Name, deploy.Repository.Name, deploy.DefaultBranch, deploy.Inputs[0].Default, deploy.Inputs[1].Default)
 	assertShows(t, model, question)
 	assertHides(t, model, "replicas=", "ctrl+s")
-	if started := provider.startedWorkflows(); len(started) != 0 {
-		t.Fatalf("started %v", started)
-	}
+	assertNothingStarted(t, provider)
 }
 
 func TestConfirmingStartsTheWorkflowOnTheBranchWithTheEnteredValues(t *testing.T) {
@@ -322,9 +325,7 @@ func TestDecliningTheConfirmationStartsNothing(t *testing.T) {
 	fillInCommand(t, model)
 	plugintest.Press(t, model, "n")
 
-	if started := provider.startedWorkflows(); len(started) != 0 {
-		t.Fatalf("started %v", started)
-	}
+	assertNothingStarted(t, provider)
 }
 
 func TestSubmittingClosesTheForm(t *testing.T) {
@@ -342,9 +343,7 @@ func TestEscapeClosesTheFormWithoutStartingAnything(t *testing.T) {
 	plugintest.Press(t, model, "down", "down", "down", "make deploy", "esc", "y")
 
 	assertHides(t, model, "ctrl+s run")
-	if started := provider.startedWorkflows(); len(started) != 0 {
-		t.Fatalf("started %v", started)
-	}
+	assertNothingStarted(t, provider)
 }
 
 func TestFormHelpNamesTheKeysOfTheFocusedFieldOnly(t *testing.T) {

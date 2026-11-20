@@ -40,8 +40,28 @@ type formField struct {
 	problem string
 }
 
-func (field *formField) editsText() bool {
-	return field.kind != InputKindChoice && field.kind != InputKindBoolean
+// edit applies a key to the field: typing for text, left and right for a choice, and space for a
+// boolean.
+func (field *formField) edit(message tea.KeyMsg) {
+	switch field.kind {
+	case InputKindChoice:
+		if len(field.options) == 0 {
+			break
+		}
+		switch message.String() {
+		case "left", "h":
+			field.selected = (field.selected + len(field.options) - 1) % len(field.options)
+		case "right", "l":
+			field.selected = (field.selected + 1) % len(field.options)
+		}
+	case InputKindBoolean:
+		if message.String() == " " {
+			field.checked = !field.checked
+		}
+	default:
+		field.input, _ = field.input.Update(message)
+	}
+	field.problem = ""
 }
 
 func (field *formField) value() string {
@@ -138,31 +158,18 @@ func (screen *formScreen) handleKey(message tea.KeyMsg) (plugin.Screen, tea.Cmd)
 		screen.moveFocus(1)
 		return screen, nil
 	}
-	field := &screen.fields[screen.focused]
-	switch {
-	case field.editsText():
-		field.input, _ = field.input.Update(message)
-	case field.kind == InputKindChoice && len(field.options) > 0:
-		switch message.String() {
-		case "left", "h":
-			field.selected = (field.selected + len(field.options) - 1) % len(field.options)
-		case "right", "l":
-			field.selected = (field.selected + 1) % len(field.options)
-		}
-	case field.kind == InputKindBoolean:
-		if message.String() == " " {
-			field.checked = !field.checked
-		}
-	}
-	field.problem = ""
+	screen.fields[screen.focused].edit(message)
 	return screen, nil
 }
 
 func (screen *formScreen) moveFocus(step int) {
-	next := max(0, min(screen.focused+step, len(screen.fields)-1))
+	screen.focus(max(0, min(screen.focused+step, len(screen.fields)-1)))
+}
+
+func (screen *formScreen) focus(index int) {
 	screen.fields[screen.focused].input.Blur()
-	screen.focused = next
-	screen.fields[next].input.Focus()
+	screen.focused = index
+	screen.fields[index].input.Focus()
 }
 
 // submit hands the run to the board as an effect, which asks before anything starts. A field
@@ -176,7 +183,7 @@ func (screen *formScreen) submit() (plugin.Screen, tea.Cmd) {
 		}
 	}
 	if firstProblem >= 0 {
-		screen.moveFocus(firstProblem - screen.focused)
+		screen.focus(firstProblem)
 		return screen, nil
 	}
 
