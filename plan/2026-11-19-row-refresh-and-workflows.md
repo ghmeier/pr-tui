@@ -4,7 +4,7 @@ status: completed
 tags: [pull-requests, host, workflows]
 created: 2026-11-20
 updated: 2026-11-20
-next_step: Done; pull requests #2 to #8 merged. A release (v0.4.0) is the user's call.
+next_step: Done; pull requests #2 to #8 merged and released as v0.4.0.
 ---
 # Single-row refresh and a workflows board
 

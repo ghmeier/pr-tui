@@ -8,7 +8,7 @@ updated: 2026-11-20
 ---
 # Single-row refresh and the workflows tab
 
-Continues [the plan](../plan/2026-11-19-row-refresh-and-workflows.md). All steps merged: pull requests #2 to #8 on ghmeier/pr-tui. Not yet released; the last tag is v0.3.1.
+Continues [the plan](../plan/2026-11-19-row-refresh-and-workflows.md). All steps merged: pull requests #2 to #8 on ghmeier/pr-tui. Released as v0.4.0.
 
 ## What was built
 
@@ -38,7 +38,6 @@ Continues [the plan](../plan/2026-11-19-row-refresh-and-workflows.md). All steps
 
 ## Next steps
 
-- Tag a release, v0.4.0, when the user wants it.
 - Add workflows sections to the user's own `~/.config/prs/config.toml`.
 - Possible follow-ups:
   - share one in-flight workflow listing per repository at start-up;
