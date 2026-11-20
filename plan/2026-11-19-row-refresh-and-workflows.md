@@ -1,10 +1,10 @@
 ---
 title: Single-row refresh and a workflows board
-status: active
+status: completed
 tags: [pull-requests, host, workflows]
 created: 2026-11-20
 updated: 2026-11-20
-next_step: Step 2 (workflows-board) is with the implementer; then refactor pass, verify, open a pull request.
+next_step: Done; pull requests #2 to #6 merged. A release (v0.4.0) is the user's call.
 ---
 # Single-row refresh and a workflows board
 
@@ -164,6 +164,7 @@ A section with `kind = "runs"` also has a Workflow facet built from its rows.
    analytics.
 3. **`workflow-sections-side-by-side`**: host `Board.Tab` and `Board.RefreshInterval`,
    used by the workflows plugin so its sections share one tab.
+   Step 2 done: pull request #3, merged. Step 3 done: pull request #4, merged. Step 4 done: pull request #5, merged. Step 5 done: pull request #6, merged.
 4. **`merge-queue-section`**: the `merge_queue` kind.
 5. **`run-workflow`**: the inputs form, starting a workflow, and re-running a run. Tested
    with fakes only; never start a real workflow while verifying.
@@ -194,3 +195,7 @@ Steps 2 and 3 can be one pull request or two; the user is fine with either.
 - 2026-11-19: Step 1 notice rule: a failure notice stays until a load or a new effect replaces it; a success clears the notice only when no other command is running. Left alone: a full load that started while a command ran can still arrive after the row reload and briefly show the old state.
 - 2026-11-19: The user allowed merging these pull requests directly. Pull request #2 merged.
 - 2026-11-19: Workflow files are read in one GraphQL tree query per repository and parsed with gopkg.in/yaml.v3, cached for the life of the process.
+- 2026-11-19: Step 2: a runs section that names workflows fetches each workflow's runs separately, so `limit` is per workflow per repository; otherwise one busy workflow hid the deploys.
+- 2026-11-19: Step 3 layout: sections form a grid, at least 60 columns each, wrapping to more rows on a narrow terminal. One status and help line for the focused section. `[workflows] refresh_interval` sets the board's own interval.
+- 2026-11-19: Step 3: fixed pane placement after a separator (it used the byte length of "│", three, instead of its width, one) with a test against the drawn screen. Run rows now lead with status, then repository, workflow, title, start time, and duration, because a 66-column pane cut the status off. Checked live in tmux at 200 columns.
+- 2026-11-20: Step 5: the form heading and confirmation say "Start <workflow>", because "Run Run Command" read badly. Checked live by opening the form for gazebo's Run Command and cancelling; nothing was submitted.
