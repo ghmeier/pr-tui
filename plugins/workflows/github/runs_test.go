@@ -219,6 +219,37 @@ func TestLatestRunReportsAWorkflowThatNeverRan(t *testing.T) {
 	}
 }
 
+func TestLatestRunsAsksForTheRepositorysRecentRunsOnceAndKeepsTheNewestOfEachWorkflowFile(t *testing.T) {
+	stub := stubShell(t, `{"workflow_runs": [
+  {"id": 31, "name": "Deploy CI", "path": ".github/workflows/deploy.yaml", "head_branch": "main", "event": "push",
+   "status": "completed", "conclusion": "success", "created_at": "2026-11-10T14:00:00Z"},
+  {"id": 32, "name": "Checks", "path": ".github/workflows/checks.yml@refs/pull/9/merge", "head_branch": "fix", "event": "pull_request",
+   "status": "in_progress", "conclusion": null, "created_at": "2026-11-10T13:00:00Z"},
+  {"id": 33, "name": "Deploy CI", "path": ".github/workflows/deploy.yaml", "head_branch": "main", "event": "push",
+   "status": "completed", "conclusion": "failure", "created_at": "2026-11-10T12:00:00Z"}
+]}`)
+
+	latest, err := newProvider().LatestRuns(storefront)
+
+	if err != nil || len(latest) != 2 {
+		t.Fatalf("latest = %+v, error = %v", latest, err)
+	}
+	if latest["deploy.yaml"].ID != 31 || latest["checks.yml"].ID != 32 || latest["deploy.yaml"].Repository != storefront {
+		t.Fatalf("latest = %+v", latest)
+	}
+	stub.assertCommands(t, apiCommand("repos/acme/storefront/actions/runs?per_page=100"))
+}
+
+func TestLatestRunsFailsWhenGhFails(t *testing.T) {
+	stubShellWith(t, func([]string) ([]byte, error) { return nil, errorFromGh })
+
+	latest, err := newProvider().LatestRuns(storefront)
+
+	if err != errorFromGh || latest != nil {
+		t.Fatalf("latest = %v, error = %v", latest, err)
+	}
+}
+
 func TestJobsAsksForTheRunsJobsAndParsesTheirSteps(t *testing.T) {
 	stub := stubShell(t, `{"jobs": [
   {"name": "build", "status": "completed", "conclusion": "success", "started_at": "2026-11-10T12:00:00Z",

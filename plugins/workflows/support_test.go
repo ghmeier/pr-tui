@@ -35,9 +35,14 @@ type fakeProvider struct {
 	queues     map[Repository][]QueueEntry
 	failures   map[string]error
 	queries    []RunQuery
-	jobLoads   int
-	started    []startedWorkflow
-	reruns     []rerunRequest
+	// outsideRecentRuns names, by workflow file and repository, the workflows that have a latest
+	// run but none among the repository's recent runs.
+	outsideRecentRuns map[string]bool
+	recentRunLookups  []Repository
+	latestRunLookups  []string
+	jobLoads          int
+	started           []startedWorkflow
+	reruns            []rerunRequest
 }
 
 type startedWorkflow struct {
@@ -144,7 +149,8 @@ func newFakeProvider() *fakeProvider {
 				},
 			},
 		},
-		failures: map[string]error{},
+		failures:          map[string]error{},
+		outsideRecentRuns: map[string]bool{},
 	}
 }
 
@@ -185,9 +191,39 @@ func (fake *fakeProvider) Workflows(repository Repository) ([]Workflow, error) {
 	return fake.workflows[repository], fake.failures["Workflows"]
 }
 
+func (fake *fakeProvider) LatestRuns(repository Repository) (map[string]Run, error) {
+	fake.mutex.Lock()
+	defer fake.mutex.Unlock()
+	fake.recentRunLookups = append(fake.recentRunLookups, repository)
+	if err := fake.failures["LatestRuns"]; err != nil {
+		return nil, err
+	}
+	recent := map[string]Run{}
+	for _, workflow := range fake.workflows[repository] {
+		key := latestRunKey(workflow)
+		if run, exists := fake.latestRuns[key]; exists && !fake.outsideRecentRuns[key] {
+			recent[workflow.File] = run
+		}
+	}
+	return recent, nil
+}
+
+func (fake *fakeProvider) recentRunRepositories() []Repository {
+	fake.mutex.Lock()
+	defer fake.mutex.Unlock()
+	return slices.Clone(fake.recentRunLookups)
+}
+
+func (fake *fakeProvider) latestRunWorkflows() []string {
+	fake.mutex.Lock()
+	defer fake.mutex.Unlock()
+	return slices.Clone(fake.latestRunLookups)
+}
+
 func (fake *fakeProvider) LatestRun(workflow Workflow) (Run, bool, error) {
 	fake.mutex.Lock()
 	defer fake.mutex.Unlock()
+	fake.latestRunLookups = append(fake.latestRunLookups, latestRunKey(workflow))
 	run, exists := fake.latestRuns[latestRunKey(workflow)]
 	return run, exists, fake.failures["LatestRun"]
 }

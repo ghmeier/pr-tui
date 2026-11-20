@@ -3,6 +3,7 @@ package workflows
 import (
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/ghmeier/pr-tui/internal/plugin"
 	"github.com/ghmeier/pr-tui/internal/ui"
@@ -81,20 +82,58 @@ func loadWorkflows(provider Provider, configured section) ([]plugin.Row, error) 
 	return rowsOf(workflows, func(workflow Workflow) plugin.Row { return WorkflowRow{Workflow: workflow} }), nil
 }
 
-// fetchLastRuns makes one fetch for each workflow, so that a slow lookup leaves only its own
-// cell loading.
+// fetchLastRuns makes one fetch for each repository, so that a slow repository leaves only its
+// own cells loading. A fetch asks for the repository's recent runs once, which answers for most
+// workflows, and asks for the latest run of only the workflows that had none among them.
 func fetchLastRuns(provider Provider, rows []plugin.Row) []plugin.Fetch {
-	fetches := make([]plugin.Fetch, len(rows))
-	for index, row := range rows {
+	var repositories []Repository
+	rowsByRepository := map[Repository][]plugin.Row{}
+	for _, row := range rows {
+		repository := row.(WorkflowRow).Workflow.Repository
+		if _, seen := rowsByRepository[repository]; !seen {
+			repositories = append(repositories, repository)
+		}
+		rowsByRepository[repository] = append(rowsByRepository[repository], row)
+	}
+	fetches := make([]plugin.Fetch, len(repositories))
+	for index, repository := range repositories {
 		fetches[index] = func() (map[string]any, error) {
-			run, exists, err := provider.LatestRun(row.(WorkflowRow).Workflow)
-			if err != nil {
-				return nil, err
-			}
-			return map[string]any{row.Key(): lastRun{run: run, exists: exists}}, nil
+			return lastRunsOf(provider, repository, rowsByRepository[repository])
 		}
 	}
 	return fetches
+}
+
+// lastRunsOf loads the last run of the rows' workflows, which all belong to the repository. A
+// workflow whose own lookup fails is left out, so that it alone stays unloaded.
+func lastRunsOf(provider Provider, repository Repository, rows []plugin.Row) (map[string]any, error) {
+	recent, err := provider.LatestRuns(repository)
+	if err != nil {
+		return nil, err
+	}
+	values := map[string]any{}
+	var mutex sync.Mutex
+	var group sync.WaitGroup
+	for _, row := range rows {
+		workflow := row.(WorkflowRow).Workflow
+		if run, found := recent[workflow.File]; found {
+			values[row.Key()] = lastRun{run: run, exists: true}
+			continue
+		}
+		group.Add(1)
+		go func() {
+			defer group.Done()
+			run, exists, err := provider.LatestRun(workflow)
+			if err != nil {
+				return
+			}
+			mutex.Lock()
+			defer mutex.Unlock()
+			values[row.Key()] = lastRun{run: run, exists: exists}
+		}()
+	}
+	group.Wait()
+	return values, nil
 }
 
 func lastRunSegments(data any) []ui.Segment {

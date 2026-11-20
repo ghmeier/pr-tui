@@ -13,6 +13,9 @@ type Provider interface {
 	Runs(query RunQuery) ([]Run, error)
 	// Workflows lists the repository's workflows with their triggers and schedules.
 	Workflows(repository Repository) ([]Workflow, error)
+	// LatestRuns returns the most recent run of each workflow among the repository's recent
+	// runs, keyed by the workflow's file base name. Workflows without a recent run are absent.
+	LatestRuns(repository Repository) (map[string]Run, error)
 	// LatestRun returns the workflow's most recent run, and false when it has never run.
 	LatestRun(workflow Workflow) (Run, bool, error)
 	Jobs(run Run) ([]Job, error)

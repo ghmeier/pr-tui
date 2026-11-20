@@ -145,6 +145,26 @@ func (github *provider) Runs(query workflows.RunQuery) ([]workflows.Run, error) 
 	}), nil
 }
 
+// LatestRuns reads the repository's recent runs in one call and keeps the first run seen for
+// each workflow file, because GitHub lists the newest first.
+func (github *provider) LatestRuns(repository workflows.Repository) (map[string]workflows.Run, error) {
+	output, err := shell.Run("gh", "api", fmt.Sprintf("repos/%s/actions/runs?per_page=100", repository.FullName()))
+	if err != nil {
+		return nil, err
+	}
+	runs, err := parseRuns(repository, output)
+	if err != nil {
+		return nil, err
+	}
+	latest := map[string]workflows.Run{}
+	for _, run := range runs {
+		if _, seen := latest[run.WorkflowFile]; !seen {
+			latest[run.WorkflowFile] = run
+		}
+	}
+	return latest, nil
+}
+
 func (github *provider) LatestRun(workflow workflows.Workflow) (workflows.Run, bool, error) {
 	endpoint := fmt.Sprintf("repos/%s/actions/workflows/%s/runs?per_page=1", workflow.Repository.FullName(), workflow.File)
 	output, err := shell.Run("gh", "api", endpoint)

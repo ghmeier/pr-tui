@@ -27,6 +27,7 @@ func mergeQueueBoard(provider Provider, configured section) plugin.Board {
 		Tab:     tabTitle,
 		RowNoun: "queued pull requests",
 		Load:    func() ([]plugin.Row, error) { return loadMergeQueue(provider, configured) },
+		Busy:    func(rows []plugin.Row) bool { return len(rows) > 0 },
 		Columns: []plugin.Column{
 			textColumn("Checks", 0, false, func(row plugin.Row) string { return entryOf(row).Checks.mark() }),
 			textColumn("Repo", 0, false, func(row plugin.Row) string { return entryOf(row).Repository.Name }),

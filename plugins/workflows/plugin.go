@@ -44,7 +44,9 @@ func (*workflowsPlugin) Setup(host *plugin.Host) error {
 		case sectionKindMergeQueue:
 			board = mergeQueueBoard(provider, configured)
 		}
-		board.RefreshInterval = settings.refreshInterval
+		if board.Busy != nil {
+			board.RefreshInterval = settings.refreshInterval
+		}
 		host.AddBoard(board)
 	}
 	return nil
