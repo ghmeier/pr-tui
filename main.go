@@ -18,6 +18,8 @@ import (
 	_ "github.com/ghmeier/pr-tui/plugins/pullrequests"
 	_ "github.com/ghmeier/pr-tui/plugins/pullrequests/github"
 	_ "github.com/ghmeier/pr-tui/plugins/tickets"
+	_ "github.com/ghmeier/pr-tui/plugins/workflows"
+	_ "github.com/ghmeier/pr-tui/plugins/workflows/github"
 )
 
 // version is set by the release build. A build from source reports "dev".
