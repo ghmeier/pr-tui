@@ -301,3 +301,73 @@ func TestCIStatesRecordNoChecksForACommitWithoutAnyStatus(t *testing.T) {
 		t.Fatalf("states = %v, err = %v", states, err)
 	}
 }
+
+const cannedOpenPullRequest = `{"data": {"repository": {"pullRequest": {
+  "state": "OPEN", "number": 7, "title": "Ready with reviewers", "url": "https://example.test/storefront/7", "isDraft": false,
+  "headRefOid": "new-commit", "headRefName": "feature/seven", "updatedAt": "2026-11-10T13:00:00Z", "reviewDecision": "APPROVED",
+  "autoMergeRequest": {"enabledAt": "2026-11-10T09:00:00Z"},
+  "author": {"login": "person", "__typename": "User"},
+  "reviewRequests": {"nodes": [{"requestedReviewer": {"__typename": "Team", "slug": "engineering"}}]}
+}}}}`
+
+const cannedMergedPullRequest = `{"data": {"repository": {"pullRequest": {
+  "state": "MERGED", "number": 7, "title": "Ready with reviewers", "url": "https://example.test/storefront/7", "isDraft": false,
+  "updatedAt": "2026-11-10T13:00:00Z", "reviewDecision": "APPROVED", "author": {"login": "person", "__typename": "User"},
+  "reviewRequests": {"nodes": []}
+}}}}`
+
+func TestPullRequestAsksForOnePullRequestByNumber(t *testing.T) {
+	stub := stubShell(t, cannedOpenPullRequest)
+	pr := fixturePullRequest(storefront)
+
+	if _, _, err := providerFor(storefront).PullRequest(pr); err != nil {
+		t.Fatal(err)
+	}
+
+	stub.assertCommands(t, []string{
+		"gh", "api", "graphql", "-f", "query=" + pullRequestQuery,
+		"-f", "owner=" + storefront.Owner, "-f", "name=" + storefront.Name, "-F", fmt.Sprintf("number=%d", pr.Number),
+	})
+}
+
+func TestPullRequestReadsTheCurrentVersionOfAnOpenPullRequest(t *testing.T) {
+	stubShell(t, cannedOpenPullRequest)
+
+	current, open, err := providerFor(storefront).PullRequest(fixturePullRequest(storefront))
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := pullrequests.PullRequest{
+		Repository: storefront, Number: 7, Title: "Ready with reviewers", URL: "https://example.test/storefront/7",
+		Author: "person", HeadCommit: "new-commit", HeadBranch: "feature/seven", AutoMerge: true,
+		ReviewDecision: pullrequests.ReviewDecisionApproved, RequestedTeams: []string{"engineering"},
+		UpdatedAt: time.Date(2026, 11, 10, 13, 0, 0, 0, time.UTC),
+	}
+	if !open || !reflect.DeepEqual(current, expected) {
+		t.Fatalf("open = %v, pull request = %+v, expected %+v", open, current, expected)
+	}
+}
+
+func TestPullRequestReportsAMergedPullRequestAsNotOpen(t *testing.T) {
+	stubShell(t, cannedMergedPullRequest)
+
+	_, open, err := providerFor(storefront).PullRequest(fixturePullRequest(storefront))
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if open {
+		t.Fatalf("a merged pull request was reported as open")
+	}
+}
+
+func TestPullRequestReturnsTheFailureOfGh(t *testing.T) {
+	stubShellWith(t, func([]string) ([]byte, error) { return nil, errorFromGh })
+
+	_, _, err := providerFor(storefront).PullRequest(fixturePullRequest(storefront))
+
+	if err != errorFromGh {
+		t.Fatalf("err = %v", err)
+	}
+}

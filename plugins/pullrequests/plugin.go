@@ -70,11 +70,22 @@ func (pullRequests *pullRequestsPlugin) Setup(host *plugin.Host) error {
 		Title:   "Pull requests",
 		RowNoun: "open pull requests",
 		Load:    board.load,
+		Reload:  board.reload,
 		Columns: board.columns(),
 		Actions: board.actions(),
 		Facets:  board.facets(selected, pullRequests.showBots),
 	})
 	return nil
+}
+
+// reload returns nil when the pull request is no longer open, which takes it off the board.
+func (board *pullRequestBoard) reload(row plugin.Row) (plugin.Row, error) {
+	previous := row.(Row)
+	pr, open, err := board.provider.PullRequest(previous.PullRequest)
+	if err != nil || !open {
+		return nil, err
+	}
+	return Row{PullRequest: pr, Viewer: previous.Viewer}, nil
 }
 
 func (board *pullRequestBoard) load() ([]plugin.Row, error) {

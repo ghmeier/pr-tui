@@ -147,8 +147,12 @@ type Effect struct {
 	// Command runs on a background goroutine. A failure shows "Failed: " and its first line.
 	// State that it shares with a function that runs on the update loop needs a lock.
 	Command func() error
-	// Refresh reloads the board after Command succeeds.
+	// Refresh reloads the whole board after Command succeeds. It is an alternative to
+	// RefreshRow, which is cheaper when the command changed one row.
 	Refresh bool
+	// RefreshRow reloads only this row, with the board's Reload, after Command succeeds. A board
+	// without a Reload is reloaded whole, as Refresh does. It is an alternative to Refresh.
+	RefreshRow Row
 	// Screen, when set, opens a full-screen view.
 	Screen Screen
 }
@@ -203,7 +207,11 @@ type Board struct {
 	RowNoun string
 	// Load fetches the rows. It runs on a background goroutine. State that it shares with a
 	// function that runs on the update loop, such as Cell or Action.Run, needs a lock.
-	Load    func() ([]Row, error)
+	Load func() ([]Row, error)
+	// Reload is optional. It returns the current version of one row, or nil when the row no
+	// longer belongs on the board. It runs on a background goroutine, and it is what an
+	// Effect.RefreshRow uses instead of Load.
+	Reload  func(row Row) (Row, error)
 	Columns []Column
 	Actions []Action
 	Facets  []Facet

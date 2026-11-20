@@ -29,6 +29,8 @@ func (m *Model) statusLine(board *boardState) string {
 		return m.choice.line()
 	case m.mode == confirmMode:
 		return ui.KeyStyle.Render(m.question) + "  " + ui.HelpLine("y", "yes", "n", "no")
+	case board.notice != "" && board.running > 1:
+		return fmt.Sprintf("%s (%d running)", board.notice, board.running)
 	case board.notice != "":
 		return board.notice
 	case board.loadedAt.IsZero():

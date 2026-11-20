@@ -108,9 +108,9 @@ var errWorktrunkMissing = errors.New("v needs worktrunk (wt), which is not insta
 func (board *pullRequestBoard) toggleDraft(selection plugin.Selection) plugin.Effect {
 	pr := pullRequestOf(selection)
 	return plugin.Effect{
-		Notice:  pr.toggleDraftNotice(),
-		Command: func() error { return board.provider.SetDraft(pr, !pr.IsDraft) },
-		Refresh: true,
+		Notice:     pr.toggleDraftNotice(),
+		Command:    func() error { return board.provider.SetDraft(pr, !pr.IsDraft) },
+		RefreshRow: selection.Row,
 	}
 }
 
@@ -133,27 +133,29 @@ func (board *pullRequestBoard) chooseMerge(selection plugin.Selection) plugin.Ef
 		Options:  []string{mergeNowOption, autoMergeOption},
 		Pick: func(option string) plugin.Effect {
 			if option == mergeNowOption {
-				return board.mergeNow(pr)
+				return board.mergeNow(selection.Row)
 			}
-			return board.setAutoMerge(pr, option == enableAutoMergeOption)
+			return board.setAutoMerge(selection.Row, option == enableAutoMergeOption)
 		},
 	}}
 }
 
-func (board *pullRequestBoard) mergeNow(pr PullRequest) plugin.Effect {
+func (board *pullRequestBoard) mergeNow(row plugin.Row) plugin.Effect {
+	pr := row.(Row).PullRequest
 	return plugin.Effect{
-		Confirm: "Merge " + pr.label() + " now (squash)? This cannot be undone.",
-		Notice:  "Merging " + pr.label() + "…",
-		Command: func() error { return board.provider.Merge(pr) },
-		Refresh: true,
+		Confirm:    "Merge " + pr.label() + " now (squash)? This cannot be undone.",
+		Notice:     "Merging " + pr.label() + "…",
+		Command:    func() error { return board.provider.Merge(pr) },
+		RefreshRow: row,
 	}
 }
 
-func (board *pullRequestBoard) setAutoMerge(pr PullRequest, enabled bool) plugin.Effect {
+func (board *pullRequestBoard) setAutoMerge(row plugin.Row, enabled bool) plugin.Effect {
+	pr := row.(Row).PullRequest
 	return plugin.Effect{
-		Notice:  pr.autoMergeNotice(enabled),
-		Command: func() error { return board.provider.SetAutoMerge(pr, enabled) },
-		Refresh: true,
+		Notice:     pr.autoMergeNotice(enabled),
+		Command:    func() error { return board.provider.SetAutoMerge(pr, enabled) },
+		RefreshRow: row,
 	}
 }
 
@@ -167,10 +169,10 @@ func (board *pullRequestBoard) approve(selection plugin.Selection) plugin.Effect
 		return plugin.Effect{Notice: approveOwnPullRequestNotice}
 	}
 	return plugin.Effect{
-		Confirm: pr.approveQuestion(),
-		Notice:  pr.approveNotice(),
-		Command: func() error { return board.provider.Approve(pr) },
-		Refresh: true,
+		Confirm:    pr.approveQuestion(),
+		Notice:     pr.approveNotice(),
+		Command:    func() error { return board.provider.Approve(pr) },
+		RefreshRow: selection.Row,
 	}
 }
 
@@ -188,7 +190,7 @@ func (board *pullRequestBoard) requestTeamReview(selection plugin.Selection) plu
 			}
 			return board.provider.RequestTeamReview(pr)
 		},
-		Refresh: true,
+		RefreshRow: selection.Row,
 	}
 }
 

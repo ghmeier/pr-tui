@@ -29,6 +29,11 @@ type boardState struct {
 	cursor         int
 	offset         int
 	notice         string
+	// failure is the text of the last notice that reported a failure. A success does not clear
+	// a notice that still says so, because the failure has not been read yet.
+	failure string
+	// running counts the commands of effects that have started and not yet finished.
+	running int
 }
 
 func (board *boardState) selected() (Row, bool) {
@@ -90,6 +95,19 @@ func (board *boardState) selectionOf(row Row) Selection {
 		Data:       func(header string) any { return loaded[header] },
 		boardIndex: board.index,
 	}
+}
+
+// showsFailure says whether the notice is still the last failure.
+func (board *boardState) showsFailure() bool {
+	return board.failure != "" && board.notice == board.failure
+}
+
+// refreshFacetOptions rebuilds the facet options that come from the rows after the rows changed.
+func (board *boardState) refreshFacetOptions() {
+	for facet := range board.facets {
+		board.facets[facet].refreshOptionsFromRows(board.rows)
+	}
+	board.menuCursor = max(0, min(board.menuCursor, optionCount(board.facets)-1))
 }
 
 // rowWithKey finds a loaded row, whether or not the filters show it.

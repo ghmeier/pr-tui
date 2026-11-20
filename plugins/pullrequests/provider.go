@@ -13,6 +13,8 @@ type Provider interface {
 	// ReviewTeam is "" when no team is configured.
 	ReviewTeam() string
 	PullRequests() (pullRequests []PullRequest, viewer string, err error)
+	// PullRequest returns the pull request's current version and whether it is still open.
+	PullRequest(pullRequest PullRequest) (PullRequest, bool, error)
 	// LineCounts and CIStates are separate from PullRequests because they are slow to compute
 	// and the board should not wait for them. Both are keyed by pull request URL.
 	LineCounts(repository Repository) (map[string]LineCount, error)
