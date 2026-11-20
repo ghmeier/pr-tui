@@ -29,20 +29,20 @@ type pane struct {
 }
 
 // headerLine is the line of the screen where the table's header is drawn.
-func (p pane) headerLine() int {
-	if p.titled {
-		return p.y + 2
+func (shown pane) headerLine() int {
+	if shown.titled {
+		return shown.y + 2
 	}
-	return p.y
+	return shown.y
 }
 
 // tableRows is how many rows of the table fit under its header.
-func (p pane) tableRows() int {
-	return max(p.y+p.height-p.headerLine()-1, 1)
+func (shown pane) tableRows() int {
+	return max(shown.y+shown.height-shown.headerLine()-1, 1)
 }
 
-func (p pane) contains(x, y int) bool {
-	return x >= p.x && x < p.x+p.width && y >= p.y && y < p.y+p.height
+func (shown pane) contains(x, y int) bool {
+	return x >= shown.x && x < shown.x+shown.width && y >= shown.y && y < shown.y+shown.height
 }
 
 // aboveLines are the lines drawn over the panes of a tab: the tab bar when there is more than
@@ -124,24 +124,24 @@ func (m *Model) paneAt(x, y int) (pane, bool) {
 
 // renderPane draws a pane as exactly its height in lines. Only the focused pane shows its cursor
 // row, so that the one that keys apply to is clear.
-func (m *Model) renderPane(p pane) []string {
-	board := m.boards[p.board]
+func (m *Model) renderPane(shown pane) []string {
+	board := m.boards[shown.board]
 	var lines []string
-	if p.titled {
-		title := ansi.Truncate(board.spec.Title, p.width, "…")
-		if p.board == m.active {
+	if shown.titled {
+		title := ansi.Truncate(board.spec.Title, shown.width, "…")
+		if shown.board == m.active {
 			lines = append(lines, ui.SelectedStyle.Render(title))
 		} else {
 			lines = append(lines, ui.DimStyle.Bold(true).Render(title))
 		}
-		lines = append(lines, ansi.Truncate(facetSummary(board.facets), p.width, "…"))
+		lines = append(lines, ansi.Truncate(facetSummary(board.facets), shown.width, "…"))
 	}
 	selected := -1
-	if p.board == m.active {
+	if shown.board == m.active {
 		selected = board.cursor
 	}
-	lines = append(lines, strings.Split(board.table(p.width, selected, board.offset, p.tableRows()), "\n")...)
-	for len(lines) < p.height {
+	lines = append(lines, strings.Split(board.table(shown.width, selected, board.offset, shown.tableRows()), "\n")...)
+	for len(lines) < shown.height {
 		lines = append(lines, "")
 	}
 	return lines
@@ -161,13 +161,13 @@ func (m *Model) renderPanes(panes []pane) []string {
 			lines = append(lines, m.renderPane(row[0])...)
 		} else {
 			columns := make([][]string, len(row))
-			for index, p := range row {
-				columns[index] = m.renderPane(p)
+			for index, shown := range row {
+				columns[index] = m.renderPane(shown)
 			}
 			for line := range row[0].height {
 				cells := make([]string, len(row))
-				for index, p := range row {
-					cells[index] = padToWidth(columns[index][line], p.width)
+				for index, shown := range row {
+					cells[index] = padToWidth(columns[index][line], shown.width)
 				}
 				lines = append(lines, strings.Join(cells, paneSeparator))
 			}

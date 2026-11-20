@@ -83,12 +83,6 @@ func (m *Model) tabBar() string {
 	return strings.Join(tabs, " ") + "  " + ui.HelpLine("tab", "next")
 }
 
-// firstRowLine is the line of the screen where the focused board's first row is drawn, below
-// its header.
-func (m *Model) firstRowLine() int {
-	return m.paneOf(m.active).headerLine() + 1
-}
-
 func (m *Model) View() string {
 	if len(m.screens) > 0 {
 		return m.viewTopScreen()

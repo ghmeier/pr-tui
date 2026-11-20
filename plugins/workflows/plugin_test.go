@@ -109,7 +109,7 @@ func TestEverySectionBoardIsAPaneOfTheWorkflowsTab(t *testing.T) {
 	runs := runsBoard(newFakeProvider(), section{title: "Deploys", kind: sectionKindRuns})
 	workflows := workflowsBoard(newFakeProvider(), section{title: "Scheduled", kind: sectionKindWorkflows})
 
-	if runs.Tab != "Workflows" || workflows.Tab != "Workflows" {
+	if runs.Tab != tabTitle || workflows.Tab != tabTitle {
 		t.Fatalf("tabs = %q and %q", runs.Tab, workflows.Tab)
 	}
 }

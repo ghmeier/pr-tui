@@ -44,12 +44,12 @@ func cellPosition(model *Model, rowIndex, column int) (x, y int) {
 	for _, width := range widths[:column] {
 		x += width + len(columnGap)
 	}
-	return x, model.firstRowLine() + rowIndex - board.offset
+	return x, model.paneOf(model.active).headerLine() + 1 + rowIndex - board.offset
 }
 
 // headerPosition is where the table's header is drawn.
 func headerPosition(model *Model) (x, y int) {
-	return 0, model.firstRowLine() - 1
+	return 0, model.paneOf(model.active).headerLine()
 }
 
 func click(t *testing.T, model *Model, x, y int) {

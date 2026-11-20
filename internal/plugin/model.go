@@ -68,8 +68,7 @@ type (
 		row        Row
 		err        error
 	}
-	// refreshTickMessage is the timer of one refresh interval going off. A zero interval is the
-	// configured refresh_interval.
+	// refreshTickMessage is the timer of one refresh interval going off.
 	refreshTickMessage struct{ interval time.Duration }
 )
 
@@ -389,8 +388,7 @@ func (m *Model) update(message tea.Msg) tea.Cmd {
 			board.reportFinished(message.successNotice)
 		}
 	case refreshTickMessage:
-		interval := cmp.Or(message.interval, m.refreshInterval)
-		return tea.Batch(m.refreshBoardsOn(interval), m.startTimer(interval))
+		return tea.Batch(m.refreshBoardsOn(message.interval), m.startTimer(message.interval))
 	case tea.MouseMsg:
 		if len(m.screens) > 0 {
 			return m.updateEveryScreen(message)

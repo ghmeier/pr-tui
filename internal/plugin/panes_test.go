@@ -41,11 +41,17 @@ func threeSections(t *testing.T, width, height int) *Model {
 	return model
 }
 
+// soloBoard is a groceries board that is a tab of its own.
+func soloBoard() Board {
+	board := groceryBoard(newRowSource(groceries()...))
+	board.Name, board.Title = "solo", "Solo"
+	return board
+}
+
 func focusedTitle(model *Model) string { return model.current().spec.Title }
 
 func TestBoardsWithTheSameTabShareOneTabAtTheFirstOfTheirPositions(t *testing.T) {
-	solo := groceryBoard(newRowSource(groceries()...))
-	solo.Name, solo.Title = "solo", "Solo"
+	solo := soloBoard()
 	model := modelFor(t, boardsPlugin(
 		sectionBoard("fresh", "Fresh", newRowSource(groceries()...)),
 		solo,
@@ -61,8 +67,7 @@ func TestBoardsWithTheSameTabShareOneTabAtTheFirstOfTheirPositions(t *testing.T)
 }
 
 func TestTabBarListsTabsAndNotTheBoardsInsideThem(t *testing.T) {
-	solo := groceryBoard(newRowSource(groceries()...))
-	solo.Name, solo.Title = "solo", "Solo"
+	solo := soloBoard()
 	model := modelFor(t, boardsPlugin(
 		sectionBoard("fresh", "Fresh", newRowSource(groceries()...)),
 		sectionBoard("frozen", "Frozen", newRowSource(groceries()...)),
@@ -80,8 +85,7 @@ func TestTabBarListsTabsAndNotTheBoardsInsideThem(t *testing.T) {
 }
 
 func TestTabKeyReturnsToTheBoardThatHadTheFocusInEachTab(t *testing.T) {
-	solo := groceryBoard(newRowSource(groceries()...))
-	solo.Name, solo.Title = "solo", "Solo"
+	solo := soloBoard()
 	model := modelFor(t, boardsPlugin(
 		sectionBoard("fresh", "Fresh", newRowSource(groceries()...)),
 		sectionBoard("frozen", "Frozen", newRowSource(groceries()...)),
@@ -274,8 +278,13 @@ func TestEveryBoardTitleIsOnTheFirstPaneLine(t *testing.T) {
 			t.Fatalf("first line = %q, expected the title %q", first, title)
 		}
 	}
-	if len(lines(model)) != 50 {
-		t.Fatalf("the view has %d lines, expected 50", len(lines(model)))
+}
+
+func TestViewWithSidePanesFillsTheHeightOfTheTerminal(t *testing.T) {
+	model := threeSections(t, 200, 50)
+
+	if len(lines(model)) != model.height {
+		t.Fatalf("the view has %d lines, expected %d", len(lines(model)), model.height)
 	}
 }
 
@@ -298,7 +307,7 @@ func TestHelpLineOffersSectionKeysOnlyInATabWithSeveralBoards(t *testing.T) {
 	}
 }
 
-func TestStatusAndHelpLinesAreOfTheFocusedBoard(t *testing.T) {
+func TestStatusLineIsOfTheFocusedBoard(t *testing.T) {
 	model := threeSections(t, 200, 40)
 
 	plugintest.Press(t, model, "right")
@@ -507,10 +516,18 @@ func TestPrintOnceTitlesBoardsOfATabWithTheTabAndTheirOwnTitle(t *testing.T) {
 	}
 }
 
-func TestBoardsRejectNegativeRefreshIntervalsAndKeysTheHostUsesForFocus(t *testing.T) {
-	negative := groceryBoard(newRowSource(groceries()...))
-	negative.RefreshInterval = -time.Second
-	_, negativeErr := buildHost(t, `plugins = ["fake"]`, boardPlugin("fake", negative))
+func TestBoardWithANegativeRefreshIntervalIsRejected(t *testing.T) {
+	board := groceryBoard(newRowSource(groceries()...))
+	board.RefreshInterval = -time.Second
+
+	_, err := buildHost(t, `plugins = ["fake"]`, boardPlugin("fake", board))
+
+	if err == nil || !strings.Contains(err.Error(), "RefreshInterval") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestActionsOnTheFocusKeysAreRejected(t *testing.T) {
 	for _, key := range []string{"left", "right", "h", "l"} {
 		board := groceryBoard(newRowSource(groceries()...))
 		board.Actions = []Action{{Key: key, Run: doNothing}}
@@ -520,8 +537,5 @@ func TestBoardsRejectNegativeRefreshIntervalsAndKeysTheHostUsesForFocus(t *testi
 		if err == nil || !strings.Contains(err.Error(), "key the board uses itself") {
 			t.Errorf("action on %q: err = %v", key, err)
 		}
-	}
-	if negativeErr == nil || !strings.Contains(negativeErr.Error(), "RefreshInterval") {
-		t.Fatalf("err = %v", negativeErr)
 	}
 }
