@@ -182,8 +182,9 @@ repositories = ["acme/storefront"] # replaces the list above for this section
 limit = 20                         # runs only: recent runs per workflow, or per repository; 1 to 100; default 20
 ```
 
-A section of kind `runs` lists runs, newest first, with the repository, workflow, title, branch,
-trigger, status, how long ago it started, and how long it took. A section of kind `workflows`
+A section of kind `runs` lists runs, newest first, with the status, repository, workflow, title,
+how long ago it started, how long it took, branch, and trigger, so the parts that matter most
+stay visible in a narrow pane. A section of kind `workflows`
 lists the workflows themselves, with their cron schedules and the status of their latest run,
 which fills in after the table appears. A section's filters combine: a run or workflow must
 match the names, the statuses, and the triggers that the section lists.
