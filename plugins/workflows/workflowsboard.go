@@ -71,11 +71,7 @@ func loadWorkflows(provider Provider, configured section) ([]plugin.Row, error) 
 		return nil, err
 	}
 	workflows = slices.DeleteFunc(workflows, func(workflow Workflow) bool { return !configured.matchesWorkflow(workflow) })
-	rows := make([]plugin.Row, len(workflows))
-	for index, workflow := range workflows {
-		rows[index] = WorkflowRow{Workflow: workflow}
-	}
-	return rows, nil
+	return rowsOf(workflows, func(workflow Workflow) plugin.Row { return WorkflowRow{Workflow: workflow} }), nil
 }
 
 // fetchLastRuns makes one fetch for each workflow, so that a slow lookup leaves only its own

@@ -3,6 +3,8 @@ package workflows
 import (
 	"slices"
 	"sync"
+
+	"github.com/ghmeier/pr-tui/internal/plugin"
 )
 
 // inEach runs the lookup for every item at the same time, so that a slow one does not hold up
@@ -28,6 +30,15 @@ func inEach[Item, Result any](items []Item, lookup func(Item) ([]Result, error))
 		combined = append(combined, found...)
 	}
 	return combined, nil
+}
+
+// rowsOf wraps each item as a row of a board.
+func rowsOf[Item any](items []Item, wrap func(Item) plugin.Row) []plugin.Row {
+	rows := make([]plugin.Row, len(items))
+	for index, item := range items {
+		rows[index] = wrap(item)
+	}
+	return rows
 }
 
 // matchesWorkflow says whether a workflow, given by its name and its file's base name, is

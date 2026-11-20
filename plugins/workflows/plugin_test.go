@@ -3,6 +3,8 @@ package workflows
 import (
 	"flag"
 	"reflect"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -414,4 +416,100 @@ func TestFacetsOfARunsSectionNarrowByRepositoryAndByWorkflow(t *testing.T) {
 	plugintest.Press(t, model, "f")
 
 	assertShows(t, model, "Repository", "acme/storefront", "acme/billing", "Workflow", "Deploy", "Checks", "Nightly")
+}
+
+const mergeQueueSection = "\n[[workflows.sections]]\ntitle = \"Merge queue\"\nkind = \"merge_queue\"\n"
+
+func TestMergeQueueRowsAreKeyedByThePullRequestsURL(t *testing.T) {
+	entry := newFakeProvider().queues[billingRepository][0]
+
+	if key := (QueueRow{Entry: entry}).Key(); key != entry.URL {
+		t.Fatalf("key = %q, expected %q", key, entry.URL)
+	}
+}
+
+func TestMergeQueueSectionCombinesRepositoriesInConfiguredOrderThenByPosition(t *testing.T) {
+	provider := newFakeProvider()
+	storefront := provider.queues[storefrontRepository]
+	billing := provider.queues[billingRepository]
+	firstInStorefront, secondInStorefront := storefront[1], storefront[0]
+
+	model := startedModel(t, provider, mergeQueueSection)
+
+	positions := order(model, firstInStorefront.Title, secondInStorefront.Title, billing[0].Title)
+	if !slices.IsSorted(positions) || positions[0] < 0 {
+		t.Fatalf("titles appear at %v, expected storefront 1, storefront 2, then billing:%s", positions, describe(model))
+	}
+}
+
+func TestMergeQueueSectionShowsEachColumnOfAnEntry(t *testing.T) {
+	provider := newFakeProvider()
+	entry := provider.queues[storefrontRepository][1]
+
+	model := startedModel(t, provider, mergeQueueSection)
+
+	line := lineWith(model, entry.Title)
+	for _, expected := range []string{
+		RunStatusSucceeded.mark(), entry.Repository.Name, "#" + strconv.Itoa(entry.Number), QueueStateMergeable.word(), "12m",
+		"~" + durationText(entry.EstimatedTimeToMerge), entry.Author,
+	} {
+		if !strings.Contains(line, expected) {
+			t.Fatalf("the row %q does not show %q", line, expected)
+		}
+	}
+}
+
+func TestMergeQueueSectionShowsAnEmptyEstimateWhenTheForgeGivesNone(t *testing.T) {
+	provider := newFakeProvider()
+	withoutEstimate := provider.queues[billingRepository][0]
+	withEstimate := provider.queues[storefrontRepository][1]
+
+	model := startedModel(t, provider, mergeQueueSection)
+
+	if line := lineWith(model, withoutEstimate.Title); strings.Contains(line, "~") {
+		t.Fatalf("the row %q shows an estimate", line)
+	}
+	if line := lineWith(model, withEstimate.Title); !strings.Contains(line, "~"+durationText(withEstimate.EstimatedTimeToMerge)) {
+		t.Fatalf("the row %q does not show the estimate", line)
+	}
+}
+
+func TestMergeQueueSectionFailsToLoadWhenAnyRepositoryFails(t *testing.T) {
+	provider := newFakeProvider()
+	provider.fail("MergeQueue", errorForTests)
+
+	model := startedModel(t, provider, mergeQueueSection)
+
+	assertShows(t, model, "provider failed")
+	assertHides(t, model, provider.queues[billingRepository][0].Title)
+}
+
+func TestOpenKeyOnAQueuedPullRequestOpensItsURLInTheBrowser(t *testing.T) {
+	calls := stubOpen(t)
+	provider := newFakeProvider()
+	front := provider.queues[storefrontRepository][1]
+
+	model := startedModel(t, provider, mergeQueueSection)
+	plugintest.Press(t, model, "o")
+
+	if len(*calls) != 1 || (*calls)[0][0] != "open" || (*calls)[0][1] != front.URL {
+		t.Fatalf("commands run = %v", *calls)
+	}
+}
+
+func TestMergeQueueSectionHasNoEnterAction(t *testing.T) {
+	provider := newFakeProvider()
+
+	model := startedModel(t, provider, mergeQueueSection)
+	plugintest.Press(t, model, "enter")
+
+	assertHides(t, model, "esc back")
+}
+
+func TestFacetOfAMergeQueueSectionNarrowsByRepository(t *testing.T) {
+	model := startedModel(t, newFakeProvider(), mergeQueueSection)
+
+	plugintest.Press(t, model, "f")
+
+	assertShows(t, model, "Repository", "acme/storefront", "acme/billing")
 }

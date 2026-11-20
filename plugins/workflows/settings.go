@@ -21,6 +21,7 @@ type sectionKind int
 const (
 	sectionKindRuns sectionKind = iota
 	sectionKindWorkflows
+	sectionKindMergeQueue
 )
 
 // section is one configured board, with the plugin-level repositories already applied.
@@ -42,6 +43,31 @@ type boardSettings struct {
 	// of the whole program.
 	refreshInterval time.Duration
 	sections        []section
+}
+
+// sectionKinds are the values of the kind key, in the order error messages list them. A kind that
+// is left out is the first.
+var sectionKinds = []struct {
+	name string
+	kind sectionKind
+}{
+	{"runs", sectionKindRuns},
+	{"workflows", sectionKindWorkflows},
+	{"merge_queue", sectionKindMergeQueue},
+}
+
+var allSectionKinds = []sectionKind{sectionKindRuns, sectionKindWorkflows, sectionKindMergeQueue}
+
+// sectionKeyKinds says which kinds of section each optional key applies to.
+var sectionKeyKinds = []struct {
+	key   string
+	kinds []sectionKind
+	given func(entry rawSection) bool
+}{
+	{"workflows", []sectionKind{sectionKindRuns, sectionKindWorkflows}, func(entry rawSection) bool { return len(entry.Workflows) > 0 }},
+	{"status", []sectionKind{sectionKindRuns}, func(entry rawSection) bool { return len(entry.Status) > 0 }},
+	{"trigger", []sectionKind{sectionKindRuns, sectionKindWorkflows}, func(entry rawSection) bool { return len(entry.Trigger) > 0 }},
+	{"limit", []sectionKind{sectionKindRuns}, func(entry rawSection) bool { return entry.Limit != nil }},
 }
 
 // The statuses and triggers a section can filter on, in the order error messages list them.
@@ -149,20 +175,18 @@ func parseSection(label string, entry rawSection, pluginRepositories []Repositor
 		return section{}, fmt.Errorf("%s: title is required", label)
 	}
 	parsed := section{title: entry.Title, workflows: entry.Workflows, limit: defaultLimit, repositories: pluginRepositories}
-	switch entry.Kind {
-	case "", "runs":
-		parsed.kind = sectionKindRuns
-	case "workflows":
-		parsed.kind = sectionKindWorkflows
-	default:
-		return section{}, fmt.Errorf(`%s: kind %q is not one of runs, workflows`, label, entry.Kind)
-	}
-	if parsed.kind == sectionKindWorkflows {
-		if len(entry.Status) > 0 {
-			return section{}, fmt.Errorf(`%s: status only applies to sections of kind "runs"`, label)
+	kindKnown := false
+	for _, known := range sectionKinds {
+		if known.name == cmp.Or(entry.Kind, sectionKinds[0].name) {
+			parsed.kind, kindKnown = known.kind, true
 		}
-		if entry.Limit != nil {
-			return section{}, fmt.Errorf(`%s: limit only applies to sections of kind "runs"`, label)
+	}
+	if !kindKnown {
+		return section{}, fmt.Errorf("%s: kind %q is not one of %s", label, entry.Kind, strings.Join(kindNames(allSectionKinds), ", "))
+	}
+	for _, rule := range sectionKeyKinds {
+		if rule.given(entry) && !slices.Contains(rule.kinds, parsed.kind) {
+			return section{}, fmt.Errorf("%s: %s only applies to sections of kind %s", label, rule.key, "\""+strings.Join(kindNames(rule.kinds), `" and "`)+"\"")
 		}
 	}
 	for _, text := range entry.Status {
@@ -221,6 +245,17 @@ func parseRepositories(subject string, entries []string) ([]Repository, error) {
 		repositories = append(repositories, parsed)
 	}
 	return repositories, nil
+}
+
+// kindNames are the names of the kinds, in the order of sectionKinds.
+func kindNames(kinds []sectionKind) []string {
+	var names []string
+	for _, known := range sectionKinds {
+		if slices.Contains(kinds, known.kind) {
+			names = append(names, known.name)
+		}
+	}
+	return names
 }
 
 func parseStatus(text string) (RunStatus, bool) {

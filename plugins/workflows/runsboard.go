@@ -73,11 +73,7 @@ func loadRuns(provider Provider, configured section) ([]plugin.Row, error) {
 	}
 	runs = slices.DeleteFunc(runs, func(run Run) bool { return !configured.matchesRun(run) })
 	slices.SortStableFunc(runs, func(left, right Run) int { return right.CreatedAt.Compare(left.CreatedAt) })
-	rows := make([]plugin.Row, len(runs))
-	for index, run := range runs {
-		rows[index] = RunRow{Run: run}
-	}
-	return rows, nil
+	return rowsOf(runs, func(run Run) plugin.Row { return RunRow{Run: run} }), nil
 }
 
 // runsOfNamedWorkflows resolves the configured names to the repository's workflow files. A name

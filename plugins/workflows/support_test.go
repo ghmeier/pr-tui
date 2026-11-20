@@ -32,6 +32,7 @@ type fakeProvider struct {
 	// latestRuns is by workflow file and repository; a workflow without an entry has never run.
 	latestRuns map[string]Run
 	jobs       map[int64][]Job
+	queues     map[Repository][]QueueEntry
 	failures   map[string]error
 	queries    []RunQuery
 	jobLoads   int
@@ -108,6 +109,28 @@ func newFakeProvider() *fakeProvider {
 				},
 			},
 		},
+		queues: map[Repository][]QueueEntry{
+			// The storefront's queue is stored out of order, to show that the board orders it.
+			storefrontRepository: {
+				{
+					Repository: storefrontRepository, Position: 2, State: QueueStateAwaitingChecks, Checks: RunStatusRunning, Number: 502,
+					Title: "Resize the banner", URL: "https://example.test/storefront/pull/502", Author: "second",
+					EnqueuedAt: time.Now().Add(-5 * time.Minute), EstimatedTimeToMerge: 14 * time.Minute,
+				},
+				{
+					Repository: storefrontRepository, Position: 1, State: QueueStateMergeable, Checks: RunStatusSucceeded, Number: 501,
+					Title: "Cache the cart", URL: "https://example.test/storefront/pull/501", Author: "first",
+					EnqueuedAt: time.Now().Add(-12 * time.Minute), EstimatedTimeToMerge: 8 * time.Minute,
+				},
+			},
+			billingRepository: {
+				{
+					Repository: billingRepository, Position: 1, State: QueueStateQueued, Checks: RunStatusFailed, Number: 601,
+					Title: "Round the totals", URL: "https://example.test/billing/pull/601", Author: "third",
+					EnqueuedAt: time.Now().Add(-3 * time.Hour),
+				},
+			},
+		},
 		failures: map[string]error{},
 	}
 }
@@ -161,6 +184,12 @@ func (fake *fakeProvider) Jobs(run Run) ([]Job, error) {
 	defer fake.mutex.Unlock()
 	fake.jobLoads++
 	return fake.jobs[run.ID], fake.failures["Jobs"]
+}
+
+func (fake *fakeProvider) MergeQueue(repository Repository) ([]QueueEntry, error) {
+	fake.mutex.Lock()
+	defer fake.mutex.Unlock()
+	return slices.Clone(fake.queues[repository]), fake.failures["MergeQueue"]
 }
 
 func registerTestProvider(t *testing.T, name string, factory ProviderFactory) {

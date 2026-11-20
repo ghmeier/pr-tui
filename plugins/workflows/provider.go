@@ -16,6 +16,9 @@ type Provider interface {
 	// LatestRun returns the workflow's most recent run, and false when it has never run.
 	LatestRun(workflow Workflow) (Run, bool, error)
 	Jobs(run Run) ([]Job, error)
+	// MergeQueue lists the pull requests in the repository's merge queue, front first. A
+	// repository without a merge queue has an empty one.
+	MergeQueue(repository Repository) ([]QueueEntry, error)
 }
 
 // ProviderFactory makes a provider. A provider reads nothing from the configuration file: the

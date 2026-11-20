@@ -280,7 +280,8 @@ repositories = ["your-organization/your-repository"]
 #
 # [[workflows.sections]]
 # title = "Deploys"                  # required, and different for each section
-# kind = "runs"                      # "runs" (the default) lists runs; "workflows" lists workflows
+# kind = "runs"                      # "runs" (the default) lists runs; "workflows" lists workflows;
+#                                    # "merge_queue" lists queued pull requests
 # workflows = ["Deploy", "deploy.yaml"]   # a workflow's name or its file name; empty means all
 # status = ["queued", "running"]     # runs only: queued, running, succeeded, failed, cancelled
 # trigger = ["push"]                 # push, pull_request, schedule, manual, merge_queue
@@ -297,6 +298,11 @@ repositories = ["your-organization/your-repository"]
 # title = "Scheduled"
 # kind = "workflows"
 # trigger = ["schedule"]
+#
+# A merge queue section takes only a title and, optionally, repositories.
+# [[workflows.sections]]
+# title = "Merge queue"
+# kind = "merge_queue"
 `
 
 // WriteStarter never overwrites: the file is created exclusively, so an existing
