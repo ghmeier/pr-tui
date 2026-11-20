@@ -227,9 +227,10 @@ func validate(raw rawFile) (*File, error) {
 // it is the one place that has to change when a section gains a key.
 const starterConfiguration = `# Configuration for prs, a board of open pull requests.
 
-# Which parts of the board to show: "pull_requests", and optionally "agent_plans".
+# Which parts of the board to show: "pull_requests", and optionally "agent_plans" and
+# "workflows".
 plugins = ["pull_requests"]
-# plugins = ["pull_requests", "agent_plans"]
+# plugins = ["pull_requests", "agent_plans", "workflows"]
 
 # How often the board refreshes itself, as a Go duration such as "90s" or "5m", at least "1s".
 refresh_interval = "3m"
@@ -263,6 +264,35 @@ repositories = ["your-organization/your-repository"]
 # Required. Local checkouts whose apl documents (plans, research, handoffs) are listed. Each
 # must contain a .apl directory, and no two may share a directory name.
 # repositories = ["~/git/your-repository"]
+
+# Only read when "workflows" is in the plugins list above. Each section is its own tab.
+# [workflows]
+# Where runs come from. Only "github" is supported today; it uses the login of gh.
+# provider = "github"
+# Required. Each entry is "owner/name"; the owners may differ. A section can use its own list.
+# repositories = ["your-organization/your-repository", "your-organization/another-repository"]
+#
+# With no sections, one tab titled "Recent runs" lists every recent run.
+#
+# [[workflows.sections]]
+# title = "Deploys"                  # required, and different for each section
+# kind = "runs"                      # "runs" (the default) lists runs; "workflows" lists workflows
+# workflows = ["Deploy", "deploy.yaml"]   # a workflow's name or its file name; empty means all
+# status = ["queued", "running"]     # runs only: queued, running, succeeded, failed, cancelled
+# trigger = ["push"]                 # push, pull_request, schedule, manual, merge_queue
+# repositories = ["your-organization/your-repository"]   # replaces the list above for this tab
+# limit = 20                         # runs only: recent runs per named workflow, or per repository
+#                                    # when no workflows are named; 1 to 100
+#
+# [[workflows.sections]]
+# title = "CI"
+# workflows = ["Checks"]
+# trigger = ["pull_request"]
+#
+# [[workflows.sections]]
+# title = "Scheduled"
+# kind = "workflows"
+# trigger = ["schedule"]
 `
 
 // WriteStarter never overwrites: the file is created exclusively, so an existing

@@ -13,6 +13,7 @@ require (
 	github.com/charmbracelet/x/ansi v0.11.9
 	github.com/muesli/termenv v0.16.0
 	golang.org/x/term v0.48.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (

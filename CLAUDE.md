@@ -35,6 +35,8 @@ internal/shell                 runs external commands; tests replace shell.Run
 plugins/pullrequests           the pull request board, its diff and description screens, and the Provider interface
 plugins/pullrequests/github    the GitHub provider; the only package that runs gh
 plugins/pullrequests/pullrequeststest  a small fake provider for tests of plugins that extend the pull request board
+plugins/workflows              the workflow runs plugin: one board per configured section, its run screen, and the Provider interface
+plugins/workflows/github       the GitHub Actions provider; the only other package that runs gh
 plugins/tickets                the example plugin from the guide; ships disabled, built from main.go
 docs                           the guide to writing a plugin; its code blocks are plugins/tickets
 ```
@@ -71,8 +73,9 @@ A provider is a data source behind a plugin. The pull request plugin only talks 
 
 ### Boundaries to keep
 
-- Only `plugins/pullrequests/github` may run `gh` or know GitHub's API shapes and vocabulary.
-  `plugins/pullrequests` uses its own neutral types for things like CI state.
+- Only the GitHub provider packages, `plugins/pullrequests/github` and `plugins/workflows/github`,
+  may run `gh` or know GitHub's API shapes and vocabulary. `plugins/pullrequests` and
+  `plugins/workflows` use their own neutral types for things like CI state and run status.
 - `internal/plugin` and `internal/ui` know nothing about pull requests or any other plugin.
 - A plugin may import another plugin's package only for its exported row and domain types,
   in order to add a column or an action to that plugin's board.
