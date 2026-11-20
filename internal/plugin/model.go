@@ -94,18 +94,16 @@ type Model struct {
 	// screenBoards is the board each open screen was opened for, parallel to screens.
 	screenBoards    []int
 	refreshInterval time.Duration
-	// startTimer returns a command that delivers the board's refresh tick after the delay. Tests
-	// replace it, because a real timer would make them wait.
+	// startTimer returns a command that delivers the board's refresh tick after the delay. It is
+	// nil until Init sets it, so a model that is only driven by messages in a test starts no real
+	// timers. Tests that watch the timers set it themselves before Init.
 	startTimer func(board, generation int, delay time.Duration) tea.Cmd
 	// now is the clock that decides how old a board's data is. Tests replace it.
-	now func() time.Time
-	// scheduling is true once the program has started, because only then do finished loads
-	// start timers.
-	scheduling bool
-	width      int
-	height     int
-	mode       mode
-	question   string
+	now      func() time.Time
+	width    int
+	height   int
+	mode     mode
+	question string
 	// pending is the effect waiting for an answer to its question, and pendingBoard the board
 	// it applies to, whether the question is a confirmation or a choice.
 	pending      Effect
@@ -117,7 +115,7 @@ type Model struct {
 
 // Model builds the interactive program for the boards the plugins registered.
 func (host *Host) Model() *Model {
-	model := &Model{refreshInterval: host.file.RefreshInterval, startTimer: startRefreshTimer, now: time.Now, width: 120, height: 30}
+	model := &Model{refreshInterval: host.file.RefreshInterval, now: time.Now, width: 120, height: 30}
 	for index, spec := range host.boards {
 		next := &boardState{
 			spec:            spec,
@@ -185,22 +183,16 @@ func (m *Model) switchTab(step int) tea.Cmd {
 	m.active = m.tabs[next].focused
 	var commands []tea.Cmd
 	for _, index := range m.tabs[next].boards {
-		board := m.boards[index]
-		if board.loading {
-			continue
-		}
-		if age := m.ageOf(board); age >= m.delayOf(board) {
-			commands = append(commands, m.load(index))
-		} else {
-			commands = append(commands, m.scheduleRefresh(index, m.delayOf(board)-age))
-		}
+		commands = append(commands, m.loadWhenDue(index))
 	}
 	return tea.Batch(commands...)
 }
 
 // Init loads every board. Each board then schedules its own next load when its load finishes.
 func (m *Model) Init() tea.Cmd {
-	m.scheduling = true
+	if m.startTimer == nil {
+		m.startTimer = startRefreshTimer
+	}
 	return m.RefreshAll()
 }
 
@@ -243,7 +235,7 @@ func (m *Model) ageOf(board *boardState) time.Duration {
 // scheduleRefresh starts the board's next timer, which makes any earlier timer of the board
 // out of date.
 func (m *Model) scheduleRefresh(index int, delay time.Duration) tea.Cmd {
-	if !m.scheduling {
+	if m.startTimer == nil {
 		return nil
 	}
 	board := m.boards[index]
@@ -251,18 +243,25 @@ func (m *Model) scheduleRefresh(index int, delay time.Duration) tea.Cmd {
 	return m.startTimer(index, board.timerGeneration, delay)
 }
 
-// refreshDue handles a board's timer going off. A board that is loading, or whose timer has been
-// replaced, does nothing, and a board that has become fresher than its delay, because its tab
-// went out of view, waits out the rest of it.
+// refreshDue handles a board's timer going off. A timer that has been replaced does nothing.
 func (m *Model) refreshDue(message refreshTickMessage) tea.Cmd {
-	board := m.boards[message.board]
-	if message.generation != board.timerGeneration || board.loading {
+	if message.generation != m.boards[message.board].timerGeneration {
+		return nil
+	}
+	return m.loadWhenDue(message.board)
+}
+
+// loadWhenDue loads the board if its data is older than its delay, and otherwise waits out the
+// rest of the delay. A board that is loading does nothing.
+func (m *Model) loadWhenDue(index int) tea.Cmd {
+	board := m.boards[index]
+	if board.loading {
 		return nil
 	}
 	if age, delay := m.ageOf(board), m.delayOf(board); age < delay {
-		return m.scheduleRefresh(message.board, delay-age)
+		return m.scheduleRefresh(index, delay-age)
 	}
-	return m.load(message.board)
+	return m.load(index)
 }
 
 func (m *Model) load(index int) tea.Cmd {
