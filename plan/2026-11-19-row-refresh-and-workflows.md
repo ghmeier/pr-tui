@@ -4,7 +4,7 @@ status: active
 tags: [pull-requests, host, workflows]
 created: 2026-11-20
 updated: 2026-11-20
-next_step: Get the plan approved, then dispatch step 1 (single-row refresh).
+next_step: Pull request #2 (step 1) awaits review and merge; then dispatch step 2 (workflows-board) from main.
 ---
 # Single-row refresh and a workflows board
 
@@ -157,7 +157,7 @@ A section with `kind = "runs"` also has a Workflow facet built from its rows.
    running count; `Provider.PullRequest` and the GitHub query; the five actions switched.
    Tests: host replace, remove, fallback, stale-drop, and running count with fake rows;
    provider command line and parsing; each action sets `RefreshRow`. Verified with the test
-   suite and `--once`. Ships as a patch release.
+   suite and `--once`. Ships as a patch release. Open: pull request #2 (commits b4edf31, 47e5b81).
 2. **`workflows-board`** from `main` after step 1: the plugin, configuration, provider for
    runs and workflows, and the run screen, with each section as its own tab for now (`Tab` is
    not set). Starter file and README. Verified with `--once` against gazebo, u2, and
@@ -191,3 +191,4 @@ Steps 2 and 3 can be one pull request or two; the user is fine with either.
   the plugin itself.
 - 2026-11-19: Plugin named `workflows`, not `actions`, because `Action` already means a
   key on a board's rows.
+- 2026-11-19: Step 1 notice rule: a failure notice stays until a load or a new effect replaces it; a success clears the notice only when no other command is running. Left alone: a full load that started while a command ran can still arrive after the row reload and briefly show the old state.
