@@ -281,7 +281,8 @@ repositories = ["your-organization/your-repository"]
 # status = ["queued", "running"]     # runs only: queued, running, succeeded, failed, cancelled
 # trigger = ["push"]                 # push, pull_request, schedule, manual, merge_queue
 # repositories = ["your-organization/your-repository"]   # replaces the list above for this tab
-# limit = 20                         # runs only: recent runs per repository, 1 to 100
+# limit = 20                         # runs only: recent runs per named workflow, or per repository
+#                                    # when no workflows are named; 1 to 100
 #
 # [[workflows.sections]]
 # title = "CI"

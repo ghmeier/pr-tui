@@ -117,10 +117,14 @@ func eventFilterOf(trigger workflows.Trigger) string {
 	return ""
 }
 
-// Runs asks GitHub to narrow the runs by status or by event only when one value does it
+// Runs lists the runs of one workflow when the query names its file, and of the whole
+// repository otherwise. It asks GitHub to narrow the runs by status or by event only when one value does it
 // exactly, and narrows by the rest here.
 func (github *provider) Runs(query workflows.RunQuery) ([]workflows.Run, error) {
 	endpoint := fmt.Sprintf("repos/%s/actions/runs?per_page=%d", query.Repository.FullName(), query.Limit)
+	if query.WorkflowFile != "" {
+		endpoint = fmt.Sprintf("repos/%s/actions/workflows/%s/runs?per_page=%d", query.Repository.FullName(), query.WorkflowFile, query.Limit)
+	}
 	if len(query.Statuses) == 1 && filterOf(query.Statuses[0]) != "" {
 		endpoint += "&status=" + filterOf(query.Statuses[0])
 	}

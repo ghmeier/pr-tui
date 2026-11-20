@@ -173,7 +173,7 @@ workflows = ["Deploy CI", "deploy.yaml"]   # a workflow's name or its file name;
 status = ["queued", "running"]     # runs only: queued, running, succeeded, failed, cancelled
 trigger = ["push"]                 # push, pull_request, schedule, manual, merge_queue
 repositories = ["acme/storefront"] # replaces the list above for this section
-limit = 20                         # runs only: recent runs per repository, 1 to 100; default 20
+limit = 20                         # runs only: recent runs per workflow, or per repository; 1 to 100; default 20
 ```
 
 A section of kind `runs` lists runs, newest first, with the repository, workflow, title, branch,
@@ -182,8 +182,10 @@ lists the workflows themselves, with their cron schedules and the status of thei
 which fills in after the table appears. A section's filters combine: a run or workflow must
 match the names, the statuses, and the triggers that the section lists.
 
-The `limit` counts the runs fetched from each repository before the section's filters apply,
-so a section that names a rarely run workflow may need a higher limit to see its runs.
+The `limit` is the number of recent runs fetched for each workflow the section names, in each
+repository. A section that names no workflows fetches that many runs for each repository as a
+whole, before its other filters apply. A name that matches no workflow in a repository is
+skipped for that repository.
 
 Status marks:
 

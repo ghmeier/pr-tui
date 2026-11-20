@@ -5,18 +5,18 @@ import (
 	"sync"
 )
 
-// inEachRepository runs the lookup for every repository at the same time, so that a slow
-// repository does not hold up the others. The results are in the order of the repositories. The
-// first error, in that order, is the one returned.
-func inEachRepository[Result any](repositories []Repository, lookup func(Repository) ([]Result, error)) ([]Result, error) {
-	results := make([][]Result, len(repositories))
-	failures := make([]error, len(repositories))
+// inEach runs the lookup for every item at the same time, so that a slow one does not hold up
+// the others. The results are in the order of the items. The first error, in that order, is the
+// one returned.
+func inEach[Item, Result any](items []Item, lookup func(Item) ([]Result, error)) ([]Result, error) {
+	results := make([][]Result, len(items))
+	failures := make([]error, len(items))
 	var group sync.WaitGroup
-	for index, repository := range repositories {
+	for index, item := range items {
 		group.Add(1)
 		go func() {
 			defer group.Done()
-			results[index], failures[index] = lookup(repository)
+			results[index], failures[index] = lookup(item)
 		}()
 	}
 	group.Wait()

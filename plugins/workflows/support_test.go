@@ -3,6 +3,7 @@ package workflows
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -129,13 +130,17 @@ func (fake *fakeProvider) loadsOfJobs() int {
 	return fake.jobLoads
 }
 
-// Runs returns every run of the repository whatever the query asks, as a provider that cannot
-// narrow by workflow name would, so that what the plugin filters is visible.
+// Runs returns every run of the repository, or of the workflow the query names, whatever else
+// the query asks, so that what the plugin filters is visible.
 func (fake *fakeProvider) Runs(query RunQuery) ([]Run, error) {
 	fake.mutex.Lock()
 	defer fake.mutex.Unlock()
 	fake.queries = append(fake.queries, query)
-	return fake.runs[query.Repository], fake.failures["Runs"+query.Repository.Name]
+	runs := fake.runs[query.Repository]
+	if query.WorkflowFile != "" {
+		runs = slices.DeleteFunc(slices.Clone(runs), func(run Run) bool { return run.WorkflowFile != query.WorkflowFile })
+	}
+	return runs, fake.failures["Runs"+query.Repository.Name]
 }
 
 func (fake *fakeProvider) Workflows(repository Repository) ([]Workflow, error) {

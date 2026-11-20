@@ -56,13 +56,16 @@ func runsBoard(provider Provider, configured section) plugin.Board {
 	}
 }
 
-// loadRuns asks every repository for its recent runs and lists them newest first. The query
-// leaves the workflow names to this side, because the provider cannot filter by them.
+// loadRuns asks for the recent runs and lists them newest first. A section that names workflows
+// asks for each matching workflow's runs separately, so that busy workflows do not use up the
+// limit of quiet ones; otherwise each repository is asked once.
 func loadRuns(provider Provider, configured section) ([]plugin.Row, error) {
-	runs, err := inEachRepository(configured.repositories, func(repository Repository) ([]Run, error) {
-		return provider.Runs(RunQuery{
-			Repository: repository, Statuses: configured.statuses, Triggers: configured.triggers, Limit: configured.limit,
-		})
+	runs, err := inEach(configured.repositories, func(repository Repository) ([]Run, error) {
+		query := RunQuery{Repository: repository, Statuses: configured.statuses, Triggers: configured.triggers, Limit: configured.limit}
+		if len(configured.workflows) == 0 {
+			return provider.Runs(query)
+		}
+		return runsOfNamedWorkflows(provider, configured, query)
 	})
 	if err != nil {
 		return nil, err
@@ -74,6 +77,23 @@ func loadRuns(provider Provider, configured section) ([]plugin.Row, error) {
 		rows[index] = RunRow{Run: run}
 	}
 	return rows, nil
+}
+
+// runsOfNamedWorkflows resolves the configured names to the repository's workflow files. A name
+// that matches no workflow of the repository is skipped for it.
+func runsOfNamedWorkflows(provider Provider, configured section, query RunQuery) ([]Run, error) {
+	workflows, err := provider.Workflows(query.Repository)
+	if err != nil {
+		return nil, err
+	}
+	workflows = slices.DeleteFunc(workflows, func(workflow Workflow) bool {
+		return !matchesWorkflow(configured.workflows, workflow.Name, workflow.File)
+	})
+	return inEach(workflows, func(workflow Workflow) ([]Run, error) {
+		perWorkflow := query
+		perWorkflow.WorkflowFile = workflow.File
+		return provider.Runs(perWorkflow)
+	})
 }
 
 // openInBrowser is the effect of the o key, on the board and on the screens.

@@ -65,7 +65,7 @@ func workflowsBoard(provider Provider, configured section) plugin.Board {
 }
 
 func loadWorkflows(provider Provider, configured section) ([]plugin.Row, error) {
-	workflows, err := inEachRepository(configured.repositories, provider.Workflows)
+	workflows, err := inEach(configured.repositories, provider.Workflows)
 	if err != nil {
 		return nil, err
 	}

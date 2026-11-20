@@ -2,6 +2,7 @@ package workflows
 
 import (
 	"flag"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -151,6 +152,62 @@ func TestRunsSectionAsksTheProviderForEachRepositoryWithItsFilters(t *testing.T)
 		if got := queried[repository]; got.Limit != expected.Limit || len(got.Statuses) != 1 || got.Statuses[0] != RunStatusFailed || len(got.Triggers) != 1 || got.Triggers[0] != TriggerPush {
 			t.Fatalf("query for %s = %+v, expected %+v", repository.FullName(), got, expected)
 		}
+	}
+}
+
+func TestRunsSectionWithNamedWorkflowsQueriesEachMatchingWorkflowAndNotTheWholeRepository(t *testing.T) {
+	provider := newFakeProvider()
+
+	startedModel(t, provider, "\n[[workflows.sections]]\ntitle = \"Some\"\nworkflows = [\"Deploy\", \"checks.yml\"]\nlimit = 7\n")
+
+	queried := map[string]int{}
+	for _, query := range provider.recordedQueries() {
+		if query.WorkflowFile == "" || query.Limit != 7 {
+			t.Fatalf("query = %+v", query)
+		}
+		queried[query.Repository.FullName()+"/"+query.WorkflowFile]++
+	}
+	expected := map[string]int{"acme/storefront/deploy.yaml": 1, "acme/storefront/checks.yml": 1}
+	if !reflect.DeepEqual(queried, expected) {
+		t.Fatalf("queried = %v, expected %v", queried, expected)
+	}
+}
+
+func TestRunsSectionWithoutNamedWorkflowsMakesOneRepositoryWideQueryEach(t *testing.T) {
+	provider := newFakeProvider()
+
+	startedModel(t, provider, "")
+
+	queries := provider.recordedQueries()
+	if len(queries) != 2 {
+		t.Fatalf("queries = %+v", queries)
+	}
+	for _, query := range queries {
+		if query.WorkflowFile != "" {
+			t.Fatalf("query = %+v", query)
+		}
+	}
+}
+
+func TestRunsSectionSkipsANameThatMatchesNoWorkflowOfARepositoryAndStillShowsTheOthers(t *testing.T) {
+	provider := newFakeProvider()
+	storefrontNightly, billingNightly := provider.runs[billingRepository][0], provider.runs[storefrontRepository][1]
+
+	model := startedModel(t, provider, "\n[[workflows.sections]]\ntitle = \"Some\"\nworkflows = [\"Release\", \"checks.yml\"]\n")
+
+	assertShows(t, model, provider.runs[storefrontRepository][0].Title)
+	assertHides(t, model, storefrontNightly.Title, billingNightly.Title)
+}
+
+func TestRunsSectionFailsToLoadWhenTheWorkflowsOfARepositoryCannotBeListed(t *testing.T) {
+	provider := newFakeProvider()
+	provider.fail("Workflows", errorForTests)
+	configured := section{title: "Some", workflows: []string{"Deploy"}, repositories: []Repository{storefrontRepository}, limit: defaultLimit}
+
+	rows, err := loadRuns(provider, configured)
+
+	if err != errorForTests || rows != nil {
+		t.Fatalf("rows = %v, error = %v", rows, err)
 	}
 }
 

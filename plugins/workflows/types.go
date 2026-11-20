@@ -92,7 +92,10 @@ type RunQuery struct {
 	Repository Repository
 	Statuses   []RunStatus
 	Triggers   []Trigger
-	Limit      int
+	// WorkflowFile, when set, limits the query to the runs of the workflow with this file base
+	// name, and Limit then counts that workflow's runs.
+	WorkflowFile string
+	Limit        int
 }
 
 // finished says whether the run has stopped, which is when its last update is its end.

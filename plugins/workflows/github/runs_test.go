@@ -29,6 +29,21 @@ func TestRunsAsksForTheMostRecentRunsOfTheRepository(t *testing.T) {
 	stub.assertCommands(t, apiCommand("repos/acme/storefront/actions/runs?per_page=20"))
 }
 
+func TestRunsOfOneWorkflowUseTheWorkflowsEndpointWithTheSameParameters(t *testing.T) {
+	stub := stubShell(t, `{"workflow_runs": []}`)
+
+	newProvider().Runs(workflows.RunQuery{
+		Repository: storefront, WorkflowFile: "deploy.yaml", Limit: 20,
+		Statuses: []workflows.RunStatus{workflows.RunStatusRunning}, Triggers: []workflows.Trigger{workflows.TriggerPush},
+	})
+	newProvider().Runs(workflows.RunQuery{Repository: billing, WorkflowFile: "checks.yml", Limit: 5})
+
+	stub.assertCommands(t,
+		apiCommand("repos/acme/storefront/actions/workflows/deploy.yaml/runs?per_page=20&status=in_progress&event=push"),
+		apiCommand("repos/acme/billing/actions/workflows/checks.yml/runs?per_page=5"),
+	)
+}
+
 func TestRunsParsesEveryFieldTheBoardUses(t *testing.T) {
 	stubShell(t, runsResponse)
 
