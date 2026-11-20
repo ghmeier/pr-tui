@@ -2,6 +2,7 @@ package github
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -171,6 +172,20 @@ func TestWorkflowsAreFetchedOncePerRepositoryForTheLifeOfTheProvider(t *testing.
 	defer stub.mutex.Unlock()
 	if len(stub.commands) != 2 {
 		t.Fatalf("commands = %v", stub.commands)
+	}
+}
+
+func TestFilteringTheWorkflowsInPlaceLeavesTheNextAnswerWhole(t *testing.T) {
+	stubShellWith(t, answerWorkflowCalls)
+	provider := newProvider()
+	first, _ := provider.Workflows(storefront)
+	expected := slices.Clone(first)
+
+	_ = slices.DeleteFunc(first, func(workflow workflows.Workflow) bool { return workflow.Name == expected[0].Name })
+	second, _ := provider.Workflows(storefront)
+
+	if !reflect.DeepEqual(second, expected) {
+		t.Fatalf("second = %+v, expected %+v", second, expected)
 	}
 }
 
