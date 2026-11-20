@@ -133,29 +133,29 @@ func (board *pullRequestBoard) chooseMerge(selection plugin.Selection) plugin.Ef
 		Options:  []string{mergeNowOption, autoMergeOption},
 		Pick: func(option string) plugin.Effect {
 			if option == mergeNowOption {
-				return board.mergeNow(selection.Row)
+				return board.mergeNow(selection)
 			}
-			return board.setAutoMerge(selection.Row, option == enableAutoMergeOption)
+			return board.setAutoMerge(selection, option == enableAutoMergeOption)
 		},
 	}}
 }
 
-func (board *pullRequestBoard) mergeNow(row plugin.Row) plugin.Effect {
-	pr := row.(Row).PullRequest
+func (board *pullRequestBoard) mergeNow(selection plugin.Selection) plugin.Effect {
+	pr := pullRequestOf(selection)
 	return plugin.Effect{
 		Confirm:    "Merge " + pr.label() + " now (squash)? This cannot be undone.",
 		Notice:     "Merging " + pr.label() + "…",
 		Command:    func() error { return board.provider.Merge(pr) },
-		RefreshRow: row,
+		RefreshRow: selection.Row,
 	}
 }
 
-func (board *pullRequestBoard) setAutoMerge(row plugin.Row, enabled bool) plugin.Effect {
-	pr := row.(Row).PullRequest
+func (board *pullRequestBoard) setAutoMerge(selection plugin.Selection, enabled bool) plugin.Effect {
+	pr := pullRequestOf(selection)
 	return plugin.Effect{
 		Notice:     pr.autoMergeNotice(enabled),
 		Command:    func() error { return board.provider.SetAutoMerge(pr, enabled) },
-		RefreshRow: row,
+		RefreshRow: selection.Row,
 	}
 }
 

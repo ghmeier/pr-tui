@@ -75,9 +75,6 @@ func (m *Model) handleClick(x, y int) tea.Cmd {
 		return nil
 	}
 	boardIndex := m.active
-	// The finished message counts the command as running until it arrives, as for an effect.
-	m.boards[boardIndex].running++
-	return func() tea.Msg {
-		return commandFinishedMessage{board: boardIndex, err: writeClipboard(text), successNotice: "Copied " + text}
-	}
+	return m.startCommand(boardIndex, func() error { return writeClipboard(text) },
+		commandFinishedMessage{successNotice: "Copied " + text})
 }

@@ -48,21 +48,22 @@ func boardRefreshingRow(source *rowSource, reload *reloader, command func() erro
 func succeeds() error { return nil }
 
 func TestRefreshRowReplacesOnlyThatRowWithoutLoadingTheBoard(t *testing.T) {
-	source := newRowSource(groceries()...)
-	renamed := fruit("apple-key", "green apple")
-	reload := &reloader{current: map[string]Row{"apple-key": renamed}}
+	rows := groceries()
+	source := newRowSource(rows...)
+	renamed := fruit(rows[0].Key(), "green apple")
+	reload := &reloader{current: map[string]Row{renamed.key: renamed}}
 	model := modelForBoard(t, boardRefreshingRow(source, reload, succeeds))
 	loadsBefore := source.loadCount()
 
 	plugintest.Press(t, model, "x")
 
-	if expected := namesOf(renamed, groceries()[1], groceries()[2]); !slices.Equal(visibleNames(model), expected) {
+	if expected := namesOf(renamed, rows[1], rows[2]); !slices.Equal(visibleNames(model), expected) {
 		t.Fatalf("visible = %v, expected %v", visibleNames(model), expected)
 	}
 	if source.loadCount() != loadsBefore {
 		t.Fatalf("the board loaded %d times", source.loadCount()-loadsBefore)
 	}
-	if asked := reload.askedKeys(); !slices.Equal(asked, []string{"apple-key"}) {
+	if asked := reload.askedKeys(); !slices.Equal(asked, []string{renamed.key}) {
 		t.Fatalf("reloaded %v", asked)
 	}
 }
@@ -70,7 +71,7 @@ func TestRefreshRowReplacesOnlyThatRowWithoutLoadingTheBoard(t *testing.T) {
 func TestRefreshRowKeepsTheCursorOnTheReloadedRow(t *testing.T) {
 	source := newRowSource(groceries()...)
 	renamed := vegetable("broccoli-key", "purple broccoli")
-	reload := &reloader{current: map[string]Row{"broccoli-key": renamed}}
+	reload := &reloader{current: map[string]Row{renamed.key: renamed}}
 	model := modelForBoard(t, boardRefreshingRow(source, reload, succeeds))
 
 	plugintest.Press(t, model, "down", "x")
@@ -98,7 +99,7 @@ func TestRefreshRowRemovesTheRowWhenReloadReturnsNil(t *testing.T) {
 func TestRefreshRowKeepsTheRowWhenReloadReturnsIt(t *testing.T) {
 	rows := groceries()
 	source := newRowSource(rows...)
-	reload := &reloader{current: map[string]Row{"broccoli-key": rows[1]}}
+	reload := &reloader{current: map[string]Row{rows[1].Key(): rows[1]}}
 	model := modelForBoard(t, boardRefreshingRow(source, reload, succeeds))
 
 	plugintest.Press(t, model, "down", "x")

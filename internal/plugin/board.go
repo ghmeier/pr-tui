@@ -97,17 +97,36 @@ func (board *boardState) selectionOf(row Row) Selection {
 	}
 }
 
-// showsFailure says whether the notice is still the last failure.
-func (board *boardState) showsFailure() bool {
-	return board.failure != "" && board.notice == board.failure
+// reportFailure shows a failure notice that later successes leave in place until a load or a
+// new effect replaces it.
+func (board *boardState) reportFailure(notice string) {
+	board.notice = notice
+	board.failure = notice
 }
 
-// refreshFacetOptions rebuilds the facet options that come from the rows after the rows changed.
-func (board *boardState) refreshFacetOptions() {
+// reportFinished replaces the notice once no command is running, unless it still shows a
+// failure that has not been read.
+func (board *boardState) reportFinished(notice string) {
+	if board.running == 0 && (board.failure == "" || board.notice != board.failure) {
+		board.notice = notice
+	}
+}
+
+// rowsChanged rebuilds what is derived from the rows: the facet options and the visible rows.
+func (board *boardState) rowsChanged() {
 	for facet := range board.facets {
 		board.facets[facet].refreshOptionsFromRows(board.rows)
 	}
 	board.menuCursor = max(0, min(board.menuCursor, optionCount(board.facets)-1))
+	board.applyFilters()
+}
+
+// forgetData drops the column values held for a row.
+func (board *boardState) forgetData(key string) {
+	for column, values := range board.data {
+		delete(values, key)
+		delete(board.dataGenerations[column], key)
+	}
 }
 
 // rowWithKey finds a loaded row, whether or not the filters show it.
