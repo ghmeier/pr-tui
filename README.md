@@ -48,6 +48,9 @@ review_team = "engineering"        # optional
 
 [agent_plans]                      # read only when "agent_plans" is in plugins
 repositories = ["~/git/storefront", "~/git/billing"]   # required; checkouts that contain a .apl directory
+
+[workflows]                        # read only when "workflows" is in plugins
+repositories = ["acme/storefront", "acme/billing"]   # required; owner/name
 ```
 
 The repositories and the review team belong to the provider, so they live in the table named
@@ -150,6 +153,58 @@ checkout. That needs apl 0.9.0 or later; the rest of the board works with older 
 `pull_requests` is on too, its board gets a `Plan` column with the title
 of the document linked to each pull request's branch with `apl link <document> --branch <name>`,
 and `+N` when more documents are linked.
+
+## Workflows
+
+The `workflows` plugin adds boards of CI/CD workflow runs across several repositories. It is
+off until you add `"workflows"` to `plugins`, and it needs `gh` to be logged in, like the
+pull request board. Each `[[workflows.sections]]` entry is its own tab; with none, you get one
+tab titled "Recent runs" that lists every recent run of every repository.
+
+```toml
+[workflows]
+provider = "github"                # only "github" is supported; default "github"
+repositories = ["acme/storefront", "acme/billing"]   # required; owner/name
+
+[[workflows.sections]]
+title = "Deploys"                  # required, and different for each section
+kind = "runs"                      # "runs" (default) or "workflows"
+workflows = ["Deploy CI", "deploy.yaml"]   # a workflow's name or its file name; default: all
+status = ["queued", "running"]     # runs only: queued, running, succeeded, failed, cancelled
+trigger = ["push"]                 # push, pull_request, schedule, manual, merge_queue
+repositories = ["acme/storefront"] # replaces the list above for this section
+limit = 20                         # runs only: recent runs per repository, 1 to 100; default 20
+```
+
+A section of kind `runs` lists runs, newest first, with the repository, workflow, title, branch,
+trigger, status, how long ago it started, and how long it took. A section of kind `workflows`
+lists the workflows themselves, with their cron schedules and the status of their latest run,
+which fills in after the table appears. A section's filters combine: a run or workflow must
+match the names, the statuses, and the triggers that the section lists.
+
+The `limit` counts the runs fetched from each repository before the section's filters apply,
+so a section that names a rarely run workflow may need a higher limit to see its runs.
+
+Status marks:
+
+| Mark | Meaning |
+| --- | --- |
+| 🟢 | succeeded |
+| 🔴 | failed, timed out, or failed to start |
+| 🟡 | running |
+| ⏳ | queued or waiting |
+| ⚪ | cancelled |
+| ⏭️ | skipped |
+
+| Key | Action |
+| --- | --- |
+| `enter` | Open the run's jobs; on a workflow, the jobs of its latest run |
+| `o` | Open the run, or the workflow, in the browser |
+| `f` | Filter by repository and by workflow |
+
+On the jobs screen, `j`/`k` or the arrow keys move between jobs and show the steps of the
+selected one, `o` opens the selected job in the browser, `r` reloads the jobs, and `esc` or
+`q` goes back.
 
 ## Extending
 
