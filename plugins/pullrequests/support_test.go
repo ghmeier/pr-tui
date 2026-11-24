@@ -59,6 +59,7 @@ type recordedCall struct {
 	url    string
 	flag   bool
 	body   string
+	title  string
 	target CommentTarget
 	review Review
 }
@@ -83,8 +84,8 @@ func reviewCall(pr PullRequest, review Review) recordedCall {
 	return recordedCall{method: "SubmitReview", url: pr.URL, review: review}
 }
 
-func saveDescriptionCall(pr PullRequest, body string) recordedCall {
-	return recordedCall{method: "SaveDescription", url: pr.URL, body: body}
+func saveDescriptionCall(pr PullRequest, description Description) recordedCall {
+	return recordedCall{method: "SaveDescription", url: pr.URL, title: description.Title, body: description.Body}
 }
 
 func postCommentCall(pr PullRequest, target CommentTarget, body string) recordedCall {
@@ -269,14 +270,34 @@ func (fake *fakeProvider) ChangedFiles(PullRequest) ([]string, error) {
 	return fake.changedFiles, nil
 }
 
-func (fake *fakeProvider) Description(PullRequest) (string, error) {
+// Description answers with the stored title of the pull request, and the fixture's body.
+func (fake *fakeProvider) Description(pr PullRequest) (Description, error) {
 	fake.mutex.Lock()
 	defer fake.mutex.Unlock()
-	return fake.description, fake.failures["Description"]
+	for _, stored := range fake.pullRequests {
+		if stored.URL == pr.URL {
+			return Description{Title: stored.Title, Body: fake.description}, fake.failures["Description"]
+		}
+	}
+	return Description{Title: pr.Title, Body: fake.description}, fake.failures["Description"]
 }
 
-func (fake *fakeProvider) SaveDescription(pr PullRequest, body string) error {
-	return fake.change("SaveDescription", recordedCall{url: pr.URL, body: body})
+// SaveDescription records the call and, when it succeeds, keeps the new title and body so that
+// a reload of the pull request shows them.
+func (fake *fakeProvider) SaveDescription(pr PullRequest, description Description) error {
+	err := fake.change("SaveDescription", recordedCall{url: pr.URL, title: description.Title, body: description.Body})
+	if err != nil {
+		return err
+	}
+	fake.mutex.Lock()
+	defer fake.mutex.Unlock()
+	for index := range fake.pullRequests {
+		if fake.pullRequests[index].URL == pr.URL {
+			fake.pullRequests[index].Title = description.Title
+		}
+	}
+	fake.description = description.Body
+	return nil
 }
 
 func (fake *fakeProvider) Comments(PullRequest) ([]ReviewComment, error) {

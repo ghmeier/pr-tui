@@ -47,29 +47,30 @@ func TestChangedFilesListsOnlyFilesThatStillExistOnTheBranch(t *testing.T) {
 	stub.assertCommands(t, []string{"gh", "api", "repos/" + partners.FullName() + "/pulls/7/files?per_page=100"})
 }
 
-func TestDescriptionReadsTheBodyWithUnixLineEndings(t *testing.T) {
+func TestDescriptionReadsTheTitleAndTheBodyWithUnixLineEndings(t *testing.T) {
 	pr := fixturePullRequest(partners)
-	stub := stubShell(t, `{"body": "Original description\r\n\r\nSecond paragraph"}`)
+	stub := stubShell(t, `{"title": "Original title", "body": "Original description\r\n\r\nSecond paragraph"}`)
 
-	body, err := providerFor(partners).Description(pr)
+	description, err := providerFor(partners).Description(pr)
 
-	if err != nil || body != "Original description\n\nSecond paragraph" {
-		t.Fatalf("body = %q, err = %v", body, err)
+	expected := pullrequests.Description{Title: "Original title", Body: "Original description\n\nSecond paragraph"}
+	if err != nil || description != expected {
+		t.Fatalf("description = %+v, err = %v, expected %+v", description, err, expected)
 	}
 	stub.assertCommands(t, []string{"gh", "api", "repos/" + partners.FullName() + "/pulls/7"})
 }
 
-func TestSaveDescriptionPatchesTheBodyThroughAJSONFileOnTheOwnersRepository(t *testing.T) {
+func TestSaveDescriptionPatchesTheTitleAndTheBodyThroughAJSONFileOnTheOwnersRepository(t *testing.T) {
 	pr := fixturePullRequest(partners)
 	stub := stubShell(t, "")
 
-	err := providerFor(partners).SaveDescription(pr, "Edited \"description\"")
+	err := providerFor(partners).SaveDescription(pr, pullrequests.Description{Title: "Edited title", Body: "Edited \"description\""})
 
 	if err != nil {
 		t.Fatal(err)
 	}
 	stub.assertCommands(t, []string{"gh", "api", "--method", "PATCH", "repos/" + partners.FullName() + "/pulls/7"})
-	stub.assertInputs(t, `{"body":"Edited \"description\""}`)
+	stub.assertInputs(t, `{"body":"Edited \"description\"","title":"Edited title"}`)
 }
 
 func TestCommentsReadAuthorSideAndThreading(t *testing.T) {
@@ -260,13 +261,15 @@ func TestEveryMethodReturnsTheFailureOfTheCommandItRan(t *testing.T) {
 	pr := fixturePullRequest(storefront)
 	target := pullrequests.CommentTarget{Path: "first.py", Line: 2}
 	methods := map[string]func(*provider) error{
-		"PullRequests":      func(p *provider) error { _, _, err := p.PullRequests(); return err },
-		"LineCounts":        func(p *provider) error { _, err := p.LineCounts(storefront); return err },
-		"CIStates":          func(p *provider) error { _, err := p.CIStates(storefront); return err },
-		"Diff":              func(p *provider) error { _, err := p.Diff(pr); return err },
-		"ChangedFiles":      func(p *provider) error { _, err := p.ChangedFiles(pr); return err },
-		"Description":       func(p *provider) error { _, err := p.Description(pr); return err },
-		"SaveDescription":   func(p *provider) error { return p.SaveDescription(pr, "body") },
+		"PullRequests": func(p *provider) error { _, _, err := p.PullRequests(); return err },
+		"LineCounts":   func(p *provider) error { _, err := p.LineCounts(storefront); return err },
+		"CIStates":     func(p *provider) error { _, err := p.CIStates(storefront); return err },
+		"Diff":         func(p *provider) error { _, err := p.Diff(pr); return err },
+		"ChangedFiles": func(p *provider) error { _, err := p.ChangedFiles(pr); return err },
+		"Description":  func(p *provider) error { _, err := p.Description(pr); return err },
+		"SaveDescription": func(p *provider) error {
+			return p.SaveDescription(pr, pullrequests.Description{Title: "title", Body: "body"})
+		},
 		"Comments":          func(p *provider) error { _, err := p.Comments(pr); return err },
 		"PostComment":       func(p *provider) error { return p.PostComment(pr, target, "body") },
 		"SetDraft":          func(p *provider) error { return p.SetDraft(pr, false) },

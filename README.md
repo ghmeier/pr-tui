@@ -122,8 +122,9 @@ Board keys:
 | `q` | Quit |
 
 Double-click any cell to copy its full text, including text the table cuts short. Clicking a
-row selects it, and the mouse wheel moves the cursor. Because the app captures the mouse, hold
-Option (iTerm2) or Shift (most other terminals) to select text with the terminal instead.
+row selects it, and the mouse wheel moves the cursor. Because the app uses the mouse,
+selecting text by dragging needs the terminal's bypass modifier: shift in kitty and most
+terminals, option in macOS Terminal and iTerm2.
 Columns whose values vary in length, such as branches, reviewers, and tags, are cut short;
 double-click a cell to copy its full text.
 
@@ -151,7 +152,7 @@ Description view keys:
 | Key | Action |
 | --- | --- |
 | `↑` / `↓`, `space` / `b` | Scroll by a line or a page |
-| `e` | Edit the description |
+| `e` | Edit the title and the description in your editor: the title on the first line, a blank line, then the description. Saving changes either or both; an empty title is refused |
 | `d` | Mark a draft ready for review, or convert a ready pull request back to draft; the help line shows which |
 | `t` | Request review from the configured team, as on the board; hidden once it is requested |
 | `m` | Merge now (squash, after a confirmation), or enable or disable auto-merge (squash) |

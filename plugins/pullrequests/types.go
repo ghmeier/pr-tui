@@ -37,6 +37,12 @@ type LineCount struct {
 	Deletions int
 }
 
+// Description is a pull request's title and the markdown body under it.
+type Description struct {
+	Title string
+	Body  string
+}
+
 type PullRequest struct {
 	Repository Repository
 	Number     int

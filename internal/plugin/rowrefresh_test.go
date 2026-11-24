@@ -68,6 +68,67 @@ func TestRefreshRowReplacesOnlyThatRowWithoutLoadingTheBoard(t *testing.T) {
 	}
 }
 
+// boardRefreshingWithoutACommand is a grocery board whose action on "x" only asks for a reload.
+func boardRefreshingWithoutACommand(source *rowSource, reload *reloader, refreshWholeBoard bool) Board {
+	board := groceryBoard(source)
+	board.Reload = reload.reload
+	board.Actions = []Action{{Key: "x", Run: func(selection Selection) Effect {
+		if refreshWholeBoard {
+			return Effect{Refresh: true}
+		}
+		return Effect{RefreshRow: selection.Row}
+	}}}
+	return board
+}
+
+func TestRefreshRowWithoutACommandReloadsThatRowAtOnce(t *testing.T) {
+	rows := groceries()
+	source := newRowSource(rows...)
+	renamed := fruit(rows[0].Key(), "green apple")
+	reload := &reloader{current: map[string]Row{renamed.key: renamed}}
+	model := modelForBoard(t, boardRefreshingWithoutACommand(source, reload, false))
+	loadsBefore := source.loadCount()
+
+	plugintest.Press(t, model, "x")
+
+	if expected := namesOf(renamed, rows[1], rows[2]); !slices.Equal(visibleNames(model), expected) {
+		t.Fatalf("visible = %v, expected %v", visibleNames(model), expected)
+	}
+	if source.loadCount() != loadsBefore || !slices.Equal(reload.askedKeys(), []string{renamed.key}) {
+		t.Fatalf("the board loaded %d more times and reloaded %v", source.loadCount()-loadsBefore, reload.askedKeys())
+	}
+}
+
+func TestRefreshWithoutACommandLoadsTheWholeBoard(t *testing.T) {
+	source := newRowSource(groceries()...)
+	reload := &reloader{}
+	model := modelForBoard(t, boardRefreshingWithoutACommand(source, reload, true))
+	loadsBefore := source.loadCount()
+
+	plugintest.Press(t, model, "x")
+
+	if source.loadCount() != loadsBefore+1 || len(reload.askedKeys()) != 0 {
+		t.Fatalf("the board loaded %d more times and reloaded rows %v", source.loadCount()-loadsBefore, reload.askedKeys())
+	}
+}
+
+func TestRefreshRowDoesNotReloadUntilItsCommandHasFinished(t *testing.T) {
+	source := newRowSource(groceries()...)
+	reload := &reloader{}
+	model := modelForBoard(t, boardRefreshingRow(source, reload, succeeds))
+	row, _ := model.current().selected()
+
+	_, command := model.Update(plugintest.KeyMessage("x"))
+
+	if len(reload.askedKeys()) != 0 {
+		t.Fatalf("reloaded %v before the command ran", reload.askedKeys())
+	}
+	plugintest.Settle(t, model, command)
+	if asked := reload.askedKeys(); !slices.Equal(asked, []string{row.Key()}) {
+		t.Fatalf("reloaded %v", asked)
+	}
+}
+
 func TestRefreshRowKeepsTheCursorOnTheReloadedRow(t *testing.T) {
 	source := newRowSource(groceries()...)
 	renamed := vegetable("broccoli-key", "purple broccoli")

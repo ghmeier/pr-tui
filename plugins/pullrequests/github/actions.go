@@ -37,16 +37,16 @@ func (github *provider) ChangedFiles(pr pullrequests.PullRequest) ([]string, err
 	return names, nil
 }
 
-func (github *provider) Description(pr pullrequests.PullRequest) (string, error) {
+func (github *provider) Description(pr pullrequests.PullRequest) (pullrequests.Description, error) {
 	output, err := shell.Run("gh", "api", apiEndpoint(pr))
 	if err != nil {
-		return "", err
+		return pullrequests.Description{}, err
 	}
-	var response struct{ Body string }
+	var response struct{ Title, Body string }
 	if err := json.Unmarshal(output, &response); err != nil {
-		return "", err
+		return pullrequests.Description{}, err
 	}
-	return strings.ReplaceAll(response.Body, "\r\n", "\n"), nil
+	return pullrequests.Description{Title: response.Title, Body: strings.ReplaceAll(response.Body, "\r\n", "\n")}, nil
 }
 
 // sendJSON sends the payload as a JSON file so that gh passes it through untouched.
@@ -70,8 +70,8 @@ func sendJSON(method, endpoint string, payload any) error {
 	return err
 }
 
-func (github *provider) SaveDescription(pr pullrequests.PullRequest, body string) error {
-	return sendJSON("PATCH", apiEndpoint(pr), map[string]string{"body": body})
+func (github *provider) SaveDescription(pr pullrequests.PullRequest, description pullrequests.Description) error {
+	return sendJSON("PATCH", apiEndpoint(pr), map[string]string{"title": description.Title, "body": description.Body})
 }
 
 func sideFrom(text string) pullrequests.CommentSide {
