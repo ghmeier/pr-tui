@@ -104,6 +104,7 @@ func (board *boardState) selectionOf(row Row) Selection {
 		Row:        row,
 		Data:       func(header string) any { return loaded[header] },
 		boardIndex: board.index,
+		current:    func() (Row, bool) { return board.rowWithKey(row.Key()) },
 	}
 }
 

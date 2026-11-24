@@ -583,10 +583,10 @@ func (screen *diffScreen) handleKey(key string) (plugin.Screen, tea.Cmd) {
 	switch key {
 	case "esc", "q":
 		return nil, nil
-	case "up", "left":
+	case "up":
 		screen.fileCursor--
 		screen.diffCursor, screen.diffOffset = 0, 0
-	case "down", "right":
+	case "down":
 		screen.fileCursor++
 		screen.diffCursor, screen.diffOffset = 0, 0
 	case "s":
@@ -596,8 +596,10 @@ func (screen *diffScreen) handleKey(key string) (plugin.Screen, tea.Cmd) {
 			screen.rebuildRows()
 			screen.diffCursor = screen.rowForLine(line)
 		}
-	case "tab":
-		screen.commentOnOldSide = !screen.commentOnOldSide
+	case "left":
+		screen.commentOnOldSide = true
+	case "right":
+		screen.commentOnOldSide = false
 	case "c":
 		return screen, screen.comment()
 	case "k":
@@ -665,11 +667,12 @@ func (screen *diffScreen) help() string {
 	if screen.showsSplit() {
 		layout = "unified"
 	}
-	keysAndLabels := []string{
-		"↑/↓", "file", "j/k", "line", "space/b", "page", "c", "comment", "tab", "old/new side", "s", layout,
-		"p", "description", "o", "open", "v", screen.board.editor.Name,
+	keysAndLabels := []string{"↑/↓", "file", "j/k", "line", "space/b", "page", "c", "comment"}
+	if screen.showsSplit() {
+		keysAndLabels = append(keysAndLabels, "←/→", "side")
 	}
-	keysAndLabels = append(keysAndLabels, screen.board.screenActionHelp()...)
+	keysAndLabels = append(keysAndLabels, "s", layout, "p", "description", "o", "open", "v", screen.board.editor.Name)
+	keysAndLabels = append(keysAndLabels, screen.board.screenActionHelp(currentRow(screen.selection))...)
 	return position + ui.HelpLine(append(keysAndLabels, "esc", "back")...)
 }
 

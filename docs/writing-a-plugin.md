@@ -429,7 +429,8 @@ On the update loop, which draws the screen and must not be blocked:
 
 State that one kind of function shares with the other kind needs a lock. It is simpler to
 avoid shared state: put whatever a cell needs on the row, and treat rows as values that are
-never changed after they are created. `Selection.Data` is a copy made when the selection was
+never changed after they are created. `Selection.Current` also reads the board's rows, so it
+belongs on the update loop. `Selection.Data` is a copy made when the selection was
 built, so it is safe to call from anywhere, including inside a `Command`. That is why
 `openTicketOfPullRequest` can read it in `Run` and why a `Command` can capture the result.
 
@@ -468,6 +469,12 @@ board, it calls `selection.Run(effect)`, which returns a command. That lets a sc
 notice, ask a confirmation, run a command, refresh the board, or open another screen, with the
 same `Effect` an action uses. The effect applies to the board the selection came from, even if
 another tab is in view when it arrives.
+
+A screen that shows keys for the board's actions should label them from the board's latest
+copy of the row, because an action it ran may have changed it. `selection.Current()` returns
+that copy, found by the row's key, and reports false once the board no longer has the row. It
+reads the board's rows, so call it only on the update loop, such as in `Update` or `View`.
+`Action.LabelOf(row)` gives the label and whether the action applies to that row.
 
 `plugins/pullrequests/descriptionscreen.go` is the smaller of the two real screens (the other
 is the diff view). It loads the description in `Init`, ignores `descriptionLoadedMessage`

@@ -21,15 +21,43 @@ func (board *pullRequestBoard) actions() []plugin.Action {
 		{Key: "p", Label: "description", Run: board.showDescription},
 		{Key: "o", Label: "open", Run: board.openInBrowser},
 		{Key: "v", Label: board.editor.Name, Run: board.openInEditor},
-		{Key: "d", Label: "draft / ready", Run: board.toggleDraft},
+		{Key: "d", LabelFor: draftLabel, Run: board.toggleDraft},
 	}
 	if board.reviewTeam != "" {
-		actions = append(actions, plugin.Action{Key: "t", Label: "request " + board.reviewTeam, Run: board.requestTeamReview})
+		actions = append(actions, plugin.Action{Key: "t", LabelFor: board.requestTeamLabel, Run: board.requestTeamReview})
 	}
 	return append(actions,
 		plugin.Action{Key: "m", Label: "merge", Run: board.chooseMerge},
-		plugin.Action{Key: "a", Label: "review", Run: board.review},
+		plugin.Action{Key: "a", LabelFor: reviewLabel, Run: board.review},
 	)
+}
+
+// draftLabel names the change the key makes: a draft is marked ready, anything else goes back to
+// draft.
+func draftLabel(row plugin.Row) string {
+	if row.(Row).PullRequest.IsDraft {
+		return "ready"
+	}
+	return "draft"
+}
+
+// requestTeamLabel is empty once the team is already requested, because asking again does
+// nothing.
+func (board *pullRequestBoard) requestTeamLabel(row plugin.Row) string {
+	if row.(Row).PullRequest.requestsTeam(board.reviewTeam) {
+		return ""
+	}
+	return "request " + board.reviewTeam
+}
+
+// reviewLabel says "comment" on the viewer's own pull request, where a comment review is the
+// only kind GitHub accepts.
+func reviewLabel(row plugin.Row) string {
+	pullRequestRow := row.(Row)
+	if pullRequestRow.PullRequest.Author == pullRequestRow.Viewer {
+		return "comment"
+	}
+	return "review"
 }
 
 var screenActionKeys = []string{"d", "t", "m", "a"}
@@ -46,17 +74,31 @@ func (board *pullRequestBoard) screenActions() []plugin.Action {
 	return offered
 }
 
-// screenActionHelp lists the screen actions' keys and labels for a screen's help line.
-func (board *pullRequestBoard) screenActionHelp() []string {
+// currentRow is the board's latest version of the selection's row, so that a screen labels its
+// actions from the state an action has since changed. It falls back to the row the screen was
+// opened with once the board no longer has it.
+func currentRow(selection plugin.Selection) plugin.Row {
+	if row, found := selection.Current(); found {
+		return row
+	}
+	return selection.Row
+}
+
+// screenActionHelp lists the keys and labels of the screen actions that apply to the row, for a
+// screen's help line.
+func (board *pullRequestBoard) screenActionHelp(row plugin.Row) []string {
 	var keysAndLabels []string
 	for _, action := range board.screenActions() {
-		keysAndLabels = append(keysAndLabels, action.Key, action.Label)
+		if label, _ := action.LabelOf(row); label != "" {
+			keysAndLabels = append(keysAndLabels, action.Key, label)
+		}
 	}
 	return keysAndLabels
 }
 
 // runScreenAction hands the key to the board when it is one of the screen actions. The board
-// runs it on the pull request as the board has it now, which a screen's own copy may not be.
+// runs it on the pull request as the board has it now, which a screen's own copy may not be, and
+// does nothing when the action does not apply to it.
 func (board *pullRequestBoard) runScreenAction(selection plugin.Selection, key string) (tea.Cmd, bool) {
 	for _, action := range board.screenActions() {
 		if action.Key == key {
