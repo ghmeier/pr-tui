@@ -111,11 +111,13 @@ type Model struct {
 	choice       *Choice
 	// lastClick is the most recent left click on a cell, to recognise a double click.
 	lastClick cellClick
+	// textCommand is the command that writes text beside prs. Empty means RunEditor.
+	textCommand []string
 }
 
 // Model builds the interactive program for the boards the plugins registered.
 func (host *Host) Model() *Model {
-	model := &Model{refreshInterval: host.file.RefreshInterval, now: time.Now, width: 120, height: 30}
+	model := &Model{refreshInterval: host.file.RefreshInterval, now: time.Now, width: 120, height: 30, textCommand: host.file.Editor.TextCommand}
 	for index, spec := range host.boards {
 		next := &boardState{
 			spec:            spec,

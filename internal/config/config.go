@@ -32,6 +32,9 @@ type Editor struct {
 	Name string
 	// Command is the executable followed by its arguments.
 	Command []string
+	// TextCommand runs beside prs to write comments, reviews, and descriptions. It is empty when
+	// they are written in $VISUAL or $EDITOR, which takes over the terminal.
+	TextCommand []string
 }
 
 // File is the validated form of the configuration file, with defaults applied.
@@ -51,6 +54,8 @@ type rawFile struct {
 		Name string `toml:"name"`
 		// Command is a string or a list of strings, so it is checked by editorCommandFrom.
 		Command any `toml:"command"`
+		// TextCommand has the same two forms as Command.
+		TextCommand any `toml:"text_command"`
 	} `toml:"editor"`
 }
 
@@ -170,32 +175,36 @@ func (file *File) Section(name string, target any) error {
 
 // editorCommandFrom accepts one executable as a string, or an executable followed by its
 // arguments as a list. A string is never split on spaces, because paths contain them.
-func editorCommandFrom(value any) ([]string, error) {
+func editorCommandFrom(key string, value any, fallback []string) ([]string, error) {
 	var command []string
 	switch typed := value.(type) {
 	case nil:
-		return defaultEditorCommand, nil
+		return fallback, nil
 	case string:
 		command = []string{typed}
 	case []any:
 		for _, element := range typed {
 			text, isText := element.(string)
 			if !isText {
-				return nil, fmt.Errorf("[editor] command must contain only strings, found %v", element)
+				return nil, fmt.Errorf("[editor] %s must contain only strings, found %v", key, element)
 			}
 			command = append(command, text)
 		}
 	default:
-		return nil, fmt.Errorf("[editor] command must be a string or a list of strings, not %v", value)
+		return nil, fmt.Errorf("[editor] %s must be a string or a list of strings, not %v", key, value)
 	}
 	if len(command) == 0 || command[0] == "" {
-		return nil, errors.New("[editor] command needs an executable as its first element")
+		return nil, fmt.Errorf("[editor] %s needs an executable as its first element", key)
 	}
 	return command, nil
 }
 
 func validate(raw rawFile) (*File, error) {
-	editorCommand, err := editorCommandFrom(raw.Editor.Command)
+	editorCommand, err := editorCommandFrom("command", raw.Editor.Command, defaultEditorCommand)
+	if err != nil {
+		return nil, err
+	}
+	textCommand, err := editorCommandFrom("text_command", raw.Editor.TextCommand, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -203,8 +212,9 @@ func validate(raw rawFile) (*File, error) {
 		Plugins:         raw.Plugins,
 		RefreshInterval: defaultRefreshInterval,
 		Editor: Editor{
-			Name:    cmp.Or(raw.Editor.Name, defaultEditorName),
-			Command: editorCommand,
+			Name:        cmp.Or(raw.Editor.Name, defaultEditorName),
+			Command:     editorCommand,
+			TextCommand: textCommand,
 		},
 	}
 	if raw.Plugins == nil {
@@ -242,6 +252,10 @@ command = "code"
 # The command may also be a list: the executable followed by its arguments. A single string is
 # always one executable, even if it contains spaces.
 # command = ["code", "--reuse-window"]
+# Where comments, reviews, and descriptions are written. Leave it out to hand the terminal to $VISUAL or
+# $EDITOR. A command runs beside prs instead, with the file's path added at the end; prs stays usable and
+# reads the file when the command exits. For a kitty split, turn on allow_remote_control in kitty.conf:
+# text_command = ["kitty", "@", "launch", "--type=window", "--location=vsplit", "--cwd=current", "--wait-for-child-to-exit", "nvim"]
 
 [pull_requests]
 # Where pull requests come from. Only "github" is supported today. The settings for the
