@@ -39,6 +39,49 @@ func TestParseDiffCountsChangesOnlyAfterAFilesFirstHunk(t *testing.T) {
 	}
 }
 
+// oneSidedFixtureDiff has an added file, a deleted file, and a modified one.
+const oneSidedFixtureDiff = `diff --git a/created.py b/created.py
+new file mode 100644
+index 000..111
+--- /dev/null
++++ b/created.py
+@@ -0,0 +1,2 @@
++first
++second
+diff --git a/deleted.py b/deleted.py
+deleted file mode 100644
+index 111..000
+--- a/deleted.py
++++ /dev/null
+@@ -1 +0,0 @@
+-gone
+diff --git a/modified.py b/modified.py
+index 111..222 100644
+--- a/modified.py
++++ b/modified.py
+@@ -1 +1 @@
+-before
++after
+`
+
+func TestParseDiffMarksAddedAndDeletedFilesAsOneSided(t *testing.T) {
+	files := parseDiff(oneSidedFixtureDiff)
+
+	created, deleted := files[0], files[1]
+
+	if !created.oneSided || !deleted.oneSided {
+		t.Fatalf("one-sided: created %v, deleted %v", created.oneSided, deleted.oneSided)
+	}
+}
+
+func TestParseDiffDoesNotMarkAModifiedFileAsOneSided(t *testing.T) {
+	modified := parseDiff(oneSidedFixtureDiff)[2]
+
+	if modified.oneSided {
+		t.Fatalf("%s should have two sides", modified.path)
+	}
+}
+
 func TestSplitViewPutsRemovedLineBesideItsReplacement(t *testing.T) {
 	file := parseDiff(fixtureDiff)[0]
 

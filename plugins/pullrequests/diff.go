@@ -48,10 +48,13 @@ type splitRow struct {
 }
 
 type diffFile struct {
-	path        string
-	additions   int
-	deletions   int
-	lines       []diffLine
+	path      string
+	additions int
+	deletions int
+	lines     []diffLine
+	// oneSided is a file that was added or deleted outright, so half of a side-by-side view
+	// would be empty.
+	oneSided    bool
 	splitRows   []splitRow
 	numberWidth int
 }
@@ -93,6 +96,9 @@ func parseDiff(text string) []diffFile {
 				newNumber, _ = strconv.Atoi(numbers[2])
 			}
 		case !inHunk || strings.HasPrefix(line, `\`):
+			if !inHunk && (strings.HasPrefix(line, "new file mode") || strings.HasPrefix(line, "deleted file mode")) {
+				file.oneSided = true
+			}
 		case strings.HasPrefix(line, "+"):
 			file.additions++
 			parsed.kind, parsed.newNumber = addedLine, newNumber
