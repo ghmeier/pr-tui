@@ -512,23 +512,29 @@ func assertCommands(t *testing.T, recorded *[][]string, expected ...[]string) {
 	}
 }
 
-// editorWrites replaces the editor with one that saves the given text. Temporary files go to a
-// directory that the test removes, and that directory is returned.
-func editorWrites(t *testing.T, text string) string {
+// editorSession records what the replaced editor was opened with.
+type editorSession struct {
+	opened []string
+}
+
+// editorWrites replaces the editor with one that saves the given text, or leaves the file as it
+// was when the text is empty.
+func editorWrites(t *testing.T, text string) *editorSession {
 	t.Helper()
-	temporaryDirectory := t.TempDir()
-	t.Setenv("TMPDIR", temporaryDirectory)
-	original := editInEditor
-	editInEditor = func(path string, finished func(error) tea.Msg) tea.Cmd {
+	session := &editorSession{}
+	original := plugin.RunEditor
+	t.Cleanup(func() { plugin.RunEditor = original })
+	plugin.RunEditor = func(path string, finished func(error) tea.Msg) tea.Cmd {
 		return func() tea.Msg {
+			opened, _ := os.ReadFile(path)
+			session.opened = append(session.opened, strings.TrimSpace(string(opened)))
 			if text != "" {
 				os.WriteFile(path, []byte(text), 0o600)
 			}
 			return finished(nil)
 		}
 	}
-	t.Cleanup(func() { editInEditor = original })
-	return temporaryDirectory
+	return session
 }
 
 func providerWithRepositories(repositories ...Repository) *fakeProvider {

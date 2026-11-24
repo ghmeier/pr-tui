@@ -230,7 +230,7 @@ they failed, 🟡 while they run, and ⏳ when none have started. Its state read
 `x` on a workflow opens a form with the branch, which starts as the repository's default branch,
 and then each input the workflow declares for manual runs, in the order the file declares them.
 A workflow that cannot be started by hand says so instead. Starting a run never happens without
-a confirmation: `ctrl+s` submits the form, and the board then asks you to confirm the branch and
+a confirmation: `enter` submits the form, and the board then asks you to confirm the branch and
 the values before anything is started. The new run appears in a runs section when it next
 reloads.
 
@@ -239,7 +239,7 @@ reloads.
 | `↑` / `↓`, `tab` / `shift+tab` | Move between fields |
 | `←` / `→` (also `h` / `l` outside text fields) | Cycle the options of a choice |
 | `space` | Toggle a boolean |
-| `ctrl+s` | Submit; a required field that is empty, or a number field that is not a number, is marked and nothing is submitted |
+| `enter` | Submit; a required field that is empty, or a number field that is not a number, is marked and nothing is submitted |
 | `esc` | Cancel without starting anything |
 
 `x` on a run that has finished offers to re-run its failed jobs (only when it failed) or all of its

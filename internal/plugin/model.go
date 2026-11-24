@@ -373,6 +373,8 @@ func (m *Model) update(message tea.Msg) tea.Cmd {
 		m.width, m.height = message.Width, message.Height
 	case effectMessage:
 		return m.applyEffect(message.board, message.effect)
+	case editFinishedMessage:
+		return m.finishEdit(message)
 	case actionMessage:
 		board := m.boards[message.board]
 		row, found := board.rowWithKey(message.rowKey)
@@ -600,6 +602,9 @@ func (m *Model) execute(index int, effect Effect) tea.Cmd {
 	if effect.Notice != "" {
 		m.boards[index].notice = effect.Notice
 	}
+	if effect.Edit != nil {
+		return m.startEdit(index, effect.Edit)
+	}
 	if effect.Command != nil {
 		commands = append(commands, m.startCommand(index, effect.Command,
 			commandFinishedMessage{refresh: effect.Refresh, refreshRow: effect.RefreshRow}))
@@ -640,7 +645,7 @@ func (m *Model) handleConfirmKey(key string) tea.Cmd {
 	case "y", "enter":
 		effect, index := m.pending, m.pendingBoard
 		m.mode, m.question, m.pending = boardMode, "", Effect{}
-		if effect.Notice == "" {
+		if effect.Notice == "" && effect.Edit == nil {
 			effect.Notice = "Working…"
 		}
 		return m.execute(index, effect)
