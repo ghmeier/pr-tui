@@ -1,8 +1,8 @@
 ---
 title: Actions that fit the pull request, arrow keys for diff sides, and an editor beside prs
-status: active
+status: completed
 tags: [pull-requests, host, configuration]
-next_step: Steps 1 and 2 dispatched in parallel.
+next_step: Done; https://github.com/ghmeier/pr-tui/pull/14 and pull request #13 merged.
 created: 2026-11-24
 updated: 2026-11-24
 ---
@@ -58,8 +58,9 @@ mouse restore needed), with the notice "Writing in your editor…" on the board,
 
 ## Steps
 1. **`dynamic-actions`** from main: `Action.LabelFor`, `Action.LabelOf`, `Selection.Current`, the pull request
-   labels, and arrow keys for diff sides.
+   labels, and arrow keys for diff sides. **Done:** https://github.com/ghmeier/pr-tui/pull/14, merged.
 2. **`editor-beside`** from main, in parallel: `[editor] text_command`, validation, starter file, README, host.
+   **Done:** pull request #13, merged.
 
 ## Risks
 - Two branches touch README and possibly `internal/plugin/plugin.go`; the second to land rebases.
@@ -68,3 +69,7 @@ mouse restore needed), with the notice "Writing in your editor…" on the board,
 ## Notes and decisions
 - 2026-11-24: Labels name the action, not the state ("d ready" marks a draft ready). Configuration key
   `text_command` chosen by the lead; cheap to rename.
+- 2026-11-24: kitty remote control must go over a socket (`allow_remote_control socket-only` plus
+  `listen_on`); without one, `kitty @` talks through the terminal prs reads keys from. README says so.
+- 2026-11-24: Left alone: left/right set the comment side even in the unified layout (harmless, help hides
+  them there); an empty static Label still only hides an action, while an empty LabelFor also disables it.
