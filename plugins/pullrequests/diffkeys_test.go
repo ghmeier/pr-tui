@@ -6,36 +6,45 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/ghmeier/pr-tui/internal/plugin"
 	"github.com/ghmeier/pr-tui/internal/plugin/plugintest"
 	"github.com/ghmeier/pr-tui/internal/ui"
 )
 
-func wheel(button tea.MouseButton) tea.MouseMsg {
-	return tea.MouseMsg{Button: button, Action: tea.MouseActionPress}
+func mouse(button tea.MouseButton, action tea.MouseAction) tea.MouseMsg {
+	return tea.MouseMsg{Button: button, Action: action}
 }
 
-func TestDiffViewUpAndDownMoveTheLineCursorWithinTheFile(t *testing.T) {
+// cursorIsOnTheAddedLine reports whether the diff's cursor marker is on the line "added".
+func cursorIsOnTheAddedLine(t *testing.T, model *plugin.Model) bool {
+	t.Helper()
+	return strings.Contains(lineWith(t, model, "2 +added"), ui.CursorMarker)
+}
+
+func TestDiffViewDownMovesTheLineCursorWithinTheFile(t *testing.T) {
 	model := loadedBoard(t)
 	press(t, model, pressToTheAddedLine()...)
-	onTheAddedLine := strings.Contains(lineWith(t, model, "2 +added"), ui.CursorMarker)
 
 	press(t, model, "down")
 
-	if !onTheAddedLine || strings.Contains(lineWith(t, model, "2 +added"), ui.CursorMarker) {
-		t.Fatalf("down did not move the cursor off the added line:\n%s", view(model))
+	if cursorIsOnTheAddedLine(t, model) || !strings.Contains(view(model), "file 1 of 2") {
+		t.Fatalf("down did not move the cursor within the first file:\n%s", view(model))
 	}
-	if !strings.Contains(view(model), "file 1 of 2") {
-		t.Fatalf("down changed the file:\n%s", view(model))
-	}
+}
+
+func TestDiffViewUpMovesTheLineCursorBack(t *testing.T) {
+	model := loadedBoard(t)
+	press(t, model, pressToTheAddedLine()...)
+	press(t, model, "down")
 
 	press(t, model, "up")
 
-	if !strings.Contains(lineWith(t, model, "2 +added"), ui.CursorMarker) {
+	if !cursorIsOnTheAddedLine(t, model) {
 		t.Fatalf("up did not move the cursor back:\n%s", view(model))
 	}
 }
 
-func TestDiffViewJAndKChangeTheFileAndLeaveTheLineCursorAtItsTop(t *testing.T) {
+func TestDiffViewJSelectsTheNextFile(t *testing.T) {
 	model := loadedBoard(t)
 	press(t, model, pressToTheAddedLine()...)
 
@@ -44,66 +53,78 @@ func TestDiffViewJAndKChangeTheFileAndLeaveTheLineCursorAtItsTop(t *testing.T) {
 	if !strings.Contains(view(model), "file 2 of 2") {
 		t.Fatalf("j did not select the next file:\n%s", view(model))
 	}
+}
+
+func TestDiffViewKSelectsThePreviousFileWithTheLineCursorAtItsTop(t *testing.T) {
+	model := loadedBoard(t)
+	press(t, model, pressToTheAddedLine()...)
+	press(t, model, "j")
 
 	press(t, model, "k")
 
-	if !strings.Contains(view(model), "file 1 of 2") || strings.Contains(lineWith(t, model, "2 +added"), ui.CursorMarker) {
+	if !strings.Contains(view(model), "file 1 of 2") || cursorIsOnTheAddedLine(t, model) {
 		t.Fatalf("k did not return to the first file with the cursor at its top:\n%s", view(model))
 	}
 }
 
-func TestDiffViewMouseWheelMovesTheLineCursorOneLinePerNotch(t *testing.T) {
+func TestDiffViewMouseWheelDownMovesTheLineCursorDown(t *testing.T) {
 	model := loadedBoard(t)
 	press(t, model, pressToTheAddedLine()...)
 
-	plugintest.Send(t, model, wheel(tea.MouseButtonWheelDown))
+	plugintest.Send(t, model, mouse(tea.MouseButtonWheelDown, tea.MouseActionPress))
 
-	if strings.Contains(lineWith(t, model, "2 +added"), ui.CursorMarker) {
+	if cursorIsOnTheAddedLine(t, model) {
 		t.Fatalf("the wheel did not move the cursor down:\n%s", view(model))
 	}
+}
 
-	plugintest.Send(t, model, wheel(tea.MouseButtonWheelUp))
+func TestDiffViewMouseWheelUpMovesTheLineCursorUp(t *testing.T) {
+	model := loadedBoard(t)
+	press(t, model, pressToTheAddedLine()...)
+	press(t, model, "down")
 
-	if !strings.Contains(lineWith(t, model, "2 +added"), ui.CursorMarker) {
+	plugintest.Send(t, model, mouse(tea.MouseButtonWheelUp, tea.MouseActionPress))
+
+	if !cursorIsOnTheAddedLine(t, model) {
 		t.Fatalf("the wheel did not move the cursor up:\n%s", view(model))
 	}
 }
 
-func TestDiffViewIgnoresOtherMouseEvents(t *testing.T) {
+func TestDiffViewIgnoresMouseEventsThatAreNotWheelPresses(t *testing.T) {
 	model := loadedBoard(t)
 	press(t, model, pressToTheAddedLine()...)
 
-	plugintest.Send(t, model, tea.MouseMsg{Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
-	plugintest.Send(t, model, tea.MouseMsg{Button: tea.MouseButtonWheelDown, Action: tea.MouseActionRelease})
+	plugintest.Send(t, model, mouse(tea.MouseButtonLeft, tea.MouseActionPress))
+	plugintest.Send(t, model, mouse(tea.MouseButtonWheelDown, tea.MouseActionRelease))
 
-	if !strings.Contains(lineWith(t, model, "2 +added"), ui.CursorMarker) {
+	if !cursorIsOnTheAddedLine(t, model) {
 		t.Fatalf("the cursor moved:\n%s", view(model))
 	}
 }
 
-func TestDiffViewSpaceAndBNoLongerPage(t *testing.T) {
+func TestDiffViewSpaceAndBDoNotPage(t *testing.T) {
 	model := loadedBoard(t)
 	press(t, model, pressToTheAddedLine()...)
 
 	press(t, model, " ", "b")
 
-	if !strings.Contains(lineWith(t, model, "2 +added"), ui.CursorMarker) {
+	if !cursorIsOnTheAddedLine(t, model) {
 		t.Fatalf("the cursor moved:\n%s", view(model))
 	}
 }
 
-func TestDiffViewPageDownStillPages(t *testing.T) {
+func TestDiffViewPageDownMovesTheLineCursor(t *testing.T) {
 	model := loadedBoard(t)
 	press(t, model, pressToTheAddedLine()...)
 
 	press(t, model, "pgdown")
 
-	if strings.Contains(lineWith(t, model, "2 +added"), ui.CursorMarker) {
+	if cursorIsOnTheAddedLine(t, model) {
 		t.Fatalf("pgdown did not move the cursor:\n%s", view(model))
 	}
 }
 
-func TestDiffViewHelpLineListsLineFilePageKeys(t *testing.T) {
+func TestDiffViewHelpLineListsTheLineFileAndPageKeys(t *testing.T) {
 	model := loadedBoard(t)
 	press(t, model, "enter")
 
