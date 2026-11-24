@@ -61,10 +61,18 @@ as waiting on you.
 By default, writing a comment, a review, or a description hands the whole terminal to `$VISUAL` or
 `$EDITOR`. Set `text_command` to run a command beside prs instead, so the diff stays visible
 and usable while you write. The file's path is added as the last argument, and prs reads the file when the
-command exits. With kitty, the example above opens a split next to prs. It needs
-`allow_remote_control yes` in `kitty.conf`, or `allow_remote_control socket-only` together
-with `listen_on`. `--location=vsplit` splits only in kitty's Splits layout (`enabled_layouts splits`).
-Other terminals can use a wrapper script that opens a pane and waits for the editor to exit.
+command exits. With kitty, the example above opens a split next to prs. Turn on remote control over a socket
+in `kitty.conf` and restart kitty:
+
+```
+allow_remote_control socket-only
+listen_on unix:/tmp/kitty
+```
+
+Use a socket rather than `allow_remote_control yes` alone: without one, `kitty @` talks to kitty
+through the terminal that prs is reading keys from. `--location=vsplit` splits only in kitty's
+Splits layout (`enabled_layouts splits`). Other terminals can use a wrapper script that opens a
+pane and waits for the editor to exit.
 
 A mistake in the file, such as an unknown key or a repository not written as `owner/name`,
 is reported at startup with the file, the table, and the key.

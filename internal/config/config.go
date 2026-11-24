@@ -254,7 +254,8 @@ command = "code"
 # command = ["code", "--reuse-window"]
 # Where comments, reviews, and descriptions are written. Leave it out to hand the terminal to $VISUAL or
 # $EDITOR. A command runs beside prs instead, with the file's path added at the end; prs stays usable and
-# reads the file when the command exits. For a kitty split, turn on allow_remote_control in kitty.conf:
+# reads the file when the command exits. For a kitty split (needs remote control on a socket in kitty.conf;
+# see the README):
 # text_command = ["kitty", "@", "launch", "--type=window", "--location=vsplit", "--cwd=current", "--wait-for-child-to-exit", "nvim"]
 
 [pull_requests]
