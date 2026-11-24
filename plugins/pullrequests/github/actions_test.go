@@ -207,16 +207,53 @@ func TestRequestTeamReviewGoesToTheOwnerOfThePullRequest(t *testing.T) {
 	})
 }
 
-func TestApproveApprovesThePullRequestByItsUrl(t *testing.T) {
+func TestSubmitReviewOfAnApprovalWithoutABodyOrCommentsSendsOnlyTheEventAndTheHeadCommit(t *testing.T) {
 	pr := fixturePullRequest(storefront)
 	stub := stubShell(t, "")
 
-	err := providerFor(storefront).Approve(pr)
+	err := providerFor(storefront).SubmitReview(pr, pullrequests.Review{Event: pullrequests.ReviewEventApprove})
 
 	if err != nil {
 		t.Fatal(err)
 	}
-	stub.assertCommands(t, []string{"gh", "pr", "review", pr.URL, "--approve"})
+	stub.assertCommands(t, []string{"gh", "api", "--method", "POST", "repos/" + storefront.FullName() + "/pulls/7/reviews"})
+	stub.assertInputs(t, `{"commit_id":"`+pr.HeadCommit+`","event":"APPROVE"}`)
+}
+
+func TestSubmitReviewThatRequestsChangesSendsTheBodyAndEachCommentWithItsSide(t *testing.T) {
+	pr := fixturePullRequest(partners)
+	stub := stubShell(t, "")
+	review := pullrequests.Review{
+		Event: pullrequests.ReviewEventRequestChanges,
+		Body:  "Please fix \"these\"",
+		Comments: []pullrequests.DraftComment{
+			{Path: "first.py", Line: 2, Side: pullrequests.CommentSideNew, Body: "Added line"},
+			{Path: "first.py", Line: 1, Side: pullrequests.CommentSideOld, Body: "Removed line"},
+		},
+	}
+
+	err := providerFor(partners).SubmitReview(pr, review)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	stub.assertCommands(t, []string{"gh", "api", "--method", "POST", "repos/" + partners.FullName() + "/pulls/7/reviews"})
+	stub.assertInputs(t, `{"body":"Please fix \"these\"","comments":[`+
+		`{"body":"Added line","line":2,"path":"first.py","side":"RIGHT"},`+
+		`{"body":"Removed line","line":1,"path":"first.py","side":"LEFT"}],`+
+		`"commit_id":"`+pr.HeadCommit+`","event":"REQUEST_CHANGES"}`)
+}
+
+func TestSubmitReviewThatOnlyCommentsSendsTheCommentEvent(t *testing.T) {
+	pr := fixturePullRequest(storefront)
+	stub := stubShell(t, "")
+
+	err := providerFor(storefront).SubmitReview(pr, pullrequests.Review{Event: pullrequests.ReviewEventComment, Body: "Thoughts"})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	stub.assertInputs(t, `{"body":"Thoughts","commit_id":"`+pr.HeadCommit+`","event":"COMMENT"}`)
 }
 
 func TestEveryMethodReturnsTheFailureOfTheCommandItRan(t *testing.T) {
@@ -235,7 +272,7 @@ func TestEveryMethodReturnsTheFailureOfTheCommandItRan(t *testing.T) {
 		"SetDraft":          func(p *provider) error { return p.SetDraft(pr, false) },
 		"SetAutoMerge":      func(p *provider) error { return p.SetAutoMerge(pr, true) },
 		"Merge":             func(p *provider) error { return p.Merge(pr) },
-		"Approve":           func(p *provider) error { return p.Approve(pr) },
+		"SubmitReview":      func(p *provider) error { return p.SubmitReview(pr, pullrequests.Review{}) },
 		"RequestTeamReview": func(p *provider) error { return p.RequestTeamReview(pr) },
 	}
 	stubShellWith(t, func([]string) ([]byte, error) { return nil, errorFromGh })

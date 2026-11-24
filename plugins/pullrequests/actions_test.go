@@ -131,7 +131,7 @@ func TestHelpListsTheActionsInTheOrderOfTheBoardAndNamesTheConfiguredEditor(t *t
 	help := helpLine(model)
 
 	expected := "enter diff · p description · o open · v " + testEditorName + " · d draft / ready · t request " + testReviewTeam +
-		" · m merge · a approve · f filters · r refresh · q quit"
+		" · m merge · a review · f filters · r refresh · q quit"
 	if help != expected {
 		t.Fatalf("help = %q, expected %q", help, expected)
 	}
@@ -215,56 +215,6 @@ func TestDecliningTheMergeConfirmationMergesNothing(t *testing.T) {
 	assertCalls(t, provider)
 	if strings.Contains(view(model), "now (squash)?") {
 		t.Fatalf("the question is still shown:\n%s", view(model))
-	}
-}
-
-func TestApproveKeyAsksBeforeApprovingSomeoneElsesPullRequest(t *testing.T) {
-	provider := newFakeProvider()
-	model := loadedBoardWith(t, provider)
-	selected := provider.pullRequest(1)
-
-	press(t, model, "a")
-	asked := view(model)
-	callsWhileAsking := provider.recorded()
-	press(t, model, "y")
-
-	if !strings.Contains(asked, selected.approveQuestion()) || len(callsWhileAsking) != 0 {
-		t.Fatalf("view while asking:\n%s\ncalls = %v", asked, callsWhileAsking)
-	}
-	assertCalls(t, provider, approveCall(selected))
-}
-
-func TestDecliningApproveChangesNothing(t *testing.T) {
-	provider := newFakeProvider()
-	model := loadedBoardWith(t, provider)
-
-	press(t, model, "a", "n")
-
-	assertCalls(t, provider)
-}
-
-func TestApproveKeyNamesThePullRequestInItsNoticeWhileItWorks(t *testing.T) {
-	provider := newFakeProvider()
-	model := loadedBoardWith(t, provider)
-
-	press(t, model, "a")
-	model.Update(keyMessage("y"))
-
-	if notice := view(model); !strings.Contains(notice, provider.pullRequest(1).approveNotice()) {
-		t.Fatalf("view:\n%s", notice)
-	}
-}
-
-func TestApproveKeyOnTheViewersOwnPullRequestOnlyShowsANotice(t *testing.T) {
-	provider := newFakeProvider()
-	provider.pullRequests[0].Author = testViewer
-	model := loadedBoardWith(t, provider)
-
-	press(t, model, "a")
-
-	assertCalls(t, provider)
-	if notice := view(model); !strings.Contains(notice, approveOwnPullRequestNotice) || strings.Contains(notice, "Approve ") {
-		t.Fatalf("view:\n%s", notice)
 	}
 }
 
@@ -358,7 +308,7 @@ func TestEditorKeyShowsTheFailureWhenTheWorktreeCannotBeOpened(t *testing.T) {
 var rowRefreshingActions = map[string][]string{
 	"draft":             {"d"},
 	"request review":    {"t"},
-	"approve":           {"a", "y"},
+	"review":            {"a", "1", "y"},
 	"merge now":         {"m", "1", "y"},
 	"enable auto-merge": {"m", "2"},
 }
@@ -366,6 +316,7 @@ var rowRefreshingActions = map[string][]string{
 func TestActionsReloadOnlyTheChangedPullRequest(t *testing.T) {
 	for name, keys := range rowRefreshingActions {
 		t.Run(name, func(t *testing.T) {
+			editorWrites(t, "")
 			provider := newFakeProvider()
 			model := loadedBoardWith(t, provider)
 			selected := provider.pullRequest(1)
@@ -386,11 +337,12 @@ func TestActionsReloadOnlyTheChangedPullRequest(t *testing.T) {
 
 func TestActionThatFailsReloadsNothing(t *testing.T) {
 	provider := newFakeProvider()
-	provider.fail("Approve", errorForTests)
+	provider.fail("SubmitReview", errorForTests)
+	editorWrites(t, "")
 	model := loadedBoardWith(t, provider)
 	listingsBefore, _ := provider.loads()
 
-	press(t, model, "a", "y")
+	press(t, model, "a", "1", "y")
 
 	listings, reloaded := provider.loads()
 	if listings != listingsBefore || len(reloaded) != 0 {

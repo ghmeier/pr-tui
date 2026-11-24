@@ -158,9 +158,31 @@ func (github *provider) Merge(pr pullrequests.PullRequest) error {
 	return err
 }
 
-func (github *provider) Approve(pr pullrequests.PullRequest) error {
-	_, err := shell.Run("gh", "pr", "review", pr.URL, "--approve")
-	return err
+func reviewEventText(event pullrequests.ReviewEvent) string {
+	switch event {
+	case pullrequests.ReviewEventRequestChanges:
+		return "REQUEST_CHANGES"
+	case pullrequests.ReviewEventComment:
+		return "COMMENT"
+	}
+	return "APPROVE"
+}
+
+func (github *provider) SubmitReview(pr pullrequests.PullRequest, review pullrequests.Review) error {
+	payload := map[string]any{"commit_id": pr.HeadCommit, "event": reviewEventText(review.Event)}
+	if review.Body != "" {
+		payload["body"] = review.Body
+	}
+	if len(review.Comments) > 0 {
+		comments := make([]map[string]any, len(review.Comments))
+		for index, comment := range review.Comments {
+			comments[index] = map[string]any{
+				"path": comment.Path, "line": comment.Line, "side": sideText(comment.Side), "body": comment.Body,
+			}
+		}
+		payload["comments"] = comments
+	}
+	return sendJSON("POST", apiEndpoint(pr)+"/reviews", payload)
 }
 
 func (github *provider) RequestTeamReview(pr pullrequests.PullRequest) error {

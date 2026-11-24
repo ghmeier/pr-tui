@@ -60,6 +60,7 @@ type recordedCall struct {
 	flag   bool
 	body   string
 	target CommentTarget
+	review Review
 }
 
 func draftCall(pr PullRequest, draft bool) recordedCall {
@@ -78,8 +79,8 @@ func teamReviewCall(pr PullRequest) recordedCall {
 	return recordedCall{method: "RequestTeamReview", url: pr.URL}
 }
 
-func approveCall(pr PullRequest) recordedCall {
-	return recordedCall{method: "Approve", url: pr.URL}
+func reviewCall(pr PullRequest, review Review) recordedCall {
+	return recordedCall{method: "SubmitReview", url: pr.URL, review: review}
 }
 
 func saveDescriptionCall(pr PullRequest, body string) recordedCall {
@@ -324,8 +325,8 @@ func (fake *fakeProvider) RequestTeamReview(pr PullRequest) error {
 	return fake.change("RequestTeamReview", recordedCall{url: pr.URL})
 }
 
-func (fake *fakeProvider) Approve(pr PullRequest) error {
-	return fake.change("Approve", recordedCall{url: pr.URL})
+func (fake *fakeProvider) SubmitReview(pr PullRequest, review Review) error {
+	return fake.change("SubmitReview", recordedCall{url: pr.URL, review: review})
 }
 
 const (
@@ -521,12 +522,20 @@ type editorSession struct {
 // was when the text is empty.
 func editorWrites(t *testing.T, text string) *editorSession {
 	t.Helper()
+	return editorWritesInTurn(t, text)
+}
+
+// editorWritesInTurn is editorWrites for several openings: the first opening saves the first
+// text, the second the second, and any later one the last. An empty text leaves the file as it was.
+func editorWritesInTurn(t *testing.T, texts ...string) *editorSession {
+	t.Helper()
 	session := &editorSession{}
 	original := plugin.RunEditor
 	t.Cleanup(func() { plugin.RunEditor = original })
 	plugin.RunEditor = func(path string, finished func(error) tea.Msg) tea.Cmd {
 		return func() tea.Msg {
 			opened, _ := os.ReadFile(path)
+			text := texts[min(len(session.opened), len(texts)-1)]
 			session.opened = append(session.opened, strings.TrimSpace(string(opened)))
 			if text != "" {
 				os.WriteFile(path, []byte(text), 0o600)

@@ -59,6 +59,17 @@ func (thread commentThread) render(width int) []string {
 	return lines
 }
 
+// render draws a pending comment like a thread, headed "pending" where a posted comment has its
+// author and age.
+func (draft DraftComment) render(width int) []string {
+	lines := []string{ui.YellowStyle.Render("┌ ") + ui.BoldStyle.Render("pending")}
+	body := commentSanitizer.Replace(strings.TrimSpace(draft.Body))
+	for _, text := range strings.Split(ansi.Wrap(body, max(width-2, 10), ""), "\n") {
+		lines = append(lines, ui.YellowStyle.Render("│ ")+text)
+	}
+	return lines
+}
+
 func (thread commentThread) replyTarget() CommentTarget {
 	root := thread.root
 	return CommentTarget{
@@ -78,6 +89,10 @@ func (line diffLine) threadKeys(path string) []threadKey {
 	return nil
 }
 
+func (row viewRow) isComment() bool {
+	return row.thread != nil || row.draft != nil
+}
+
 // viewRow is one row of the diff pane in the current layout: a diff line, a side-by-side
 // pair (one viewRow for each line it wraps onto), or one line of a comment thread anchored to
 // the diff line above it.
@@ -85,6 +100,7 @@ type viewRow struct {
 	left    int
 	right   int
 	thread  *commentThread
+	draft   *DraftComment
 	comment string
 	// part is which of the terminal lines of a wrapped diff row this is, counting from 0.
 	part int
