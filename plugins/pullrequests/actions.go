@@ -89,19 +89,19 @@ func currentRow(selection plugin.Selection) plugin.Row {
 func (board *pullRequestBoard) screenActionHelp(row plugin.Row) []string {
 	var keysAndLabels []string
 	for _, action := range board.screenActions() {
-		if label, applies := action.LabelOf(row); applies && label != "" {
+		if label, _ := action.LabelOf(row); label != "" {
 			keysAndLabels = append(keysAndLabels, action.Key, label)
 		}
 	}
 	return keysAndLabels
 }
 
-// runScreenAction hands the key to the board when it is one of the screen actions that applies
-// to the pull request. The board runs it on the pull request as the board has it now, which a screen's own copy may not be.
+// runScreenAction hands the key to the board when it is one of the screen actions. The board
+// runs it on the pull request as the board has it now, which a screen's own copy may not be, and
+// does nothing when the action does not apply to it.
 func (board *pullRequestBoard) runScreenAction(selection plugin.Selection, key string) (tea.Cmd, bool) {
-	row := currentRow(selection)
 	for _, action := range board.screenActions() {
-		if _, applies := action.LabelOf(row); action.Key == key && applies {
+		if action.Key == key {
 			return selection.RunAction(key), true
 		}
 	}
