@@ -1,8 +1,8 @@
 ---
 title: Code review, one editing pattern, and diff fixes
-status: active
+status: completed
 tags: [pull-requests, host]
-next_step: Step 4 (pending-review) dispatched from main.
+next_step: Done; pull requests #9 to #12 merged. A release is the user's call.
 created: 2026-11-24
 updated: 2026-11-24
 ---
@@ -121,7 +121,7 @@ Steps 2 to 4 all touch `diffscreen.go`, so they run in sequence.
 3. **`fresh-diff`**: always reload the diff, and one-sided files open unified. **Done:** pull
    request #11, merged.
 4. **`pending-review`**: comments through the editor, pending review, the review action, and
-   the provider's `SubmitReview`; README key tables updated.
+   the provider's `SubmitReview`; README key tables updated. **Done:** pull request #12, merged.
 
 ## Risks
 
@@ -139,3 +139,12 @@ Steps 2 to 4 all touch `diffscreen.go`, so they run in sequence.
 - 2026-11-24: The workflows run form is a form of single-line fields, not prose, so it does not
   use the editor. At the user's request, `enter` submits it instead of `ctrl+s`; this rides along
   in step 1.
+- 2026-11-24: Pull requests #9 to #12 merged under the standing permission to merge verified work.
+- 2026-11-24: The host gained `plugin.CommandFinished`, delivered to open screens when an effect's command
+  finishes, so the diff screen reloads comments right after a review is submitted.
+- 2026-11-24: Code review of step 4 found outdated drafts hidden from view and blocking reviews, double
+  submission, and the body cleared too eagerly. Fixed: outdated drafts show at the top of their file,
+  the review is sent without `commit_id` (GitHub uses the latest commit), a per-pull-request submitting
+  flag refuses a second submission, and only the sent body is cleared.
+- 2026-11-24: Left alone: `pendingReviews.entry` creates a record on read, one per pull request viewed;
+  the review choice is matched back to its event by label text.
