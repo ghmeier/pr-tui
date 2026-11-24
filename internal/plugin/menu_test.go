@@ -150,14 +150,24 @@ func TestMenuEnterPicksFromTheNarrowedOptions(t *testing.T) {
 	}
 }
 
-func TestMenuCursorStopsAtTheEndsAndFollowsANarrowedList(t *testing.T) {
+func TestMenuCursorStopsAtTheEnds(t *testing.T) {
 	var picked []string
 	model := menuModel(t, fruitNames, &picked)
 
 	plugintest.Press(t, model, "x", "up", "down", "down", "down", "down", "down", "down", "down", "down", "enter")
+
+	if len(picked) != 1 || picked[0] != fruitNames[len(fruitNames)-1] {
+		t.Fatalf("picked %v", picked)
+	}
+}
+
+func TestMenuCursorFollowsANarrowedList(t *testing.T) {
+	var picked []string
+	model := menuModel(t, fruitNames, &picked)
+
 	plugintest.Press(t, model, "x", "down", "down", "down", "g", "enter")
 
-	if len(picked) != 2 || picked[0] != fruitNames[len(fruitNames)-1] || picked[1] != "grape" {
+	if len(picked) != 1 || picked[0] != "grape" {
 		t.Fatalf("picked %v", picked)
 	}
 }

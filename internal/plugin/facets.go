@@ -8,6 +8,9 @@ import (
 	"github.com/ghmeier/pr-tui/internal/ui"
 )
 
+// clampCursor keeps a cursor inside a list of count options, and at zero when the list is empty.
+func clampCursor(cursor, count int) int { return max(min(cursor, count-1), 0) }
+
 // numberKeyCount is how many options get a number key, as the keys are 1 to 9.
 const numberKeyCount = 9
 
@@ -179,7 +182,7 @@ func handleFilterKey(facets []facetState, cursor *int, key string) bool {
 		*cursor = max(*cursor-1, 0)
 		return false
 	case "down", "j":
-		*cursor = max(min(*cursor+1, optionCount(facets)-1), 0)
+		*cursor = clampCursor(*cursor+1, optionCount(facets))
 		return false
 	case " ":
 		if state, option, found := optionAt(facets, *cursor); found {

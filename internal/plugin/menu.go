@@ -49,7 +49,7 @@ func (m *Model) handleMenuKey(key string) tea.Cmd {
 	case "up", "ctrl+p":
 		m.choiceCursor = max(m.choiceCursor-1, 0)
 	case "down", "ctrl+n":
-		m.choiceCursor = max(min(m.choiceCursor+1, len(matches)-1), 0)
+		m.choiceCursor = clampCursor(m.choiceCursor+1, len(matches))
 	case "backspace":
 		if m.choiceTyped != "" {
 			_, size := utf8.DecodeLastRuneInString(m.choiceTyped)
@@ -62,14 +62,13 @@ func (m *Model) handleMenuKey(key string) tea.Cmd {
 		choice, index, picked := m.choice, m.pendingBoard, matches[m.choiceCursor]
 		m.closeChoice()
 		return m.applyEffect(index, choice.Pick(picked))
-
 	default:
 		if character, _ := utf8.DecodeRuneInString(key); utf8.RuneCountInString(key) == 1 && unicode.IsPrint(character) {
 			m.choiceTyped += key
 		}
 	}
 	if m.choice != nil {
-		m.choiceCursor = max(min(m.choiceCursor, len(m.choice.matching(m.choiceTyped))-1), 0)
+		m.choiceCursor = clampCursor(m.choiceCursor, len(m.choice.matching(m.choiceTyped)))
 	}
 	return nil
 }
@@ -78,7 +77,7 @@ func (m *Model) handleMenuKey(key string) tea.Cmd {
 // and a count when some options are not shown.
 func (m *Model) menuView() string {
 	matches := m.choice.matching(m.choiceTyped)
-	cursor := max(min(m.choiceCursor, len(matches)-1), 0)
+	cursor := clampCursor(m.choiceCursor, len(matches))
 	first := max(min(cursor-maxMenuOptions/2, len(matches)-maxMenuOptions), 0)
 	shown := matches[first:min(first+maxMenuOptions, len(matches))]
 

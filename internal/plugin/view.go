@@ -100,9 +100,9 @@ func (m *Model) View() string {
 	return strings.Join(lines, "\n")
 }
 
-// viewTopScreen draws the top screen, with an open menu choice below it. While a question or choice is pending or its board has a
-// notice, the screen gives up its last line to the board's status line, because the board is
-// hidden.
+// viewTopScreen draws the top screen, with an open menu choice below it. While a question or
+// status line choice is pending or its board has a notice, the screen gives up its last line to
+// the board's status line, because the board is hidden.
 func (m *Model) viewTopScreen() string {
 	top := len(m.screens) - 1
 	board := m.boards[m.screenBoards[top]]

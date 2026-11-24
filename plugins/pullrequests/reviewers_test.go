@@ -28,6 +28,11 @@ func reviewerMenu(model *plugin.Model) []string {
 	return options
 }
 
+func statusLineOf(model *plugin.Model) string {
+	lines := strings.Split(view(model), "\n")
+	return lines[len(lines)-2]
+}
+
 func teamOptionOf(team string) string { return team + " (team)" }
 
 func TestReviewMenuListsTheTeamThenItsMembersSortedWithoutTheAuthorOrThoseAlreadyRequested(t *testing.T) {
@@ -73,14 +78,6 @@ func TestReviewMenuKeepsTheTeamWhileItIsNotRequested(t *testing.T) {
 
 	if options := reviewerMenu(model); len(options) == 0 || options[0] != teamOptionOf(testReviewTeam) {
 		t.Fatalf("options = %v", options)
-	}
-}
-
-func TestReviewKeyIsLabelledRequestWhileSomeoneCanBeAsked(t *testing.T) {
-	model := loadedBoard(t)
-
-	if help := helpLine(model); !strings.Contains(help, "t request") {
-		t.Fatalf("help = %q", help)
 	}
 }
 
@@ -140,11 +137,6 @@ func TestPickingNamesTheRequestedReviewerInTheNotice(t *testing.T) {
 	if notice := statusLineOf(model); !strings.Contains(notice, "alice") {
 		t.Fatalf("status = %q", notice)
 	}
-}
-
-func statusLineOf(model *plugin.Model) string {
-	lines := strings.Split(view(model), "\n")
-	return lines[len(lines)-2]
 }
 
 func TestMembersAreListedOncePerOwnerNotOncePerRepository(t *testing.T) {

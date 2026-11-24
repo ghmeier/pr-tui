@@ -4,6 +4,7 @@ package pullrequests
 
 import (
 	"flag"
+	"slices"
 	"strings"
 	"sync"
 
@@ -93,57 +94,51 @@ func (board *pullRequestBoard) reload(row plugin.Row) (plugin.Row, error) {
 }
 
 func (board *pullRequestBoard) load() ([]plugin.Row, error) {
-	membersByOwner := board.loadTeamMembers()
+	waitForMembers := board.loadTeamMembers()
 	pullRequests, viewer, err := board.provider.PullRequests()
-	membersByOwner.wait()
+	membersByOwner := waitForMembers()
 	if err != nil {
 		return nil, err
 	}
 	rows := make([]plugin.Row, len(pullRequests))
 	for index, pr := range pullRequests {
-		rows[index] = Row{PullRequest: pr, Viewer: viewer, TeamMembers: membersByOwner.of(pr.Repository)}
+		rows[index] = Row{PullRequest: pr, Viewer: viewer, TeamMembers: membersByOwner[strings.ToLower(pr.Repository.Owner)]}
 	}
 	return rows, nil
 }
 
-// teamMembersByOwner collects the review team's members of each organization while the pull
-// requests load. Members are a convenience, so an organization whose members cannot be listed
-// simply has none.
-type teamMembersByOwner struct {
-	mutex   sync.Mutex
-	group   sync.WaitGroup
-	members map[string][]string
-}
-
-// loadTeamMembers starts listing the members once per distinct owner of the configured
-// repositories.
-func (board *pullRequestBoard) loadTeamMembers() *teamMembersByOwner {
-	collected := &teamMembersByOwner{members: map[string][]string{}}
-	if board.reviewTeam == "" {
-		return collected
-	}
-	started := map[string]bool{}
-	for _, repository := range board.provider.Repositories() {
-		owner := strings.ToLower(repository.Owner)
-		if started[owner] {
-			continue
-		}
-		started[owner] = true
-		collected.group.Go(func() {
-			logins, err := board.provider.TeamMembers(repository)
-			if err != nil {
-				return
+// loadTeamMembers starts listing the review team's members once per distinct owner of the
+// configured repositories, while the pull requests load. The function it returns waits for the
+// listing and gives the members by lowercase owner. Members are a convenience, so an owner whose
+// members cannot be listed simply has none.
+func (board *pullRequestBoard) loadTeamMembers() func() map[string][]string {
+	var owners []string
+	var repositories []Repository
+	if board.reviewTeam != "" {
+		for _, repository := range board.provider.Repositories() {
+			owner := strings.ToLower(repository.Owner)
+			if !slices.Contains(owners, owner) {
+				owners = append(owners, owner)
+				repositories = append(repositories, repository)
 			}
-			collected.mutex.Lock()
-			defer collected.mutex.Unlock()
-			collected.members[owner] = logins
+		}
+	}
+	// Each goroutine writes only its own element, so no lock is needed before the wait.
+	listed := make([][]string, len(owners))
+	var group sync.WaitGroup
+	for index, repository := range repositories {
+		group.Go(func() {
+			if logins, err := board.provider.TeamMembers(repository); err == nil {
+				listed[index] = logins
+			}
 		})
 	}
-	return collected
-}
-
-func (collected *teamMembersByOwner) wait() { collected.group.Wait() }
-
-func (collected *teamMembersByOwner) of(repository Repository) []string {
-	return collected.members[strings.ToLower(repository.Owner)]
+	return func() map[string][]string {
+		group.Wait()
+		membersByOwner := make(map[string][]string, len(owners))
+		for index, owner := range owners {
+			membersByOwner[owner] = listed[index]
+		}
+		return membersByOwner
+	}
 }
