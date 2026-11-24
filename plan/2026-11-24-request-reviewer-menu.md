@@ -2,7 +2,7 @@
 title: Request review from the team or one of its members
 status: active
 tags: [pull-requests, host]
-next_step: Pull requests #18 (kitty text command) and #19 (reviewer menu) are open for review; try the menu by hand, then merge.
+next_step: Pull request #19 (reviewer menu) is open; try the menu by hand, then merge.
 created: 2026-11-24
 updated: 2026-11-24
 ---
@@ -86,4 +86,4 @@ and the README rows for `t` are reworded.
 - 2026-11-24: The user chose the team plus its members over a members-only display, and a
   scrolling, filterable list over cutting the list at nine options.
 - 2026-11-24: The plugin sorts members again and matches the author and requested users ignoring case. If listing members fails, nothing on screen says why the list has only the team. Both were left as they are.
-- 2026-11-24: Separately, kitty 0.43's `kitty @ launch --wait-for-child-to-exit` never returns, so the documented `text_command` left "Writing in your editor…" on screen forever. Pull request #18 changes the example to check every 0.3 seconds whether the window has closed. The user's own config was changed the same way, with a backup at `config.toml.bak`.
+- 2026-11-24: In kitty 0.43.1, `kitty @ launch --wait-for-child-to-exit` never returned, so the documented `text_command` left "Writing in your editor…" on screen forever. Upgrading kitty to 0.51.1 fixed it, so the polling workaround (#18) was closed and the user's config restored.
