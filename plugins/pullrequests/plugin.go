@@ -4,6 +4,9 @@ package pullrequests
 
 import (
 	"flag"
+	"slices"
+	"strings"
+	"sync"
 
 	"github.com/ghmeier/pr-tui/internal/config"
 	"github.com/ghmeier/pr-tui/internal/plugin"
@@ -87,17 +90,55 @@ func (board *pullRequestBoard) reload(row plugin.Row) (plugin.Row, error) {
 	if err != nil || !open {
 		return nil, err
 	}
-	return Row{PullRequest: pr, Viewer: previous.Viewer}, nil
+	return Row{PullRequest: pr, Viewer: previous.Viewer, TeamMembers: previous.TeamMembers}, nil
 }
 
 func (board *pullRequestBoard) load() ([]plugin.Row, error) {
+	waitForMembers := board.loadTeamMembers()
 	pullRequests, viewer, err := board.provider.PullRequests()
+	membersByOwner := waitForMembers()
 	if err != nil {
 		return nil, err
 	}
 	rows := make([]plugin.Row, len(pullRequests))
 	for index, pr := range pullRequests {
-		rows[index] = Row{PullRequest: pr, Viewer: viewer}
+		rows[index] = Row{PullRequest: pr, Viewer: viewer, TeamMembers: membersByOwner[strings.ToLower(pr.Repository.Owner)]}
 	}
 	return rows, nil
+}
+
+// loadTeamMembers starts listing the review team's members once per distinct owner of the
+// configured repositories, while the pull requests load. The function it returns waits for the
+// listing and gives the members by lowercase owner. Members are a convenience, so an owner whose
+// members cannot be listed simply has none.
+func (board *pullRequestBoard) loadTeamMembers() func() map[string][]string {
+	var owners []string
+	var repositories []Repository
+	if board.reviewTeam != "" {
+		for _, repository := range board.provider.Repositories() {
+			owner := strings.ToLower(repository.Owner)
+			if !slices.Contains(owners, owner) {
+				owners = append(owners, owner)
+				repositories = append(repositories, repository)
+			}
+		}
+	}
+	// Each goroutine writes only its own element, so no lock is needed before the wait.
+	listed := make([][]string, len(owners))
+	var group sync.WaitGroup
+	for index, repository := range repositories {
+		group.Go(func() {
+			if logins, err := board.provider.TeamMembers(repository); err == nil {
+				listed[index] = logins
+			}
+		})
+	}
+	return func() map[string][]string {
+		group.Wait()
+		membersByOwner := make(map[string][]string, len(owners))
+		for index, owner := range owners {
+			membersByOwner[owner] = listed[index]
+		}
+		return membersByOwner
+	}
 }

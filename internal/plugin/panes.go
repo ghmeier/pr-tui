@@ -60,6 +60,9 @@ func (m *Model) aboveLines(tabIndex int) []string {
 	if m.mode == filterMode && tabIndex == m.currentTab() {
 		sections = append(sections, filterMenu(m.current().facets, m.current().menuCursor))
 	}
+	if m.menuOpen() && len(m.screens) == 0 && tabIndex == m.currentTab() {
+		sections = append(sections, m.menuView())
+	}
 	var lines []string
 	for _, section := range sections {
 		lines = append(lines, strings.Split(section, "\n")...)

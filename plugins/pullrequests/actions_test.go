@@ -74,7 +74,7 @@ func TestDraftKeyShowsTheFailureWhenTheProviderRefuses(t *testing.T) {
 func TestReviewKeyOnADraftMarksItReadyThenRequestsTheTeam(t *testing.T) {
 	provider := newFakeProvider()
 
-	press(t, loadedBoardWith(t, provider), "t")
+	press(t, loadedBoardWith(t, provider), "t", "enter")
 
 	draft := provider.pullRequest(1)
 	assertCalls(t, provider, draftCall(draft, false), teamReviewCall(draft))
@@ -84,7 +84,7 @@ func TestReviewKeyOnAReadyPullRequestOnlyRequestsTheTeam(t *testing.T) {
 	provider := newFakeProvider()
 	provider.pullRequests[2].RequestedTeams = nil
 
-	press(t, loadedBoardWith(t, provider), "down", "t")
+	press(t, loadedBoardWith(t, provider), "down", "t", "enter")
 
 	assertCalls(t, provider, teamReviewCall(provider.pullRequest(3)))
 }
@@ -94,7 +94,7 @@ func TestReviewKeyDoesNotRequestTheTeamWhenMarkingReadyFails(t *testing.T) {
 	provider.fail("SetDraft", errorForTests)
 	model := loadedBoardWith(t, provider)
 
-	press(t, model, "t")
+	press(t, model, "t", "enter")
 
 	assertCalls(t, provider, draftCall(provider.pullRequest(1), false))
 	if !strings.Contains(view(model), "Failed: "+errorForTests.Error()) {
@@ -115,12 +115,12 @@ func TestReviewKeyIsNotRegisteredWithoutAReviewTeam(t *testing.T) {
 	}
 }
 
-func TestHelpOffersTheReviewKeyWithTheTeamNameWhenOneIsConfigured(t *testing.T) {
+func TestHelpOffersTheReviewKeyWhenATeamIsConfigured(t *testing.T) {
 	model := loadedBoard(t)
 
 	help := helpLine(model)
 
-	if !strings.Contains(help, "t request "+testReviewTeam) {
+	if !strings.Contains(help, "t request") {
 		t.Fatalf("help = %q", help)
 	}
 }
@@ -137,31 +137,6 @@ func TestDraftKeyIsLabelledReadyOnADraftAndDraftOnAReadyPullRequest(t *testing.T
 	}
 	if !strings.Contains(onReady, "d draft") || strings.Contains(onReady, "d ready") {
 		t.Fatalf("help on the ready pull request = %q", onReady)
-	}
-}
-
-func TestReviewTeamKeyIsHiddenAndDoesNothingOnceTheTeamIsRequested(t *testing.T) {
-	provider := newFakeProvider()
-	model := loadedBoardWith(t, provider)
-	requested := provider.pullRequest(3)
-	press(t, model, "down")
-
-	press(t, model, "t")
-
-	if !requested.requestsTeam(testReviewTeam) {
-		t.Fatalf("the fixture should already request %s", testReviewTeam)
-	}
-	if help := helpLine(model); strings.Contains(help, "request") {
-		t.Fatalf("help = %q", help)
-	}
-	assertCalls(t, provider)
-}
-
-func TestReviewTeamKeyIsOfferedWhileTheTeamIsNotRequested(t *testing.T) {
-	model := loadedBoard(t)
-
-	if help := helpLine(model); !strings.Contains(help, "t request "+testReviewTeam) {
-		t.Fatalf("help = %q", help)
 	}
 }
 
@@ -188,7 +163,7 @@ func TestHelpListsTheActionsInTheOrderOfTheBoardAndNamesTheConfiguredEditor(t *t
 
 	help := helpLine(model)
 
-	expected := "enter diff · p description · o open · v " + testEditorName + " · d ready · t request " + testReviewTeam +
+	expected := "enter diff · p description · o open · v " + testEditorName + " · d ready · t request" +
 		" · m merge · a review · f filters · r refresh · q quit"
 	if help != expected {
 		t.Fatalf("help = %q, expected %q", help, expected)
@@ -365,7 +340,7 @@ func TestEditorKeyShowsTheFailureWhenTheWorktreeCannotBeOpened(t *testing.T) {
 // board answers by reloading that pull request alone.
 var rowRefreshingActions = map[string][]string{
 	"draft":             {"d"},
-	"request review":    {"t"},
+	"request review":    {"t", "enter"},
 	"review":            {"a", "1", "y"},
 	"merge now":         {"m", "1", "y"},
 	"enable auto-merge": {"m", "2"},

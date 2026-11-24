@@ -270,8 +270,9 @@ clone_root = "~/git"
 # Required. Each entry is "owner/name"; the owners may differ.
 repositories = ["your-organization/your-repository"]
 
-# Optional. When set, the "t" key requests a review from this team and the board marks
-# pull requests that are waiting on it.
+# Optional. When set, the "t" key lists this team and its members to request a review from, and
+# the board marks pull requests that are waiting on the team. Listing members needs gh to have
+# the read:org scope.
 # review_team = "engineering"
 
 # Only read when "agent_plans" is in the plugins list above.

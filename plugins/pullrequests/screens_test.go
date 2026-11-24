@@ -795,7 +795,7 @@ func TestReviewKeyOnAScreenRequestsTheTeam(t *testing.T) {
 			selected := provider.pullRequest(1)
 			press(t, model, opener...)
 
-			press(t, model, "t")
+			press(t, model, "t", "enter")
 
 			assertCalls(t, provider, draftCall(selected, false), teamReviewCall(selected))
 		})
@@ -826,7 +826,7 @@ func TestScreenHelpOffersTheBoardsChangeKeysBeforeBack(t *testing.T) {
 
 			help := helpLine(model)
 
-			expected := "d ready · t request " + testReviewTeam + " · m merge · a review · esc back"
+			expected := "d ready · t request · m merge · a review · esc back"
 			if !strings.Contains(help, expected) {
 				t.Fatalf("help = %q, expected it to contain %q", help, expected)
 			}
@@ -852,15 +852,16 @@ func TestScreenHelpLabelsDraftFromTheReloadedPullRequestAfterItIsToggled(t *test
 	}
 }
 
-func TestReviewTeamKeyOnAScreenDoesNothingOnceTheTeamIsRequested(t *testing.T) {
+func TestReviewKeyOnAScreenDoesNothingWhenNobodyIsLeftToRequest(t *testing.T) {
 	for name, opener := range screenOpeners {
 		t.Run(name, func(t *testing.T) {
 			provider := newFakeProvider()
+			provider.teamMembers = nil
 			model := loadedBoardWith(t, provider)
 			plugintest.Resize(t, model, 300, 30)
 			press(t, model, append([]string{"down"}, opener...)...)
 
-			press(t, model, "t")
+			press(t, model, "t", "enter")
 
 			assertCalls(t, provider)
 			if help := helpLine(model); strings.Contains(help, "request") {

@@ -55,13 +55,14 @@ var (
 
 // recordedCall is one change the board asked the fake provider to make.
 type recordedCall struct {
-	method string
-	url    string
-	flag   bool
-	body   string
-	title  string
-	target CommentTarget
-	review Review
+	method   string
+	url      string
+	flag     bool
+	body     string
+	title    string
+	target   CommentTarget
+	review   Review
+	reviewer Reviewer
 }
 
 func draftCall(pr PullRequest, draft bool) recordedCall {
@@ -77,7 +78,11 @@ func mergeCall(pr PullRequest) recordedCall {
 }
 
 func teamReviewCall(pr PullRequest) recordedCall {
-	return recordedCall{method: "RequestTeamReview", url: pr.URL}
+	return recordedCall{method: "RequestReview", url: pr.URL, reviewer: Reviewer{Login: testReviewTeam, Team: true}}
+}
+
+func personReviewCall(pr PullRequest, login string) recordedCall {
+	return recordedCall{method: "RequestReview", url: pr.URL, reviewer: Reviewer{Login: login}}
 }
 
 func reviewCall(pr PullRequest, review Review) recordedCall {
@@ -98,12 +103,16 @@ type fakeProvider struct {
 	mutex        sync.Mutex
 	repositories []Repository
 	reviewTeam   string
+	// teamMembers are listed in no particular order, as the provider is only asked to sort them
+	// for the board.
+	teamMembers  []string
 	pullRequests []PullRequest
 	lineCounts   map[string]LineCount
 	ciStates     map[string]CIState
 	// lineCountRequests and ciStateRequests count the calls made for each repository.
 	lineCountRequests map[string]int
 	ciStateRequests   map[string]int
+	memberRequests    map[string]int
 	comments          []ReviewComment
 	changedFiles      []string
 	description       string
@@ -144,6 +153,7 @@ func newFakeProvider() *fakeProvider {
 	return &fakeProvider{
 		repositories: []Repository{storefrontRepository, billingRepository, reportsRepository, platformRepository},
 		reviewTeam:   testReviewTeam,
+		teamMembers:  []string{"bob", testViewer, "alice", "person", "someone-else"},
 		pullRequests: pullRequests,
 		lineCounts:   map[string]LineCount{pullRequests[0].URL: {Additions: 12, Deletions: 3}},
 		ciStates:     map[string]CIState{pullRequests[0].URL: CIStateFailing, pullRequests[2].URL: CIStateNone},
@@ -159,6 +169,7 @@ func newFakeProvider() *fakeProvider {
 
 		lineCountRequests: map[string]int{},
 		ciStateRequests:   map[string]int{},
+		memberRequests:    map[string]int{},
 	}
 }
 
@@ -201,6 +212,24 @@ func (fake *fakeProvider) change(method string, call recordedCall) error {
 func (fake *fakeProvider) Repositories() []Repository { return fake.repositories }
 
 func (fake *fakeProvider) ReviewTeam() string { return fake.reviewTeam }
+
+// TeamMembers lists the fixture's members for every repository, and counts the calls for each
+// owner.
+func (fake *fakeProvider) TeamMembers(repository Repository) ([]string, error) {
+	fake.mutex.Lock()
+	defer fake.mutex.Unlock()
+	fake.memberRequests[repository.Owner]++
+	if err := fake.failures["TeamMembers"]; err != nil {
+		return nil, err
+	}
+	return slices.Clone(fake.teamMembers), nil
+}
+
+func (fake *fakeProvider) memberRequestsFor(owner string) int {
+	fake.mutex.Lock()
+	defer fake.mutex.Unlock()
+	return fake.memberRequests[owner]
+}
 
 func (fake *fakeProvider) PullRequests() ([]PullRequest, string, error) {
 	fake.mutex.Lock()
@@ -345,8 +374,8 @@ func (fake *fakeProvider) Merge(pr PullRequest) error {
 	return err
 }
 
-func (fake *fakeProvider) RequestTeamReview(pr PullRequest) error {
-	return fake.change("RequestTeamReview", recordedCall{url: pr.URL})
+func (fake *fakeProvider) RequestReview(pr PullRequest, reviewer Reviewer) error {
+	return fake.change("RequestReview", recordedCall{url: pr.URL, reviewer: reviewer})
 }
 
 func (fake *fakeProvider) SubmitReview(pr PullRequest, review Review) error {

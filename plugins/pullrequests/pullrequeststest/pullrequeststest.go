@@ -26,6 +26,8 @@ func (provider *Provider) Repositories() []pullrequests.Repository {
 
 func (provider *Provider) ReviewTeam() string { return "" }
 
+func (provider *Provider) TeamMembers(pullrequests.Repository) ([]string, error) { return nil, nil }
+
 func (provider *Provider) PullRequests() ([]pullrequests.PullRequest, string, error) {
 	return provider.Open, "viewer", nil
 }

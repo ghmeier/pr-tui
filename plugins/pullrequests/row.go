@@ -8,6 +8,9 @@ type Row struct {
 	// pull requests. Rows are values that are never changed, because the background fetches
 	// of the board's columns read them while the board goes on drawing.
 	Viewer string
+	// TeamMembers are the review team's members in the organization that owns the repository,
+	// sorted. They are empty when no team is configured or the members could not be listed.
+	TeamMembers []string
 }
 
 // Key is the pull request's URL, which stays the same across refreshes.

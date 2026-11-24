@@ -40,6 +40,12 @@ func KeyMessage(key string) tea.KeyMsg {
 		return tea.KeyMsg{Type: tea.KeyHome}
 	case "end":
 		return tea.KeyMsg{Type: tea.KeyEnd}
+	case "backspace":
+		return tea.KeyMsg{Type: tea.KeyBackspace}
+	case "ctrl+p":
+		return tea.KeyMsg{Type: tea.KeyCtrlP}
+	case "ctrl+n":
+		return tea.KeyMsg{Type: tea.KeyCtrlN}
 	case " ":
 		return tea.KeyMsg{Type: tea.KeySpace, Runes: []rune(" ")}
 	}
