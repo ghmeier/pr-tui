@@ -174,7 +174,7 @@ func TestJMovesPastTheContinuationPartsOfAWrappedLine(t *testing.T) {
 	removedRow := screen.rowForLine(removedLineIndex)
 	screen.diffCursor = removedRow
 
-	screen.handleKey("j")
+	screen.handleKey("down")
 	screen.keepPositionVisible()
 
 	if screen.cursorLine() != addedLineIndex || screen.rows[screen.diffCursor].part != 0 {
@@ -189,7 +189,7 @@ func TestKMovesBackToTheFirstPartOfAWrappedLine(t *testing.T) {
 	screen := wrappingScreen(wrapDiff(), false, 50, 30)
 	screen.diffCursor = screen.rowForLine(addedLineIndex)
 
-	screen.handleKey("k")
+	screen.handleKey("up")
 	screen.keepPositionVisible()
 
 	if screen.diffCursor != screen.rowForLine(removedLineIndex) {
@@ -201,7 +201,7 @@ func TestJOnTheLastLineStaysOnItsFirstPart(t *testing.T) {
 	screen := wrappingScreen(wrapDiff(), false, 50, 30)
 	screen.diffCursor = screen.rowForLine(lastLineIndex)
 
-	screen.handleKey("j")
+	screen.handleKey("down")
 	screen.keepPositionVisible()
 
 	if screen.diffCursor != screen.rowForLine(lastLineIndex) {
@@ -226,7 +226,7 @@ func TestMovingDownOntoAWrappedLineScrollsItsPartsIntoView(t *testing.T) {
 	screen.diffCursor = screen.rowForLine(firstLineIndex)
 	screen.diffOffset = screen.diffCursor
 	for range 2 {
-		screen.handleKey("j")
+		screen.handleKey("down")
 		screen.keepPositionVisible()
 	}
 
@@ -272,7 +272,7 @@ func TestRowsAreKeptWhenOnlyTheCursorMoves(t *testing.T) {
 	screen := wrappingScreen(wrapDiff(), true, 60, 30)
 	markRows(screen)
 
-	screen.handleKey("j")
+	screen.handleKey("down")
 	screen.keepPositionVisible()
 
 	if screen.rows[0].comment != "built before" {

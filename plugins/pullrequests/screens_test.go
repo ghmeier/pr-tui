@@ -58,7 +58,7 @@ func TestDiffViewShowsOnlyTheSelectedFile(t *testing.T) {
 	press(t, model, "enter")
 
 	first := view(model)
-	press(t, model, "down")
+	press(t, model, "j")
 	second := view(model)
 
 	if !strings.Contains(first, "+added again") || strings.Contains(first, "looks like a header") {
@@ -69,12 +69,12 @@ func TestDiffViewShowsOnlyTheSelectedFile(t *testing.T) {
 	}
 }
 
-func TestDiffViewArrowKeysStopAtFirstAndLastFile(t *testing.T) {
+func TestDiffViewFileKeysStopAtFirstAndLastFile(t *testing.T) {
 	model := loadedBoard(t)
-	press(t, model, "enter", "up")
+	press(t, model, "enter", "k")
 	atStart := view(model)
 
-	press(t, model, "down", "down", "down")
+	press(t, model, "j", "j", "j")
 
 	if !strings.Contains(atStart, "file 1 of 2") || !strings.Contains(view(model), "file 2 of 2") {
 		t.Fatalf("at the start:\n%s\nat the end:\n%s", atStart, view(model))
@@ -83,7 +83,7 @@ func TestDiffViewArrowKeysStopAtFirstAndLastFile(t *testing.T) {
 
 func TestDiffViewLeftAndRightArrowsKeepTheSelectedFile(t *testing.T) {
 	model := loadedBoard(t)
-	press(t, model, "enter", "down")
+	press(t, model, "enter", "j")
 
 	press(t, model, "left", "right", "left")
 
@@ -370,7 +370,7 @@ func TestAnAddedFileOpensUnifiedWhileTheLayoutPreferenceIsSplit(t *testing.T) {
 func TestAModifiedFileIsShownSplitWhileTheLayoutPreferenceIsSplit(t *testing.T) {
 	model := oneSidedBoard(t)
 
-	press(t, model, "down", "down")
+	press(t, model, "j", "j")
 
 	if !showsSplitRows(model) || !strings.Contains(helpLine(model), "s unified") {
 		t.Fatalf("view:\n%s", view(model))
@@ -382,11 +382,11 @@ func TestSplitKeyOnAOneSidedFileChangesOnlyThatFile(t *testing.T) {
 
 	press(t, model, "s")
 	shownSplit := showsSplitRows(model)
-	press(t, model, "down")
+	press(t, model, "j")
 	otherOneSidedFile := showsSplitRows(model)
-	press(t, model, "down")
+	press(t, model, "j")
 	modifiedFile := showsSplitRows(model)
-	press(t, model, "up", "up")
+	press(t, model, "k", "k")
 	backOnTheFirstFile := showsSplitRows(model)
 
 	if !shownSplit || otherOneSidedFile || !modifiedFile || !backOnTheFirstFile {
@@ -579,7 +579,7 @@ func TestDiffViewStartsSplitAndTogglesToUnified(t *testing.T) {
 
 // pressToTheAddedLine opens the first pull request's diff and moves to the added line "added".
 func pressToTheAddedLine() []string {
-	return []string{"enter", "j", "j", "j", "j", "j"}
+	return []string{"enter", "down", "down", "down", "down", "down"}
 }
 
 func TestDiffViewShowsACommentThreadUnderItsLine(t *testing.T) {

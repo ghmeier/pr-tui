@@ -131,9 +131,10 @@ Diff view keys:
 
 | Key | Action |
 | --- | --- |
-| `↑` / `↓` | Previous / next file |
+| `j` / `k` | Previous / next file |
 | `←` / `→` | Choose the old or new side of a split row for the comment; shown only while the file is split |
-| `j` / `k`, `space` / `b` | Move the line cursor by a line or a page |
+| `↑` / `↓`, mouse wheel | Move the line cursor by a line |
+| `pgup` / `pgdn` | Move the line cursor by a page |
 | `s` | Toggle split and unified layouts; a file that was added or deleted opens unified, and the key changes only that file |
 | `c` | Write a comment in your editor on the line under the cursor and add it to the pending review. On a posted thread it replies at once, and on a pending comment it edits it (saving nothing removes it) |
 | `d` | Mark a draft ready for review, or convert a ready pull request back to draft; the help line shows which |

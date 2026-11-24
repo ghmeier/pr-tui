@@ -574,6 +574,16 @@ func (screen *diffScreen) update(message tea.Msg) (plugin.Screen, tea.Cmd) {
 		return screen, screen.reloadCommentsAfterSubmission()
 	case tea.KeyMsg:
 		return screen.handleKey(message.String())
+	case tea.MouseMsg:
+		if message.Action != tea.MouseActionPress {
+			return screen, nil
+		}
+		switch message.Button {
+		case tea.MouseButtonWheelUp:
+			return screen.handleKey("up")
+		case tea.MouseButtonWheelDown:
+			return screen.handleKey("down")
+		}
 	}
 	return screen, nil
 }
@@ -583,10 +593,10 @@ func (screen *diffScreen) handleKey(key string) (plugin.Screen, tea.Cmd) {
 	switch key {
 	case "esc", "q":
 		return nil, nil
-	case "up":
+	case "k":
 		screen.fileCursor--
 		screen.diffCursor, screen.diffOffset = 0, 0
-	case "down":
+	case "j":
 		screen.fileCursor++
 		screen.diffCursor, screen.diffOffset = 0, 0
 	case "s":
@@ -602,13 +612,13 @@ func (screen *diffScreen) handleKey(key string) (plugin.Screen, tea.Cmd) {
 		screen.commentOnOldSide = false
 	case "c":
 		return screen, screen.comment()
-	case "k":
+	case "up":
 		screen.diffCursor = screen.previousLineRow(screen.diffCursor)
-	case "j":
+	case "down":
 		screen.diffCursor = screen.nextLineRow(screen.diffCursor)
-	case "pgup", "b":
+	case "pgup":
 		screen.diffCursor -= screen.diffRows()
-	case "pgdown", " ":
+	case "pgdown":
 		screen.diffCursor += screen.diffRows()
 	case "home":
 		screen.diffCursor = 0
@@ -667,7 +677,7 @@ func (screen *diffScreen) help() string {
 	if screen.showsSplit() {
 		layout = "unified"
 	}
-	keysAndLabels := []string{"↑/↓", "file", "j/k", "line", "space/b", "page", "c", "comment"}
+	keysAndLabels := []string{"↑/↓", "line", "j/k", "file", "pgup/pgdn", "page", "c", "comment"}
 	if screen.showsSplit() {
 		keysAndLabels = append(keysAndLabels, "←/→", "side")
 	}
