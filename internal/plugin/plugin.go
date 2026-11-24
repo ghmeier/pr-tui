@@ -185,10 +185,14 @@ type Effect struct {
 	// once when there is no Command. A board without a Reload is reloaded whole, as Refresh does.
 	// It is an alternative to Refresh.
 	RefreshRow Row
+	// Copy, when set, is put on the clipboard on a background goroutine. The status line then
+	// shows "Copied " and the text when it is one line, or "Copied N lines" when it has several,
+	// unless the effect has a Notice of its own. A failure shows "Failed: " and its first line.
+	Copy string
 	// Screen, when set, opens a full-screen view.
 	Screen Screen
 	// Edit, when set, opens the user's editor, and the host does nothing else with this effect:
-	// Command, Refresh, RefreshRow and Screen are ignored. Choice and Confirm are still asked
+	// Command, Copy, Refresh, RefreshRow and Screen are ignored. Choice and Confirm are still asked
 	// first, and Notice stays on the status line while the editor is open.
 	Edit *Edit
 }

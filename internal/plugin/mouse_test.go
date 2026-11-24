@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/ghmeier/pr-tui/internal/plugin/plugintest"
+	"github.com/ghmeier/pr-tui/internal/shell"
 	"github.com/ghmeier/pr-tui/internal/ui"
 )
 
@@ -16,12 +17,12 @@ import (
 func replaceClipboard(t *testing.T, err error) *[]string {
 	t.Helper()
 	var copied []string
-	original := writeClipboard
-	writeClipboard = func(text string) error {
+	original := shell.WriteClipboard
+	shell.WriteClipboard = func(text string) error {
 		copied = append(copied, text)
 		return err
 	}
-	t.Cleanup(func() { writeClipboard = original })
+	t.Cleanup(func() { shell.WriteClipboard = original })
 	return &copied
 }
 
@@ -314,5 +315,27 @@ func TestFailedClipboardWriteShowsFailedWithTheFirstLineOnly(t *testing.T) {
 	status := statusLine(model)
 	if !strings.Contains(status, "Failed: first line") || strings.Contains(status, "second line") || strings.Contains(status, "Copied") {
 		t.Fatalf("status = %q", status)
+	}
+}
+
+func TestMouseMessagesReachOnlyTheTopScreen(t *testing.T) {
+	lower := &fakeScreen{title: "lower"}
+	upper := &fakeScreen{title: "upper"}
+	model := modelForBoard(t, boardWithEffect(func(fakeRow) Effect { return Effect{Screen: lower} }))
+	plugintest.Press(t, model, "x")
+	plugintest.Send(t, model, effectMessage{board: 0, effect: Effect{Screen: upper}})
+
+	wheel(t, model, tea.MouseButtonWheelDown)
+
+	mouseMessages := func(screen *fakeScreen) (count int) {
+		for _, message := range screen.received {
+			if _, isMouse := message.(tea.MouseMsg); isMouse {
+				count++
+			}
+		}
+		return count
+	}
+	if mouseMessages(upper) != 1 || mouseMessages(lower) != 0 {
+		t.Fatalf("upper got %d mouse messages and lower got %d", mouseMessages(upper), mouseMessages(lower))
 	}
 }

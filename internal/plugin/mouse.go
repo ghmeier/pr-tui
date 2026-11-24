@@ -93,6 +93,5 @@ func (m *Model) handleClick(x, y int) tea.Cmd {
 	if text == "" {
 		return nil
 	}
-	return m.startCommand(clicked.board, func() error { return writeClipboard(text) },
-		commandFinishedMessage{successNotice: "Copied " + text})
+	return m.copyToClipboard(clicked.board, text, copiedNotice(text))
 }
