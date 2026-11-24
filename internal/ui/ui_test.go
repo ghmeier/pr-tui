@@ -2,9 +2,11 @@ package ui
 
 import (
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -74,5 +76,77 @@ func TestFirstLineKeepsOnlyTheFirstLineOfAnError(t *testing.T) {
 func TestFirstLineLeavesASingleLineErrorAlone(t *testing.T) {
 	if line := FirstLine(errors.New("only")); line != "only" {
 		t.Fatalf("first line = %q", line)
+	}
+}
+
+func wrappedText(lines [][]Segment) []string {
+	text := []string{}
+	for _, line := range lines {
+		text = append(text, PlainText(line))
+	}
+	return text
+}
+
+func TestWrapSegmentsSplitsAtTheWidth(t *testing.T) {
+	lines := wrappedText(WrapSegments(PlainSegments("abcdefgh"), 3))
+
+	if !reflect.DeepEqual(lines, []string{"abc", "def", "gh"}) {
+		t.Fatalf("lines = %q", lines)
+	}
+}
+
+func TestWrapSegmentsLeavesTextThatFitsOnOneLine(t *testing.T) {
+	lines := wrappedText(WrapSegments(PlainSegments("abc"), 3))
+
+	if !reflect.DeepEqual(lines, []string{"abc"}) {
+		t.Fatalf("lines = %q", lines)
+	}
+}
+
+func TestWrapSegmentsKeepsEachPiecesStyleAcrossASplit(t *testing.T) {
+	segments := []Segment{{Text: "ab", Style: GreenStyle}, {Text: "cdef", Style: RedStyle}}
+
+	lines := WrapSegments(segments, 3)
+
+	if len(lines) != 2 || len(lines[0]) != 2 || len(lines[1]) != 1 {
+		t.Fatalf("lines = %+v", lines)
+	}
+	if lines[0][1].Text != "c" || lines[0][1].Style.GetForeground() != RedStyle.GetForeground() {
+		t.Fatalf("first line's second piece = %+v", lines[0][1])
+	}
+	if lines[1][0].Text != "def" || lines[1][0].Style.GetForeground() != RedStyle.GetForeground() {
+		t.Fatalf("second line = %+v", lines[1])
+	}
+	if lines[0][0].Style.GetForeground() != GreenStyle.GetForeground() {
+		t.Fatalf("first piece lost its style: %+v", lines[0][0])
+	}
+}
+
+func TestWrapSegmentsMovesAWideCharacterThatDoesNotFitToTheNextLine(t *testing.T) {
+	lines := WrapSegments(PlainSegments("ab日cd"), 3)
+
+	for _, line := range lines {
+		if lipgloss.Width(PlainText(line)) > 3 {
+			t.Fatalf("line %q is wider than 3 cells", PlainText(line))
+		}
+	}
+	if !reflect.DeepEqual(wrappedText(lines), []string{"ab", "日c", "d"}) {
+		t.Fatalf("lines = %q", wrappedText(lines))
+	}
+}
+
+func TestWrapSegmentsGivesEmptyInputOneEmptyLine(t *testing.T) {
+	lines := WrapSegments(nil, 5)
+
+	if len(lines) != 1 || len(lines[0]) != 0 {
+		t.Fatalf("lines = %+v", lines)
+	}
+}
+
+func TestWrapSegmentsTreatsAWidthBelowOneAsOne(t *testing.T) {
+	lines := wrappedText(WrapSegments(PlainSegments("abc"), 0))
+
+	if !reflect.DeepEqual(lines, []string{"a", "b", "c"}) {
+		t.Fatalf("lines = %q", lines)
 	}
 }

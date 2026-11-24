@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/rivo/uniseg"
 )
 
 // DarkBackground is read once at startup, because asking the terminal for its background
@@ -59,6 +60,39 @@ func StyledText(segments []Segment) string {
 		text.WriteString(part.Style.Render(part.Text))
 	}
 	return text.String()
+}
+
+// WrapSegments splits styled text into lines of at most width cells, cutting a segment where the
+// line fills and keeping each piece's style. A character wider than the width stays alone on its
+// line, so no input is dropped.
+func WrapSegments(segments []Segment, width int) [][]Segment {
+	width = max(width, 1)
+	lines := [][]Segment{{}}
+	used := 0
+	for _, segment := range segments {
+		var piece strings.Builder
+		flush := func() {
+			if piece.Len() > 0 {
+				last := len(lines) - 1
+				lines[last] = append(lines[last], Segment{Text: piece.String(), Style: segment.Style})
+				piece.Reset()
+			}
+		}
+		for rest := segment.Text; rest != ""; {
+			var cluster string
+			var cells int
+			cluster, rest, cells, _ = uniseg.FirstGraphemeClusterInString(rest, -1)
+			if used > 0 && used+cells > width {
+				flush()
+				lines = append(lines, []Segment{})
+				used = 0
+			}
+			piece.WriteString(cluster)
+			used += cells
+		}
+		flush()
+	}
+	return lines
 }
 
 // Fit truncates the text to the width, or pads it with spaces up to the width.

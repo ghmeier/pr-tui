@@ -79,10 +79,12 @@ func (line diffLine) threadKeys(path string) []threadKey {
 }
 
 // viewRow is one row of the diff pane in the current layout: a diff line, a side-by-side
-// pair, or one line of a comment thread anchored to the diff line above it.
+// pair (one viewRow for each line it wraps onto), or one line of a comment thread anchored to the diff line above it.
 type viewRow struct {
 	left    int
 	right   int
 	thread  *commentThread
 	comment string
+	// part is which of the terminal lines of a wrapped diff row this is, counting from 0.
+	part int
 }

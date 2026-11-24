@@ -11,7 +11,7 @@ func TestHighlightingKeepsEveryCharacterOfTheDiffLine(t *testing.T) {
 
 	rendered := []string{}
 	for _, line := range files[0].lines {
-		rendered = append(rendered, strings.TrimRight(line.render(80), " "))
+		rendered = append(rendered, strings.TrimRight(line.renderLines(80)[0], " "))
 	}
 
 	expected := []string{
@@ -44,7 +44,7 @@ func TestSplitViewPutsRemovedLineBesideItsReplacement(t *testing.T) {
 
 	rows := []string{}
 	for _, row := range file.splitRows[4:] {
-		rows = append(rows, strings.Join(strings.Fields(file.renderSplitRow(row, 60, " │ ")), " "))
+		rows = append(rows, strings.Join(strings.Fields(strings.Join(file.renderSplitRow(row, 60, " │ "), "\n")), " "))
 	}
 
 	expected := []string{"1 unchanged │ 1 unchanged", "2 -removed │ 2 +added", "│ 3 +added again"}
