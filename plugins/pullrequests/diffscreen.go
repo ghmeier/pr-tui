@@ -146,8 +146,6 @@ func (screen *diffScreen) Init() tea.Cmd {
 	return tea.Batch(screen.board.loadDiff(screen.pullRequest), screen.board.loadComments(screen.pullRequest))
 }
 
-// showsSplit is whether the file being shown is laid out side by side. A one-sided file
-// is unified unless the person asked otherwise for that file.
 // selectedFile is the file being shown, if there is one.
 func (screen *diffScreen) selectedFile() (diffFile, bool) {
 	if screen.fileCursor < 0 || screen.fileCursor >= len(screen.files) {
