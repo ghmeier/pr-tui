@@ -195,7 +195,8 @@ func TestEditWithATextCommandRunsItWithTheFilePathAddedAtTheEnd(t *testing.T) {
 		t.Fatalf("command lines = %v", *commandLines)
 	}
 	line := (*commandLines)[0]
-	if !reflect.DeepEqual(line[:2], model.textCommand) || !strings.HasSuffix(line[2], ".md") || len(line) != 3 {
+	prefix := len(model.textCommand)
+	if len(line) != prefix+1 || !reflect.DeepEqual(line[:prefix], model.textCommand) || !strings.HasSuffix(line[prefix], ".md") {
 		t.Fatalf("command line = %v", line)
 	}
 }
@@ -227,15 +228,23 @@ func TestEditWithATextCommandHandsDoneTheSavedText(t *testing.T) {
 	}
 }
 
-func TestEditWithATextCommandStartsWithoutWaitingForItAndShowsANotice(t *testing.T) {
+func TestEditWithATextCommandDoesNotRunItOnTheUpdateLoop(t *testing.T) {
 	model := modelForBoard(t, editBoard(&Edit{Text: "original"}))
 	commandLines := textCommandRuns(t, model, "saved", nil)
 
-	_, command := model.Update(plugintest.KeyMessage("x"))
+	model.Update(plugintest.KeyMessage("x"))
 
 	if len(*commandLines) != 0 {
-		t.Fatalf("the command ran on the update loop")
+		t.Fatalf("the command ran on the update loop: %v", *commandLines)
 	}
+}
+
+func TestEditWithATextCommandShowsANoticeUntilItExits(t *testing.T) {
+	model := modelForBoard(t, editBoard(&Edit{Text: "original"}))
+	textCommandRuns(t, model, "saved", nil)
+
+	_, command := model.Update(plugintest.KeyMessage("x"))
+
 	if !strings.Contains(statusLine(model), writingNotice) {
 		t.Fatalf("status = %q", statusLine(model))
 	}
