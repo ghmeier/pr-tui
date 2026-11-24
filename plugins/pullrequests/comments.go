@@ -1,6 +1,7 @@
 package pullrequests
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
@@ -62,7 +63,17 @@ func (thread commentThread) render(width int) []string {
 // render draws a pending comment like a thread, headed "pending" where a posted comment has its
 // author and age.
 func (draft DraftComment) render(width int) []string {
-	lines := []string{ui.YellowStyle.Render("┌ ") + ui.BoldStyle.Render("pending")}
+	return draft.renderUnder("pending", width)
+}
+
+// renderOutdated draws a pending comment whose line is not in the diff any more, which says
+// where it was written so that it can be told apart.
+func (draft DraftComment) renderOutdated(width int) []string {
+	return draft.renderUnder(fmt.Sprintf("pending · outdated · %s:%d", draft.Path, draft.Line), width)
+}
+
+func (draft DraftComment) renderUnder(heading string, width int) []string {
+	lines := []string{ui.YellowStyle.Render("┌ ") + ui.BoldStyle.Render(heading)}
 	body := commentSanitizer.Replace(strings.TrimSpace(draft.Body))
 	for _, text := range strings.Split(ansi.Wrap(body, max(width-2, 10), ""), "\n") {
 		lines = append(lines, ui.YellowStyle.Render("│ ")+text)

@@ -111,6 +111,9 @@ type fakeProvider struct {
 	failures    map[string]error
 	calls       []recordedCall
 	diffFetches int
+	// whileSubmitting, when set, runs inside SubmitReview before the review is recorded, so that a
+	// test can act while a submission is in flight.
+	whileSubmitting func()
 	// listings counts the loads of every pull request, and reloaded holds the URL of each
 	// pull request that was loaded on its own.
 	listings int
@@ -326,6 +329,9 @@ func (fake *fakeProvider) RequestTeamReview(pr PullRequest) error {
 }
 
 func (fake *fakeProvider) SubmitReview(pr PullRequest, review Review) error {
+	if fake.whileSubmitting != nil {
+		fake.whileSubmitting()
+	}
 	return fake.change("SubmitReview", recordedCall{url: pr.URL, review: review})
 }
 

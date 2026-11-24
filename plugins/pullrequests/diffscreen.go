@@ -210,6 +210,15 @@ func (screen *diffScreen) replaceFiles(files []diffFile) {
 	}
 }
 
+// draftIsOutdatedIn says whether a pending comment whose line is not in the diff is shown at the
+// top of this file: the comment's own file when it is still in the diff, and otherwise the first.
+func (screen *diffScreen) draftIsOutdatedIn(draft DraftComment, file diffFile) bool {
+	if slices.ContainsFunc(screen.files, func(other diffFile) bool { return other.path == draft.Path }) {
+		return file.path == draft.Path
+	}
+	return screen.fileCursor == 0
+}
+
 func (screen *diffScreen) diffRows() int {
 	return max(screen.height-3, 1)
 }
@@ -275,9 +284,22 @@ func (screen *diffScreen) rebuildRows() {
 	file := screen.files[screen.fileCursor]
 	commentWidth := max(screen.width-screen.fileListWidth()-7, 20)
 	pending := map[threadKey][]DraftComment{}
-	for _, draft := range screen.board.reviews.drafts(screen.pullRequest.URL) {
+	anchored := map[threadKey]bool{}
+	for _, line := range file.lines {
+		for _, key := range line.threadKeys(file.path) {
+			anchored[key] = true
+		}
+	}
+	drafts := screen.board.reviews.drafts(screen.pullRequest.URL)
+	for _, draft := range drafts {
 		key := threadKey{draft.Path, draft.Side, draft.Line}
-		pending[key] = append(pending[key], draft)
+		if anchored[key] {
+			pending[key] = append(pending[key], draft)
+		} else if screen.draftIsOutdatedIn(draft, file) {
+			for _, text := range draft.renderOutdated(commentWidth) {
+				screen.rows = append(screen.rows, viewRow{left: -1, right: -1, draft: &draft, comment: text})
+			}
+		}
 	}
 	appendThreads := func(lineIndex int) {
 		for _, key := range file.lines[lineIndex].threadKeys(file.path) {
@@ -338,15 +360,17 @@ func (screen *diffScreen) rowForLine(line int) int {
 }
 
 func (screen *diffScreen) cursorCommentTarget() (CommentTarget, bool) {
+	if screen.diffCursor >= 0 && screen.diffCursor < len(screen.rows) {
+		switch row := screen.rows[screen.diffCursor]; {
+		case row.thread != nil:
+			return row.thread.replyTarget(), true
+		case row.draft != nil:
+			return row.draft.target(), true
+		}
+	}
 	index := screen.cursorLine()
 	if index < 0 {
 		return CommentTarget{}, false
-	}
-	switch row := screen.rows[screen.diffCursor]; {
-	case row.thread != nil:
-		return row.thread.replyTarget(), true
-	case row.draft != nil:
-		return row.draft.target(), true
 	}
 	file := screen.files[screen.fileCursor]
 	switch line := file.lines[index]; line.kind {

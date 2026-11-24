@@ -22,6 +22,8 @@ type pendingReview struct {
 	// submissions counts the reviews submitted successfully, so that a screen can tell that the
 	// comments it shows are older than the review.
 	submissions int
+	// submitting is true while a review of the pull request is being sent.
+	submitting bool
 }
 
 func newPendingReviews() *pendingReviews {
@@ -97,14 +99,36 @@ func (reviews *pendingReviews) setBody(url, body string) {
 	reviews.version++
 }
 
-// submitted removes the drafts that were sent and clears the body. A draft added or edited while
-// the review was being submitted is not one of those that were sent, so it stays.
-func (reviews *pendingReviews) submitted(url string, sent []DraftComment) {
+// beginSubmission marks the pull request's review as being sent, and says whether it was free
+// to be. Checking and marking happen together so that two submissions cannot both start.
+func (reviews *pendingReviews) beginSubmission(url string) bool {
 	reviews.mutex.Lock()
 	defer reviews.mutex.Unlock()
 	entry := reviews.entry(url)
-	entry.drafts = slices.DeleteFunc(entry.drafts, func(draft DraftComment) bool { return slices.Contains(sent, draft) })
-	entry.body = ""
+	if entry.submitting {
+		return false
+	}
+	entry.submitting = true
+	return true
+}
+
+func (reviews *pendingReviews) endSubmission(url string) {
+	reviews.mutex.Lock()
+	defer reviews.mutex.Unlock()
+	reviews.entry(url).submitting = false
+}
+
+// submitted removes the drafts that were sent and clears the body they were sent with. A draft
+// added or edited, or a body written, while the review was being submitted is not what was
+// sent, so it stays.
+func (reviews *pendingReviews) submitted(url string, sent Review) {
+	reviews.mutex.Lock()
+	defer reviews.mutex.Unlock()
+	entry := reviews.entry(url)
+	entry.drafts = slices.DeleteFunc(entry.drafts, func(draft DraftComment) bool { return slices.Contains(sent.Comments, draft) })
+	if entry.body == sent.Body {
+		entry.body = ""
+	}
 	entry.submissions++
 	reviews.version++
 }

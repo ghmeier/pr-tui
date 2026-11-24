@@ -45,6 +45,7 @@ func TestCommentOnACodeLineAddsAPendingCommentWithoutPosting(t *testing.T) {
 
 	assertCalls(t, provider)
 	assertShows(t, model, "Added to your review (1 pending) · a submits it", "┌ pending", "│ Looks good", "· 1 pending")
+	assertDoesNotShow(t, model, "outdated")
 }
 
 func TestPendingCommentIsSubmittedWithTheLineAndSideItWasWrittenOn(t *testing.T) {
@@ -423,7 +424,7 @@ func TestPendingReviewsKeepADraftAddedWhileASubmissionRan(t *testing.T) {
 	reviews.setBody(url, "Body")
 	reviews.save(url, meanwhile)
 
-	reviews.submitted(url, []DraftComment{sent})
+	reviews.submitted(url, Review{Body: "Body", Comments: []DraftComment{sent}})
 
 	if drafts := reviews.drafts(url); len(drafts) != 1 || drafts[0] != meanwhile {
 		t.Fatalf("drafts = %+v, expected only %+v", drafts, meanwhile)
@@ -441,7 +442,7 @@ func TestPendingReviewsKeepADraftEditedWhileASubmissionRan(t *testing.T) {
 	reviews.save(url, sent)
 	reviews.save(url, edited)
 
-	reviews.submitted(url, []DraftComment{sent})
+	reviews.submitted(url, Review{Comments: []DraftComment{sent}})
 
 	if drafts := reviews.drafts(url); len(drafts) != 1 || drafts[0] != edited {
 		t.Fatalf("drafts = %+v, expected only %+v", drafts, edited)
@@ -481,7 +482,7 @@ func TestPendingReviewsChangeTheirVersionOnEveryModification(t *testing.T) {
 		func() { reviews.save(url, draftAt(addedLineTarget, "Text")) },
 		func() { reviews.setBody(url, "Body") },
 		func() { reviews.remove(url, addedLineTarget) },
-		func() { reviews.submitted(url, nil) },
+		func() { reviews.submitted(url, Review{}) },
 	}
 
 	for index, change := range changes {
@@ -490,5 +491,123 @@ func TestPendingReviewsChangeTheirVersionOnEveryModification(t *testing.T) {
 		if reviews.currentVersion() == before {
 			t.Fatalf("change %d left the version at %d", index, before)
 		}
+	}
+}
+
+// diffWithoutTheAddedLine keeps first.py to its one unchanged line, so that comments written on
+// its second line are outdated, and leaves the other file as it was.
+const diffWithoutTheAddedLine = `diff --git a/first.py b/first.py
+index 111..222 100644
+--- a/first.py
++++ b/first.py
+@@ -1 +1 @@
+ unchanged
+diff --git a/old_name.py b/second/new_name.py
+similarity index 90%
+rename from old_name.py
+rename to second/new_name.py
+--- a/old_name.py
++++ b/second/new_name.py
+@@ -1 +1 @@
+--- looks like a header
++++ looks like a header
+`
+
+// reopenedDiffAfterAPush writes a pending comment on the added line, closes the diff, and opens it
+// again with the provider now serving the given diff.
+func reopenedDiffAfterAPush(t *testing.T, newDiff string) (*plugin.Model, *editorSession) {
+	t.Helper()
+	provider := newFakeProvider()
+	session := editorWrites(t, "Draft", "\n")
+	model := loadedBoardWith(t, provider)
+	press(t, model, append(pressToTheAddedLine(), "c", "esc")...)
+	provider.diff = newDiff
+	press(t, model, "enter")
+	return model, session
+}
+
+func TestPendingCommentWhoseLineLeftTheDiffIsDrawnAtTheTopOfItsFileAsOutdated(t *testing.T) {
+	model, _ := reopenedDiffAfterAPush(t, diffWithoutTheAddedLine)
+
+	assertShows(t, model, "┌ pending · outdated · first.py:2", "│ Draft", "· 1 pending")
+}
+
+func TestPendingCommentWhoseFileLeftTheDiffIsDrawnAtTheTopOfTheFirstFile(t *testing.T) {
+	_, onlyTheSecondFile, _ := strings.Cut(diffWithoutTheAddedLine, "diff --git a/old_name.py")
+	model, _ := reopenedDiffAfterAPush(t, "diff --git a/old_name.py"+onlyTheSecondFile)
+
+	assertShows(t, model, "second/new_name.py", "┌ pending · outdated · first.py:2", "│ Draft")
+}
+
+func TestOutdatedPendingCommentIsNotDrawnOnAnotherFileThanItsOwn(t *testing.T) {
+	model, _ := reopenedDiffAfterAPush(t, diffWithoutTheAddedLine)
+
+	press(t, model, "down")
+
+	assertDoesNotShow(t, model, "outdated")
+}
+
+func TestCommentKeyOnAnOutdatedPendingCommentEditsIt(t *testing.T) {
+	model, session := reopenedDiffAfterAPush(t, diffWithoutTheAddedLine)
+
+	press(t, model, "c")
+
+	if len(session.opened) != 2 || session.opened[1] != "Draft" {
+		t.Fatalf("the editor was opened with %q", session.opened)
+	}
+	assertShows(t, model, "Pending comment removed.")
+	assertDoesNotShow(t, model, "outdated", "pending")
+}
+
+func TestSecondSubmissionStartedWhileTheFirstIsRunningFailsAndSendsNothing(t *testing.T) {
+	provider := newFakeProvider()
+	pr := provider.pullRequest(1)
+	board := &pullRequestBoard{provider: provider, reviews: newPendingReviews()}
+	effect := board.submitReview(plugin.Selection{Row: Row{PullRequest: pr}}, Review{Event: ReviewEventApprove})
+	var secondFailure error
+	provider.whileSubmitting = func() {
+		provider.whileSubmitting = nil
+		secondFailure = effect.Command()
+	}
+
+	firstFailure := effect.Command()
+
+	if firstFailure != nil {
+		t.Fatalf("the first submission failed: %v", firstFailure)
+	}
+	if expected := "a review of " + pr.label() + " is already being submitted"; secondFailure == nil || secondFailure.Error() != expected {
+		t.Fatalf("the second submission returned %v, expected %q", secondFailure, expected)
+	}
+	assertCalls(t, provider, reviewCall(pr, Review{Event: ReviewEventApprove}))
+}
+
+func TestSubmissionCanStartAgainOnceTheFirstHasFailed(t *testing.T) {
+	provider := newFakeProvider()
+	provider.fail("SubmitReview", errorForTests)
+	pr := provider.pullRequest(1)
+	board := &pullRequestBoard{provider: provider, reviews: newPendingReviews()}
+	effect := board.submitReview(plugin.Selection{Row: Row{PullRequest: pr}}, Review{Event: ReviewEventApprove})
+
+	effect.Command()
+	secondFailure := effect.Command()
+
+	if secondFailure != errorForTests {
+		t.Fatalf("the second submission returned %v", secondFailure)
+	}
+	if len(provider.recorded()) != 2 {
+		t.Fatalf("calls = %+v", provider.recorded())
+	}
+}
+
+func TestPendingReviewsKeepABodyWrittenWhileASubmissionRan(t *testing.T) {
+	reviews := newPendingReviews()
+	const url = "https://example.test/storefront/1"
+	reviews.setBody(url, "Sent body")
+	reviews.setBody(url, "Written meanwhile")
+
+	reviews.submitted(url, Review{Body: "Sent body"})
+
+	if reviews.body(url) != "Written meanwhile" {
+		t.Fatalf("body = %q", reviews.body(url))
 	}
 }

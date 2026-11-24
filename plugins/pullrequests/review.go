@@ -82,10 +82,14 @@ func (board *pullRequestBoard) submitReview(selection plugin.Selection, review R
 		Confirm: review.question(pr),
 		Notice:  "Submitting review of " + pr.label() + "…",
 		Command: func() error {
+			if !board.reviews.beginSubmission(pr.URL) {
+				return fmt.Errorf("a review of %s is already being submitted", pr.label())
+			}
+			defer board.reviews.endSubmission(pr.URL)
 			if err := board.provider.SubmitReview(pr, review); err != nil {
 				return err
 			}
-			board.reviews.submitted(pr.URL, review.Comments)
+			board.reviews.submitted(pr.URL, review)
 			return nil
 		},
 		RefreshRow: selection.Row,

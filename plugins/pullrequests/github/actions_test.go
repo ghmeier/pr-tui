@@ -207,7 +207,7 @@ func TestRequestTeamReviewGoesToTheOwnerOfThePullRequest(t *testing.T) {
 	})
 }
 
-func TestSubmitReviewOfAnApprovalWithoutABodyOrCommentsSendsOnlyTheEventAndTheHeadCommit(t *testing.T) {
+func TestSubmitReviewOfAnApprovalWithoutABodyOrCommentsSendsOnlyTheEvent(t *testing.T) {
 	pr := fixturePullRequest(storefront)
 	stub := stubShell(t, "")
 
@@ -217,7 +217,7 @@ func TestSubmitReviewOfAnApprovalWithoutABodyOrCommentsSendsOnlyTheEventAndTheHe
 		t.Fatal(err)
 	}
 	stub.assertCommands(t, []string{"gh", "api", "--method", "POST", "repos/" + storefront.FullName() + "/pulls/7/reviews"})
-	stub.assertInputs(t, `{"commit_id":"`+pr.HeadCommit+`","event":"APPROVE"}`)
+	stub.assertInputs(t, `{"event":"APPROVE"}`)
 }
 
 func TestSubmitReviewThatRequestsChangesSendsTheBodyAndEachCommentWithItsSide(t *testing.T) {
@@ -241,7 +241,7 @@ func TestSubmitReviewThatRequestsChangesSendsTheBodyAndEachCommentWithItsSide(t 
 	stub.assertInputs(t, `{"body":"Please fix \"these\"","comments":[`+
 		`{"body":"Added line","line":2,"path":"first.py","side":"RIGHT"},`+
 		`{"body":"Removed line","line":1,"path":"first.py","side":"LEFT"}],`+
-		`"commit_id":"`+pr.HeadCommit+`","event":"REQUEST_CHANGES"}`)
+		`"event":"REQUEST_CHANGES"}`)
 }
 
 func TestSubmitReviewThatOnlyCommentsSendsTheCommentEvent(t *testing.T) {
@@ -253,7 +253,7 @@ func TestSubmitReviewThatOnlyCommentsSendsTheCommentEvent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stub.assertInputs(t, `{"body":"Thoughts","commit_id":"`+pr.HeadCommit+`","event":"COMMENT"}`)
+	stub.assertInputs(t, `{"body":"Thoughts","event":"COMMENT"}`)
 }
 
 func TestEveryMethodReturnsTheFailureOfTheCommandItRan(t *testing.T) {

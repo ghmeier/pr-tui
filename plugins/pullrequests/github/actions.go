@@ -169,7 +169,9 @@ func reviewEventText(event pullrequests.ReviewEvent) string {
 }
 
 func (github *provider) SubmitReview(pr pullrequests.PullRequest, review pullrequests.Review) error {
-	payload := map[string]any{"commit_id": pr.HeadCommit, "event": reviewEventText(review.Event)}
+	// The commit is left out so that GitHub reviews the latest one, whose line numbers are the
+	// ones the diff screen shows.
+	payload := map[string]any{"event": reviewEventText(review.Event)}
 	if review.Body != "" {
 		payload["body"] = review.Body
 	}
