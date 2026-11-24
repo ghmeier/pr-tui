@@ -518,16 +518,10 @@ type editorSession struct {
 	opened []string
 }
 
-// editorWrites replaces the editor with one that saves the given text, or leaves the file as it
-// was when the text is empty.
-func editorWrites(t *testing.T, text string) *editorSession {
-	t.Helper()
-	return editorWritesInTurn(t, text)
-}
-
-// editorWritesInTurn is editorWrites for several openings: the first opening saves the first
-// text, the second the second, and any later one the last. An empty text leaves the file as it was.
-func editorWritesInTurn(t *testing.T, texts ...string) *editorSession {
+// editorWrites replaces the editor with one that saves the given texts in turn: the first opening
+// saves the first text, the second the second, and any later one the last. An empty text leaves
+// the file as it was.
+func editorWrites(t *testing.T, texts ...string) *editorSession {
 	t.Helper()
 	session := &editorSession{}
 	original := plugin.RunEditor

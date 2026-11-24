@@ -419,11 +419,7 @@ func (m *Model) update(message tea.Msg) tea.Cmd {
 		}
 		board.applyFilters()
 	case commandFinishedMessage:
-		finished := m.finishCommand(message)
-		if len(m.screens) == 0 {
-			return finished
-		}
-		return tea.Batch(finished, m.updateEveryScreen(CommandFinished{Err: message.err}))
+		return tea.Batch(m.finishCommand(message), m.updateEveryScreen(CommandFinished{Err: message.err}))
 	case refreshTickMessage:
 		return m.refreshDue(message)
 	case tea.MouseMsg:

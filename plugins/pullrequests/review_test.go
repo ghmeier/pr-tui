@@ -38,7 +38,7 @@ func assertDoesNotShow(t *testing.T, model *plugin.Model, unexpected ...string) 
 
 func TestCommentOnACodeLineAddsAPendingCommentWithoutPosting(t *testing.T) {
 	provider := newFakeProvider()
-	editorWritesInTurn(t, "Looks good")
+	editorWrites(t, "Looks good")
 	model := loadedBoardWith(t, provider)
 
 	press(t, model, append(pressToTheAddedLine(), "c")...)
@@ -49,7 +49,7 @@ func TestCommentOnACodeLineAddsAPendingCommentWithoutPosting(t *testing.T) {
 
 func TestPendingCommentIsSubmittedWithTheLineAndSideItWasWrittenOn(t *testing.T) {
 	provider := newFakeProvider()
-	editorWritesInTurn(t, "Looks good", "Overall")
+	editorWrites(t, "Looks good", "Overall")
 	model := loadedBoardWith(t, provider)
 
 	press(t, model, append(pressToTheAddedLine(), "c", "a", "3", "y")...)
@@ -60,7 +60,7 @@ func TestPendingCommentIsSubmittedWithTheLineAndSideItWasWrittenOn(t *testing.T)
 
 func TestTabMovesAPendingCommentToTheRemovedLine(t *testing.T) {
 	provider := newFakeProvider()
-	editorWritesInTurn(t, "Why remove this?", "")
+	editorWrites(t, "Why remove this?", "")
 	model := loadedBoardWith(t, provider)
 
 	press(t, model, append(pressToTheAddedLine(), "tab", "c", "a", "3", "y")...)
@@ -72,7 +72,7 @@ func TestTabMovesAPendingCommentToTheRemovedLine(t *testing.T) {
 
 func TestSavingAnEmptyCommentAddsNothing(t *testing.T) {
 	provider := newFakeProvider()
-	editorWritesInTurn(t, "\n")
+	editorWrites(t, "\n")
 	model := loadedBoardWith(t, provider)
 
 	press(t, model, append(pressToTheAddedLine(), "c")...)
@@ -82,7 +82,7 @@ func TestSavingAnEmptyCommentAddsNothing(t *testing.T) {
 }
 
 func TestCommentKeyOnAHeaderLineOpensNoEditorAndSaysWhy(t *testing.T) {
-	session := editorWritesInTurn(t, "Never used")
+	session := editorWrites(t, "Never used")
 	model := loadedBoard(t)
 
 	press(t, model, "enter", "c")
@@ -94,7 +94,7 @@ func TestCommentKeyOnAHeaderLineOpensNoEditorAndSaysWhy(t *testing.T) {
 }
 
 func TestCommentKeyOnAPendingCommentEditsIt(t *testing.T) {
-	editorWritesInTurn(t, "First draft", "Second draft")
+	editorWrites(t, "First draft", "Second draft")
 	model := loadedBoard(t)
 
 	press(t, model, append(pressToTheAddedLine(), "c", "j", "j", "j", "j", "j", "c")...)
@@ -104,7 +104,7 @@ func TestCommentKeyOnAPendingCommentEditsIt(t *testing.T) {
 }
 
 func TestCommentKeyOnTheLineOfAPendingCommentEditsItInsteadOfAddingAnother(t *testing.T) {
-	session := editorWritesInTurn(t, "First draft", "Second draft")
+	session := editorWrites(t, "First draft", "Second draft")
 	model := loadedBoard(t)
 
 	press(t, model, append(pressToTheAddedLine(), "c", "c")...)
@@ -116,7 +116,7 @@ func TestCommentKeyOnTheLineOfAPendingCommentEditsItInsteadOfAddingAnother(t *te
 }
 
 func TestSavingAnEmptyTextOnAPendingCommentRemovesIt(t *testing.T) {
-	editorWritesInTurn(t, "First draft", "\n")
+	editorWrites(t, "First draft", "\n")
 	model := loadedBoard(t)
 
 	press(t, model, append(pressToTheAddedLine(), "c", "j", "j", "j", "j", "j", "c")...)
@@ -127,7 +127,7 @@ func TestSavingAnEmptyTextOnAPendingCommentRemovesIt(t *testing.T) {
 
 func TestCommentKeyOnAPostedThreadPostsTheReplyAtOnceAndAddsNoPendingComment(t *testing.T) {
 	provider := newFakeProvider()
-	editorWritesInTurn(t, "Thanks")
+	editorWrites(t, "Thanks")
 	model := loadedBoardWith(t, provider)
 
 	press(t, model, append(postedThreadRows, "c")...)
@@ -140,7 +140,7 @@ func TestCommentKeyOnAPostedThreadPostsTheReplyAtOnceAndAddsNoPendingComment(t *
 
 func TestEmptyReplyPostsNothing(t *testing.T) {
 	provider := newFakeProvider()
-	editorWritesInTurn(t, "\n")
+	editorWrites(t, "\n")
 	model := loadedBoardWith(t, provider)
 
 	press(t, model, append(postedThreadRows, "c")...)
@@ -152,7 +152,7 @@ func TestEmptyReplyPostsNothing(t *testing.T) {
 func TestFailedReplyIsOfferedAgainOnTheNextComment(t *testing.T) {
 	provider := newFakeProvider()
 	provider.fail("PostComment", errorForTests)
-	session := editorWritesInTurn(t, "Thanks", "")
+	session := editorWrites(t, "Thanks", "")
 	model := loadedBoardWith(t, provider)
 
 	press(t, model, append(postedThreadRows, "c")...)
@@ -168,7 +168,7 @@ func TestFailedReplyIsOfferedAgainOnTheNextComment(t *testing.T) {
 }
 
 func TestPostedReplyIsNotOfferedAgain(t *testing.T) {
-	session := editorWritesInTurn(t, "Thanks", "")
+	session := editorWrites(t, "Thanks", "")
 	model := loadedBoard(t)
 
 	press(t, model, append(postedThreadRows, "c", "c")...)
@@ -179,7 +179,7 @@ func TestPostedReplyIsNotOfferedAgain(t *testing.T) {
 }
 
 func TestPendingCommentIsDrawnAfterThePostedThreadOnItsLineWithAPendingLabel(t *testing.T) {
-	editorWritesInTurn(t, "Draft text")
+	editorWrites(t, "Draft text")
 	model := loadedBoard(t)
 	press(t, model, append(pressToTheAddedLine(), "c")...)
 	viewLines := strings.Split(view(model), "\n")
@@ -202,7 +202,7 @@ func TestPendingCommentIsDrawnAfterThePostedThreadOnItsLineWithAPendingLabel(t *
 }
 
 func TestHeaderCountsThePendingCommentsOnlyWhenThereAreSome(t *testing.T) {
-	editorWritesInTurn(t, "First", "Second")
+	editorWrites(t, "First", "Second")
 	model := loadedBoard(t)
 	press(t, model, "enter")
 	withoutAny := view(model)
@@ -234,7 +234,7 @@ func TestReviewKeyOnSomeoneElsesPullRequestOffersApproveRequestChangesAndComment
 func TestReviewKeyOnTheViewersOwnPullRequestGoesStraightToTheEditorAsACommentReview(t *testing.T) {
 	provider := newFakeProvider()
 	provider.pullRequests[0].Author = testViewer
-	session := editorWritesInTurn(t, "Thoughts")
+	session := editorWrites(t, "Thoughts")
 	model := loadedBoardWith(t, provider)
 	selected := provider.pullRequest(1)
 
@@ -253,7 +253,7 @@ func TestReviewKeyOnTheViewersOwnPullRequestGoesStraightToTheEditorAsACommentRev
 
 func TestRequestingChangesWithAnEmptyBodySubmitsNothingAndSaysWhy(t *testing.T) {
 	provider := newFakeProvider()
-	editorWritesInTurn(t, "\n")
+	editorWrites(t, "\n")
 	model := loadedBoardWith(t, provider)
 
 	press(t, model, "a", "2")
@@ -265,7 +265,7 @@ func TestRequestingChangesWithAnEmptyBodySubmitsNothingAndSaysWhy(t *testing.T) 
 
 func TestCommentReviewWithoutABodyOrPendingCommentsSubmitsNothingAndSaysWhy(t *testing.T) {
 	provider := newFakeProvider()
-	editorWritesInTurn(t, "\n")
+	editorWrites(t, "\n")
 	model := loadedBoardWith(t, provider)
 
 	press(t, model, "a", "3")
@@ -276,7 +276,7 @@ func TestCommentReviewWithoutABodyOrPendingCommentsSubmitsNothingAndSaysWhy(t *t
 
 func TestCommentReviewWithPendingCommentsAndNoBodyIsAcceptedAndNamesTheirCount(t *testing.T) {
 	provider := newFakeProvider()
-	editorWritesInTurn(t, "Looks good", "\n")
+	editorWrites(t, "Looks good", "\n")
 	model := loadedBoardWith(t, provider)
 	selected := provider.pullRequest(1)
 
@@ -292,7 +292,7 @@ func TestCommentReviewWithPendingCommentsAndNoBodyIsAcceptedAndNamesTheirCount(t
 
 func TestApprovalWithoutABodyIsAskedWithoutMentioningPendingComments(t *testing.T) {
 	provider := newFakeProvider()
-	editorWritesInTurn(t, "")
+	editorWrites(t, "")
 	model := loadedBoardWith(t, provider)
 	selected := provider.pullRequest(1)
 
@@ -308,7 +308,7 @@ func TestApprovalWithoutABodyIsAskedWithoutMentioningPendingComments(t *testing.
 
 func TestConfirmingSubmitsTheEventTheBodyAndAllDrafts(t *testing.T) {
 	provider := newFakeProvider()
-	editorWritesInTurn(t, "First", "Second", "Needs work")
+	editorWrites(t, "First", "Second", "Needs work")
 	model := loadedBoardWith(t, provider)
 	selected := provider.pullRequest(1)
 
@@ -324,7 +324,7 @@ func TestConfirmingSubmitsTheEventTheBodyAndAllDrafts(t *testing.T) {
 
 func TestSubmittingNamesThePullRequestInItsNoticeWhileItWorks(t *testing.T) {
 	provider := newFakeProvider()
-	editorWritesInTurn(t, "")
+	editorWrites(t, "")
 	model := loadedBoardWith(t, provider)
 
 	press(t, model, "a", "1")
@@ -335,7 +335,7 @@ func TestSubmittingNamesThePullRequestInItsNoticeWhileItWorks(t *testing.T) {
 
 func TestDecliningTheReviewSubmitsNothingAndKeepsTheDraftsAndTheBody(t *testing.T) {
 	provider := newFakeProvider()
-	session := editorWritesInTurn(t, "Draft", "My body", "")
+	session := editorWrites(t, "Draft", "My body", "")
 	model := loadedBoardWith(t, provider)
 	press(t, model, append(pressToTheAddedLine(), "c", "a", "3", "n")...)
 
@@ -350,7 +350,7 @@ func TestDecliningTheReviewSubmitsNothingAndKeepsTheDraftsAndTheBody(t *testing.
 
 func TestSuccessfulSubmissionClearsTheDraftsAndTheBody(t *testing.T) {
 	provider := newFakeProvider()
-	session := editorWritesInTurn(t, "Draft", "My body", "")
+	session := editorWrites(t, "Draft", "My body", "")
 	model := loadedBoardWith(t, provider)
 
 	press(t, model, append(pressToTheAddedLine(), "c", "a", "3", "y")...)
@@ -365,7 +365,7 @@ func TestSuccessfulSubmissionClearsTheDraftsAndTheBody(t *testing.T) {
 func TestFailedSubmissionKeepsTheDraftsAndTheBody(t *testing.T) {
 	provider := newFakeProvider()
 	provider.fail("SubmitReview", errorForTests)
-	session := editorWritesInTurn(t, "Draft", "My body", "")
+	session := editorWrites(t, "Draft", "My body", "")
 	model := loadedBoardWith(t, provider)
 
 	press(t, model, append(pressToTheAddedLine(), "c", "a", "3", "y")...)
@@ -381,7 +381,7 @@ func TestReviewKeyOnAScreenAsksThenSubmits(t *testing.T) {
 	for name, opener := range screenOpeners {
 		t.Run(name, func(t *testing.T) {
 			provider := newFakeProvider()
-			editorWritesInTurn(t, "")
+			editorWrites(t, "")
 			model := loadedBoardWith(t, provider)
 			selected := provider.pullRequest(1)
 			press(t, model, opener...)
@@ -400,7 +400,7 @@ func TestReviewKeyOnAScreenAsksThenSubmits(t *testing.T) {
 
 func TestDiffScreenShowsPostedReviewCommentsAsSoonAsTheSubmissionFinishes(t *testing.T) {
 	provider := newFakeProvider()
-	editorWritesInTurn(t, "Draft", "")
+	editorWrites(t, "Draft", "")
 	model := loadedBoardWith(t, provider)
 	press(t, model, append(pressToTheAddedLine(), "c")...)
 	provider.comments = append(provider.comments, ReviewComment{

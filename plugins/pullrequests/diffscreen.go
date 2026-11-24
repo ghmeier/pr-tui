@@ -83,8 +83,8 @@ func (board *pullRequestBoard) sendComment(pr PullRequest, target CommentTarget,
 }
 
 // diffScreen shows a pull request's diff, file by file, with its review comments and the
-// comments pending in the review. It learns its size from View, which is drawn after every update, so a key
-// that depends on the size uses the size of the last drawing.
+// comments pending in the review. It learns its size from View, which is drawn after every
+// update, so a key that depends on the size uses the size of the last drawing.
 type diffScreen struct {
 	board       *pullRequestBoard
 	pullRequest PullRequest
@@ -131,6 +131,7 @@ func (board *pullRequestBoard) newDiffScreen(selection plugin.Selection) *diffSc
 	screen := &diffScreen{
 		board: board, pullRequest: pr, selection: selection, lineCount: selection.Data(linesHeader),
 		splitDiff: true, width: 120, height: 30, seenSubmissions: board.reviews.submissions(pr.URL),
+		failedReplies: map[int64]string{},
 	}
 	if files, cached := board.diffs.lookup(pr); cached {
 		screen.files, screen.refreshing = files, true
@@ -243,8 +244,8 @@ func (screen *diffScreen) diffRowCount() int {
 }
 
 // rebuildRows lays out the selected file for the current layout and width, with each
-// comment thread and pending comment directly under the line they are attached to. A line too long for the width
-// takes a row for each of its wrapped parts.
+// comment thread and pending comment directly under the line they are attached to. A line too
+// long for the width takes a row for each of its wrapped parts.
 func (screen *diffScreen) rebuildRows() {
 	key := rowsKey{screen.fileCursor, screen.showsSplit(), screen.width, screen.dataVersion, screen.board.reviews.currentVersion()}
 	if screen.rowsBuilt && key == screen.rowsKey {
@@ -345,7 +346,7 @@ func (screen *diffScreen) cursorCommentTarget() (CommentTarget, bool) {
 	case row.thread != nil:
 		return row.thread.replyTarget(), true
 	case row.draft != nil:
-		return CommentTarget{Path: row.draft.Path, Line: row.draft.Line, Side: row.draft.Side}, true
+		return row.draft.target(), true
 	}
 	file := screen.files[screen.fileCursor]
 	switch line := file.lines[index]; line.kind {
@@ -386,12 +387,13 @@ func (screen *diffScreen) writePendingComment(target CommentTarget) tea.Cmd {
 			screen.notice = "Pending comment removed."
 		case text == "":
 			screen.notice = "Comment discarded."
-		case isPending:
-			screen.board.reviews.save(url, DraftComment{Path: target.Path, Line: target.Line, Side: target.Side, Body: text})
-			screen.notice = "Pending comment updated."
 		default:
 			pending := screen.board.reviews.save(url, DraftComment{Path: target.Path, Line: target.Line, Side: target.Side, Body: text})
-			screen.notice = fmt.Sprintf("Added to your review (%d pending) · a submits it", pending)
+			if isPending {
+				screen.notice = "Pending comment updated."
+			} else {
+				screen.notice = fmt.Sprintf("Added to your review (%d pending) · a submits it", pending)
+			}
 		}
 		return nil
 	})
@@ -527,9 +529,6 @@ func (screen *diffScreen) update(message tea.Msg) (plugin.Screen, tea.Cmd) {
 			return screen, nil
 		}
 		if message.err != nil {
-			if screen.failedReplies == nil {
-				screen.failedReplies = map[int64]string{}
-			}
 			screen.failedReplies[message.target.ReplyTo] = message.body
 			screen.notice = "Failed: " + ui.FirstLine(message.err) + " · press c to try again"
 			return screen, nil

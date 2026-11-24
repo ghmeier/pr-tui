@@ -38,8 +38,8 @@ func (reviews *pendingReviews) entry(url string) *pendingReview {
 	return entry
 }
 
-func (draft DraftComment) isFor(target CommentTarget) bool {
-	return draft.Path == target.Path && draft.Line == target.Line && draft.Side == target.Side
+func (draft DraftComment) target() CommentTarget {
+	return CommentTarget{Path: draft.Path, Line: draft.Line, Side: draft.Side}
 }
 
 // drafts is a copy of the pull request's pending comments, in the order they were added.
@@ -53,7 +53,7 @@ func (reviews *pendingReviews) draftFor(url string, target CommentTarget) (Draft
 	reviews.mutex.Lock()
 	defer reviews.mutex.Unlock()
 	for _, draft := range reviews.entry(url).drafts {
-		if draft.isFor(target) {
+		if draft.target() == target {
 			return draft, true
 		}
 	}
@@ -66,8 +66,7 @@ func (reviews *pendingReviews) save(url string, draft DraftComment) int {
 	reviews.mutex.Lock()
 	defer reviews.mutex.Unlock()
 	entry := reviews.entry(url)
-	target := CommentTarget{Path: draft.Path, Line: draft.Line, Side: draft.Side}
-	if index := slices.IndexFunc(entry.drafts, func(existing DraftComment) bool { return existing.isFor(target) }); index >= 0 {
+	if index := slices.IndexFunc(entry.drafts, func(existing DraftComment) bool { return existing.target() == draft.target() }); index >= 0 {
 		entry.drafts[index] = draft
 	} else {
 		entry.drafts = append(entry.drafts, draft)
@@ -80,7 +79,7 @@ func (reviews *pendingReviews) remove(url string, target CommentTarget) {
 	reviews.mutex.Lock()
 	defer reviews.mutex.Unlock()
 	entry := reviews.entry(url)
-	entry.drafts = slices.DeleteFunc(entry.drafts, func(draft DraftComment) bool { return draft.isFor(target) })
+	entry.drafts = slices.DeleteFunc(entry.drafts, func(draft DraftComment) bool { return draft.target() == target })
 	reviews.version++
 }
 

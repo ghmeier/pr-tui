@@ -175,8 +175,8 @@ type Edit struct {
 
 // Screen is a full-screen view above the board. While any screen is open it receives every key
 // except ctrl+c, a CommandFinished whenever a command started by an effect finishes, and every
-// message the host does not recognise, because screens run their own
-// background commands. A screen must ignore messages that are not its own.
+// message the host does not recognise, because screens run their own background commands. A
+// screen must ignore messages that are not its own.
 type Screen interface {
 	Init() tea.Cmd
 	// Update returns a nil Screen to close itself.
