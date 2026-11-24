@@ -33,7 +33,10 @@ const (
 )
 
 type diffLine struct {
-	text      string
+	text string
+	// source is the line as the diff has it, apart from carriage returns and escape characters,
+	// so that copied code keeps its tabs. The text is what is drawn.
+	source    string
 	kind      lineKind
 	code      []ui.Segment
 	oldNumber int
@@ -64,6 +67,8 @@ var hunkHeaderPattern = regexp.MustCompile(`^@@ -(\d+)(?:,\d+)? \+(\d+)`)
 // splitSeparator sits between the two sides of a side-by-side row.
 var splitSeparator = ui.DimStyle.Render(" │ ")
 
+var diffLineSourceCleaner = strings.NewReplacer("\r", "", "\x1b", "")
+
 var diffLineSanitizer = strings.NewReplacer("\t", "    ", "\r", "", "\x1b", "␛")
 
 // parseDiff splits a unified diff into its files. Lines before a file's first hunk are
@@ -86,7 +91,7 @@ func parseDiff(text string) []diffFile {
 			continue
 		}
 		file := &files[len(files)-1]
-		parsed := diffLine{text: diffLineSanitizer.Replace(line)}
+		parsed := diffLine{text: diffLineSanitizer.Replace(line), source: diffLineSourceCleaner.Replace(line)}
 		switch {
 		case strings.HasPrefix(line, "@@"):
 			inHunk = true

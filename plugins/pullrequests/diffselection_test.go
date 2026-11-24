@@ -321,3 +321,27 @@ func TestDraggingInTheUnifiedLayoutCopiesEveryCodeLineCovered(t *testing.T) {
 		t.Fatalf("copied = %q, expected %q", *copied, expected)
 	}
 }
+
+func TestDraggingOverALineWithATabCopiesTheTab(t *testing.T) {
+	copied := replaceClipboard(t)
+	provider := newFakeProvider()
+	provider.diff = strings.Join([]string{
+		"diff --git a/main.go b/main.go",
+		"--- a/main.go",
+		"+++ b/main.go",
+		"@@ -1,2 +1,2 @@",
+		" func main() {",
+		"+\tprintln(\"tab\")",
+		" }",
+	}, "\n")
+	model := loadedBoardWith(t, provider)
+	press(t, model, "enter")
+	_, fromY := positionOf(t, model, "func main")
+	x, toY := positionOf(t, model, "println")
+
+	dragBetween(t, model, x, fromY, x, toY)
+
+	if expected := "func main() {\n\tprintln(\"tab\")"; len(*copied) != 1 || (*copied)[0] != expected {
+		t.Fatalf("copied = %q, expected %q", *copied, expected)
+	}
+}

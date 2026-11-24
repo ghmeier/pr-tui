@@ -130,8 +130,8 @@ func (screen *diffScreen) selectedCode() string {
 			continue
 		}
 		copied = line
-		if text := file.lines[line].text; text != "" {
-			code = append(code, text[1:])
+		if source := file.lines[line].source; source != "" {
+			code = append(code, source[1:])
 		} else {
 			code = append(code, "")
 		}
