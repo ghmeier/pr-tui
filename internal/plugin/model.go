@@ -2,13 +2,16 @@ package plugin
 
 import (
 	"cmp"
+	"fmt"
 	"math"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/ghmeier/pr-tui/internal/shell"
 	"github.com/ghmeier/pr-tui/internal/ui"
 )
 
@@ -426,7 +429,7 @@ func (m *Model) update(message tea.Msg) tea.Cmd {
 		return m.refreshDue(message)
 	case tea.MouseMsg:
 		if len(m.screens) > 0 {
-			return m.updateEveryScreen(message)
+			return m.updateTopScreen(message)
 		}
 		return m.handleMouse(message)
 	case tea.KeyMsg:
@@ -612,6 +615,21 @@ func (m *Model) startCommand(index int, run func() error, finished commandFinish
 	}
 }
 
+// copyToClipboard writes the text to the clipboard on a background command, and shows the notice
+// when that succeeds.
+func (m *Model) copyToClipboard(index int, text, successNotice string) tea.Cmd {
+	return m.startCommand(index, func() error { return shell.WriteClipboard(text) },
+		commandFinishedMessage{successNotice: successNotice})
+}
+
+// copiedNotice names a copied text when it is one line, and otherwise how many lines it has.
+func copiedNotice(text string) string {
+	if lineCount := strings.Count(text, "\n") + 1; lineCount > 1 {
+		return fmt.Sprintf("Copied %d lines", lineCount)
+	}
+	return "Copied " + text
+}
+
 // execute carries out an effect, with its confirmation already answered.
 func (m *Model) execute(index int, effect Effect) tea.Cmd {
 	var commands []tea.Cmd
@@ -620,6 +638,13 @@ func (m *Model) execute(index int, effect Effect) tea.Cmd {
 	}
 	if effect.Edit != nil {
 		return m.startEdit(index, effect.Edit)
+	}
+	if effect.Copy != "" {
+		successNotice := effect.Notice
+		if successNotice == "" {
+			successNotice = copiedNotice(effect.Copy)
+		}
+		commands = append(commands, m.copyToClipboard(index, effect.Copy, successNotice))
 	}
 	if effect.Command == nil && (effect.Refresh || effect.RefreshRow != nil) {
 		commands = append(commands, m.reloadAfterEffect(index, effect.RefreshRow))

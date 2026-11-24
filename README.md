@@ -123,8 +123,9 @@ Board keys:
 
 Double-click any cell to copy its full text, including text the table cuts short. Clicking a
 row selects it, and the mouse wheel moves the cursor. Because the app uses the mouse,
-selecting text by dragging needs the terminal's bypass modifier: shift in kitty and most
-terminals, option in macOS Terminal and iTerm2.
+the terminal's own text selection needs its bypass modifier (shift in kitty and most
+terminals, option in macOS Terminal and iTerm2), and it spans the whole screen. In the diff
+view, dragging selects lines instead.
 Columns whose values vary in length, such as branches, reviewers, and tags, are cut short;
 double-click a cell to copy its full text.
 
@@ -143,6 +144,12 @@ Diff view keys:
 | `m` | Merge now (squash, after a confirmation), or enable or disable auto-merge (squash) |
 | `a` | Review (labelled comment on your own pull request): approve, request changes, or comment, written in your editor. It submits the pending comments you have collected in the diff view, after a confirmation. On your own pull request only a comment review is offered |
 | `esc` | Back |
+
+In the diff view, dragging the mouse over lines copies their code, without the markers and
+line numbers, from the side of a split row where the drag started. Clicking a line moves the
+cursor to it, and clicking a file in the list shows that file. For anything else, the
+terminal's own selection works with its bypass key (shift in kitty and most terminals), but it
+spans the whole screen.
 
 Pending comments are kept in memory, so they are lost when `prs` quits. They are posted together when
 you submit a review with `a`.

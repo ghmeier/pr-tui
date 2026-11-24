@@ -252,3 +252,52 @@ func TestEffectScreenAfterConfirmationOpensOnlyOnceAnswered(t *testing.T) {
 		t.Fatalf("screens open: %d before answering, %d after", before, len(model.screens))
 	}
 }
+
+func TestCopyEffectPutsOneLineOnTheClipboardAndShowsIt(t *testing.T) {
+	copied := replaceClipboard(t, nil)
+	text := "one line of code"
+	model := modelForBoard(t, boardWithEffect(func(fakeRow) Effect { return Effect{Copy: text} }))
+
+	plugintest.Press(t, model, "x")
+
+	if len(*copied) != 1 || (*copied)[0] != text || !strings.Contains(statusLine(model), "Copied "+text) {
+		t.Fatalf("copied = %v, status = %q", *copied, statusLine(model))
+	}
+}
+
+func TestCopyEffectOfSeveralLinesShowsTheirCountInsteadOfTheText(t *testing.T) {
+	copied := replaceClipboard(t, nil)
+	text := "first line\nsecond line\nthird line"
+	model := modelForBoard(t, boardWithEffect(func(fakeRow) Effect { return Effect{Copy: text} }))
+
+	plugintest.Press(t, model, "x")
+
+	status := statusLine(model)
+	if len(*copied) != 1 || (*copied)[0] != text || !strings.Contains(status, "Copied 3 lines") || strings.Contains(status, "second line") {
+		t.Fatalf("copied = %v, status = %q", *copied, status)
+	}
+}
+
+func TestCopyEffectWithANoticeShowsThatNoticeInsteadOfTheCopiedOne(t *testing.T) {
+	replaceClipboard(t, nil)
+	notice := "Link copied"
+	model := modelForBoard(t, boardWithEffect(func(fakeRow) Effect { return Effect{Copy: "https://example.com", Notice: notice} }))
+
+	plugintest.Press(t, model, "x")
+
+	if status := statusLine(model); !strings.Contains(status, notice) || strings.Contains(status, "Copied") {
+		t.Fatalf("status = %q", status)
+	}
+}
+
+func TestCopyEffectThatFailsShowsFailedWithTheFirstLineOnly(t *testing.T) {
+	replaceClipboard(t, errorWithTwoLines)
+	model := modelForBoard(t, boardWithEffect(func(fakeRow) Effect { return Effect{Copy: "text"} }))
+
+	plugintest.Press(t, model, "x")
+
+	status := statusLine(model)
+	if !strings.Contains(status, "Failed: first line") || strings.Contains(status, "second line") || strings.Contains(status, "Copied") {
+		t.Fatalf("status = %q", status)
+	}
+}

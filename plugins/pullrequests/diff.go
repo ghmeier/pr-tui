@@ -33,7 +33,11 @@ const (
 )
 
 type diffLine struct {
-	text      string
+	// text is the line as drawn: tabs widened and escape characters made visible.
+	text string
+	// source is the line as the diff has it, apart from carriage returns and escape characters,
+	// so that copied code keeps its tabs. The text is what is drawn.
+	source    string
 	kind      lineKind
 	code      []ui.Segment
 	oldNumber int
@@ -64,6 +68,10 @@ var hunkHeaderPattern = regexp.MustCompile(`^@@ -(\d+)(?:,\d+)? \+(\d+)`)
 // splitSeparator sits between the two sides of a side-by-side row.
 var splitSeparator = ui.DimStyle.Render(" │ ")
 
+// diffLineSourceCleaner leaves tabs alone, unlike diffLineSanitizer, because copied code must
+// match the file.
+var diffLineSourceCleaner = strings.NewReplacer("\r", "", "\x1b", "")
+
 var diffLineSanitizer = strings.NewReplacer("\t", "    ", "\r", "", "\x1b", "␛")
 
 // parseDiff splits a unified diff into its files. Lines before a file's first hunk are
@@ -86,7 +94,7 @@ func parseDiff(text string) []diffFile {
 			continue
 		}
 		file := &files[len(files)-1]
-		parsed := diffLine{text: diffLineSanitizer.Replace(line)}
+		parsed := diffLine{text: diffLineSanitizer.Replace(line), source: diffLineSourceCleaner.Replace(line)}
 		switch {
 		case strings.HasPrefix(line, "@@"):
 			inHunk = true
@@ -191,10 +199,13 @@ func (file *diffFile) pairLines() {
 	file.numberWidth = len(strconv.Itoa(highestNumber))
 }
 
-// splitSideWidth is the width of each side of a side-by-side row, which has a three-cell
-// separator between the sides.
+// splitSeparatorWidth is the width of splitSeparator, which sits between the two sides of a
+// side-by-side row and between the file list and the diff.
+const splitSeparatorWidth = 3
+
+// splitSideWidth is the width of each side of a side-by-side row.
 func splitSideWidth(width int) int {
-	return (width - 3) / 2
+	return (width - splitSeparatorWidth) / 2
 }
 
 func (file diffFile) sideCodeWidth(sideWidth int) int {

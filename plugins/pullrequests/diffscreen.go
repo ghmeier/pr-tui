@@ -118,6 +118,9 @@ type diffScreen struct {
 	dataVersion int
 
 	commentOnOldSide bool
+	// drag is the rows selected with the mouse, or nil. It is dropped when the rows are laid out
+	// again and on the next key, because it names rows.
+	drag *dragSelection
 	// failedReplies holds the text of each reply that could not be posted, by the id of the
 	// comment it answers, so that the next reply to that thread starts from it.
 	failedReplies map[int64]string
@@ -245,7 +248,7 @@ type rowsKey struct {
 }
 
 func (screen *diffScreen) diffWidth() int {
-	return max(screen.width-screen.fileListWidth()-3, 1)
+	return max(screen.width-screen.fileListWidth()-splitSeparatorWidth, 1)
 }
 
 func (screen *diffScreen) diffRowCount() int {
@@ -271,7 +274,7 @@ func (screen *diffScreen) rebuildRows() {
 		}
 	}
 	screen.rowsKey, screen.rowsBuilt = key, true
-	screen.rows = nil
+	screen.rows, screen.drag = nil, nil
 	defer func() {
 		if keptLine >= 0 {
 			screen.diffCursor = screen.rowForLine(keptLine)
@@ -575,21 +578,13 @@ func (screen *diffScreen) update(message tea.Msg) (plugin.Screen, tea.Cmd) {
 	case tea.KeyMsg:
 		return screen.handleKey(message.String())
 	case tea.MouseMsg:
-		if message.Action != tea.MouseActionPress {
-			return screen, nil
-		}
-		switch message.Button {
-		case tea.MouseButtonWheelUp:
-			return screen.handleKey("up")
-		case tea.MouseButtonWheelDown:
-			return screen.handleKey("down")
-		}
+		return screen.handleMouse(message)
 	}
 	return screen, nil
 }
 
 func (screen *diffScreen) handleKey(key string) (plugin.Screen, tea.Cmd) {
-	screen.notice = ""
+	screen.notice, screen.drag = "", nil
 	switch key {
 	case "esc", "q":
 		return nil, nil
@@ -661,7 +656,7 @@ func (screen *diffScreen) body() []string {
 		}
 		right := ""
 		if index := screen.diffOffset + row; index < rowCount {
-			right = screen.renderDiffRow(index, diffWidth)
+			right = screen.highlightSelected(index, screen.renderDiffRow(index, diffWidth), diffWidth)
 		}
 		body = append(body, left+screen.diffSeparator(screen.diffOffset+row)+right)
 	}
