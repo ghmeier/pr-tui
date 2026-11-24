@@ -1,8 +1,8 @@
 ---
 title: Code review, one editing pattern, and diff fixes
-status: draft
+status: active
 tags: [pull-requests, host]
-next_step: Get the user's approval, then dispatch step 1 (editor effect and mouse fix).
+next_step: Step 1 (editor-effect) dispatched to an implementer.
 created: 2026-11-24
 updated: 2026-11-24
 ---
@@ -111,7 +111,7 @@ No configuration changes.
 Steps 2 to 4 all touch `diffscreen.go`, so they run in sequence.
 
 1. **`editor-effect`** from `main`: the host `Edit` effect with mouse re-enabled, the description
-   screen moved onto it, README unchanged in behavior. Verify with host tests for the effect
+   screen moved onto it, and `enter` instead of `ctrl+s` submitting the workflow run form. Verify with host tests for the effect
    (text in, trimmed text to `Done`, editor failure notice, file removed) and a manual check in
    kitty that double-click copies after editing a description.
 2. **`wrap-diff-lines`**: `ui.WrapSegments` and wrapped diff rendering. Verify with tests for
@@ -133,5 +133,7 @@ Steps 2 to 4 all touch `diffscreen.go`, so they run in sequence.
 ## Notes and decisions
 
 - 2026-11-24: The user chose the editor for all prose, pending reviews submitted at once, and
-  unified for added or deleted files. The workflows run form keeps `ctrl+s`: it is a form of
-  several fields, not prose.
+  unified for added or deleted files.
+- 2026-11-24: The workflows run form is a form of single-line fields, not prose, so it does not
+  use the editor. At the user's request, `enter` submits it instead of `ctrl+s`; this rides along
+  in step 1.
