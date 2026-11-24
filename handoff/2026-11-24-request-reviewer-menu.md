@@ -1,6 +1,6 @@
 ---
 title: Reviewer menu and the kitty editor wait
-status: active
+status: completed
 tags: [pull-requests, host]
 created: 2026-11-24
 updated: 2026-11-24
@@ -25,5 +25,4 @@ Plan: [2026-11-24-request-reviewer-menu](../plan/2026-11-24-request-reviewer-men
 
 ## Next steps
 
-- Try the menu by hand without submitting a request, then merge #19.
 - Consider showing why members are missing when the lookup fails.

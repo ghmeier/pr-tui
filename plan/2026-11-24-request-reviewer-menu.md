@@ -1,8 +1,8 @@
 ---
 title: Request review from the team or one of its members
-status: active
+status: completed
 tags: [pull-requests, host]
-next_step: Pull request #19 (reviewer menu) is open; try the menu by hand, then merge.
+next_step: Done; pull request #19 merged. A release is the user's call.
 created: 2026-11-24
 updated: 2026-11-24
 ---
@@ -72,7 +72,7 @@ and the README rows for `t` are reworded.
    then the provider and plugin changes that use it, README and starter file. Verified with
    `go vet`, `gofmt`, `go test ./...`, and a read-only `--once` run.
 
-   **Done:** pull request #19 (commits f0028ae and 8dcadfc). Awaiting review and a hand test.
+   **Done:** pull request #19 (commits f0028ae and 8dcadfc). Merged after the user tried the menu by hand.
 
 ## Risks
 
