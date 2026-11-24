@@ -37,7 +37,7 @@ refresh_interval = "3m"            # a Go duration, at least 1s; default 3m
 name = "VS Code"                   # shown in the help line; default "VS Code"
 command = "code"                   # default "code"; a string is one executable, spaces included
 # command = ["code", "--reuse-window"]   # or a list: the executable, then its arguments
-# text_command = ["kitty", "@", "launch", "--type=window", "--location=vsplit", "--cwd=current", "--wait-for-child-to-exit", "nvim"]
+# text_command = ["sh", "-c", "window=$(kitten @ launch --type=window --location=vsplit --cwd=current nvim \"$1\") && while kitten @ ls --match id:$window >/dev/null 2>&1; do sleep 0.3; done", "sh"]
 
 [pull_requests]
 provider = "github"                # only "github" is supported; default "github"
@@ -71,7 +71,9 @@ listen_on unix:/tmp/kitty
 
 Use a socket rather than `allow_remote_control yes` alone: without one, `kitty @` talks to kitty
 through the terminal that prs is reading keys from. `--location=vsplit` splits only in kitty's
-Splits layout (`enabled_layouts splits`). Other terminals can use a wrapper script that opens a
+Splits layout (`enabled_layouts splits`). The example checks every 0.3 seconds whether the window has
+closed instead of passing `--wait-for-child-to-exit` to `kitty @ launch`, because in kitty 0.43 that
+flag never returns and prs would wait forever. Other terminals can use a wrapper script that opens a
 pane and waits for the editor to exit.
 
 A mistake in the file, such as an unknown key or a repository not written as `owner/name`,

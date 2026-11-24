@@ -256,7 +256,7 @@ command = "code"
 # $EDITOR. A command runs beside prs instead, with the file's path added at the end; prs stays usable and
 # reads the file when the command exits. For a kitty split (needs remote control on a socket in kitty.conf;
 # see the README):
-# text_command = ["kitty", "@", "launch", "--type=window", "--location=vsplit", "--cwd=current", "--wait-for-child-to-exit", "nvim"]
+# text_command = ["sh", "-c", "window=$(kitten @ launch --type=window --location=vsplit --cwd=current nvim \"$1\") && while kitten @ ls --match id:$window >/dev/null 2>&1; do sleep 0.3; done", "sh"]
 
 [pull_requests]
 # Where pull requests come from. Only "github" is supported today. The settings for the
