@@ -149,7 +149,7 @@ func (screen *formScreen) handleKey(message tea.KeyMsg) (plugin.Screen, tea.Cmd)
 	switch message.String() {
 	case "esc":
 		return nil, nil
-	case "ctrl+s":
+	case "enter":
 		return screen.submit()
 	case "up", "shift+tab":
 		screen.moveFocus(-1)
@@ -264,7 +264,7 @@ func (screen *formScreen) help() string {
 	case InputKindBoolean:
 		keysAndLabels = append(keysAndLabels, "space", "toggle")
 	}
-	return ui.HelpLine(append(keysAndLabels, "ctrl+s", "run", "esc", "cancel")...)
+	return ui.HelpLine(append(keysAndLabels, "enter", "run", "esc", "cancel")...)
 }
 
 // View scrolls so that the focused field stays on screen.

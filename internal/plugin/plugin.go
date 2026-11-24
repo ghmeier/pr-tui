@@ -156,6 +156,21 @@ type Effect struct {
 	RefreshRow Row
 	// Screen, when set, opens a full-screen view.
 	Screen Screen
+	// Edit, when set, opens the user's editor, and the host does nothing else with this effect:
+	// Command, Refresh, RefreshRow and Screen are ignored. Choice and Confirm are still asked
+	// first, and Notice stays on the status line while the editor is open.
+	Edit *Edit
+}
+
+// Edit asks for text in the user's editor: $VISUAL, else $EDITOR, else vi.
+type Edit struct {
+	// Text is what the editor opens with.
+	Text string
+	// Done receives the saved text with surrounding white space trimmed. It runs on the update
+	// loop and returns what to do next, such as selection.Run(effect) or a screen's own
+	// command. It is not called when the editor fails; the board shows "Editor failed: " and the
+	// first line of the error instead.
+	Done func(text string) tea.Cmd
 }
 
 // Screen is a full-screen view above the board. While any screen is open it receives every key

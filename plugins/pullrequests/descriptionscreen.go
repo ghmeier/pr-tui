@@ -2,8 +2,6 @@ package pullrequests
 
 import (
 	"cmp"
-	"os"
-	"os/exec"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -13,27 +11,15 @@ import (
 	"github.com/ghmeier/pr-tui/internal/ui"
 )
 
-// editInEditor hands the terminal to the user's editor. Tests replace it.
-var editInEditor = func(path string, finished func(error) tea.Msg) tea.Cmd {
-	editor := strings.Fields(cmp.Or(os.Getenv("VISUAL"), os.Getenv("EDITOR"), "vi"))
-	return tea.ExecProcess(exec.Command(editor[0], append(editor[1:], path)...), finished)
-}
-
 type (
 	descriptionLoadedMessage struct {
 		pullRequest PullRequest
 		body        string
 		err         error
 	}
-	descriptionEditedMessage struct {
-		pullRequest PullRequest
-		path        string
-		err         error
-	}
 	descriptionSavedMessage struct {
 		pullRequest PullRequest
 		body        string
-		path        string
 		err         error
 	}
 )
@@ -45,27 +31,20 @@ func (board *pullRequestBoard) loadDescription(pr PullRequest) tea.Cmd {
 	}
 }
 
-// updateDescription removes the edit's temporary file once it is saved, here rather than when
-// the message arrives, because the screen may have been closed by then. A failure is also put
-// on the board as a notice, for the same reason: the screen that would have shown where the
-// edit was kept may be gone.
-func (board *pullRequestBoard) updateDescription(selection plugin.Selection, body, path string) tea.Cmd {
+// updateDescription saves the description. A failure is also put on the board as a notice,
+// because the screen that would have shown it may have been closed by the time it arrives.
+func (board *pullRequestBoard) updateDescription(selection plugin.Selection, body string) tea.Cmd {
 	pr := pullRequestOf(selection)
 	return func() tea.Msg {
 		err := board.provider.SaveDescription(pr, body)
 		saved := func() tea.Msg {
-			return descriptionSavedMessage{pullRequest: pr, body: body, path: path, err: err}
+			return descriptionSavedMessage{pullRequest: pr, body: body, err: err}
 		}
 		if err == nil {
-			os.Remove(path)
 			return saved()
 		}
-		return tea.BatchMsg{saved, selection.Run(plugin.Effect{Notice: keptEditNotice(err, path)})}
+		return tea.BatchMsg{saved, selection.Run(plugin.Effect{Notice: "Failed: " + ui.FirstLine(err)})}
 	}
-}
-
-func keptEditNotice(err error, path string) string {
-	return "Failed: " + ui.FirstLine(err) + " · your edit is kept at " + path
 }
 
 // descriptionScreen shows a pull request's description as rendered markdown, and lets it be
@@ -78,7 +57,10 @@ type descriptionScreen struct {
 	width     int
 	height    int
 	body      string
-	lines     []string
+	// failedEdit is the text of an edit that could not be saved, which the next edit starts from
+	// so that it is not lost. It is empty when there is none.
+	failedEdit string
+	lines      []string
 	// renderedWidth is the width the lines were wrapped for.
 	renderedWidth int
 	loading       bool
@@ -113,42 +95,20 @@ func (screen *descriptionScreen) show(body string) {
 	screen.renderedWidth = screen.width
 }
 
-// startEditing writes the description to a temporary file for the editor. The file is kept if
-// the update fails, so the edit is not lost.
-func (screen *descriptionScreen) startEditing() tea.Cmd {
-	pr := screen.pullRequest
-	file, err := os.CreateTemp("", "prs-description-*.md")
-	if err == nil {
-		_, err = file.WriteString(screen.body + "\n")
-		err = cmp.Or(err, file.Close())
-	}
-	if err != nil {
-		screen.notice = "Failed: " + ui.FirstLine(err)
-		return nil
-	}
-	return editInEditor(file.Name(), func(err error) tea.Msg {
-		return descriptionEditedMessage{pullRequest: pr, path: file.Name(), err: err}
-	})
+// edit opens the description in the editor, or the last edit that could not be saved.
+func (screen *descriptionScreen) edit() tea.Cmd {
+	text := cmp.Or(screen.failedEdit, screen.body)
+	return screen.selection.Run(plugin.Effect{Edit: &plugin.Edit{Text: text, Done: screen.finishEditing}})
 }
 
-func (screen *descriptionScreen) finishEditing(message descriptionEditedMessage) tea.Cmd {
-	if message.err != nil {
-		screen.notice = "Editor failed: " + ui.FirstLine(message.err)
-		return nil
-	}
-	edited, err := os.ReadFile(message.path)
-	if err != nil {
-		screen.notice = "Failed: " + ui.FirstLine(err)
-		return nil
-	}
-	body := strings.TrimSpace(string(edited))
-	if body == "" || body == strings.TrimSpace(screen.body) {
-		os.Remove(message.path)
+func (screen *descriptionScreen) finishEditing(edited string) tea.Cmd {
+	screen.failedEdit = ""
+	if edited == "" || edited == strings.TrimSpace(screen.body) {
 		screen.notice = "Description unchanged."
 		return nil
 	}
 	screen.notice = "Updating description…"
-	return screen.board.updateDescription(screen.selection, body, message.path)
+	return screen.board.updateDescription(screen.selection, edited)
 }
 
 // Update ignores messages about other pull requests, because screens are given every message
@@ -171,19 +131,16 @@ func (screen *descriptionScreen) update(message tea.Msg) (plugin.Screen, tea.Cmd
 			return screen, nil
 		}
 		screen.show(message.body)
-	case descriptionEditedMessage:
-		if message.pullRequest.URL != screen.pullRequest.URL {
-			return screen, nil
-		}
-		return screen, screen.finishEditing(message)
 	case descriptionSavedMessage:
 		if message.pullRequest.URL != screen.pullRequest.URL {
 			return screen, nil
 		}
 		if message.err != nil {
-			screen.notice = keptEditNotice(message.err, message.path)
+			screen.failedEdit = message.body
+			screen.notice = "Failed: " + ui.FirstLine(message.err) + " · press e to edit again"
 			return screen, nil
 		}
+		screen.failedEdit = ""
 		screen.notice = "Description updated."
 		screen.show(message.body)
 	case tea.KeyMsg:
@@ -210,7 +167,7 @@ func (screen *descriptionScreen) handleKey(key string) (plugin.Screen, tea.Cmd) 
 		screen.offset = len(screen.lines)
 	case "e":
 		if !screen.loading {
-			return screen, screen.startEditing()
+			return screen, screen.edit()
 		}
 	case "o":
 		return screen, commandToOpenInBrowser(screen.pullRequest.URL)

@@ -67,7 +67,7 @@ func TestRunKeyOnAWorkflowWithoutTheManualTriggerShowsANoticeAndOpensNoForm(t *t
 	plugintest.Press(t, model, "x")
 
 	assertShows(t, model, checks.Name+" cannot be started by hand")
-	assertHides(t, model, "Start "+checks.Name+" in", "ctrl+s")
+	assertHides(t, model, "Start "+checks.Name+" in", "enter run")
 }
 
 func TestRunKeyOnAWorkflowWithTheManualTriggerOpensTheFormUnderAHeaderNamingTheRepository(t *testing.T) {
@@ -212,7 +212,7 @@ func TestQTypesIntoATextFieldInsteadOfClosingTheForm(t *testing.T) {
 
 	plugintest.Press(t, model, "q")
 
-	assertShows(t, model, "ctrl+s")
+	assertShows(t, model, "enter run")
 }
 
 func TestTabAndShiftTabMoveBetweenFieldsLikeTheArrowKeys(t *testing.T) {
@@ -234,7 +234,7 @@ func TestSubmittingWithAnEmptyRequiredFieldMarksItAndDoesNotAsk(t *testing.T) {
 	deploy := deployWorkflow(provider)
 
 	model := openedForm(t, provider)
-	plugintest.Press(t, model, "ctrl+s")
+	plugintest.Press(t, model, "enter")
 
 	if line := lineWith(model, deploy.Inputs[2].Name); !strings.Contains(line, "required") {
 		t.Fatalf("the command is drawn as %q", line)
@@ -247,6 +247,20 @@ func TestSubmittingWithAnEmptyRequiredFieldMarksItAndDoesNotAsk(t *testing.T) {
 	assertNothingStarted(t, provider)
 }
 
+func TestEnterSubmitsTheFormAndControlSDoesNot(t *testing.T) {
+	provider := newFakeProvider()
+	deploy := deployWorkflow(provider)
+	model := openedForm(t, provider)
+	plugintest.Press(t, model, "down", "down", "down", "make deploy", "ctrl+s")
+
+	assertShows(t, model, "Start "+deploy.Name+" in "+deploy.Repository.FullName())
+	assertHides(t, model, "Start "+deploy.Name+" in "+deploy.Repository.Name+" on")
+
+	plugintest.Press(t, model, "enter")
+
+	assertShows(t, model, "Start "+deploy.Name+" in "+deploy.Repository.Name+" on")
+}
+
 func TestSubmittingWithAnEmptyBranchMarksTheBranch(t *testing.T) {
 	provider := newFakeProvider()
 	deploy := deployWorkflow(provider)
@@ -255,7 +269,7 @@ func TestSubmittingWithAnEmptyBranchMarksTheBranch(t *testing.T) {
 	for range deploy.DefaultBranch {
 		plugintest.Send(t, model, tea.KeyMsg{Type: tea.KeyBackspace})
 	}
-	plugintest.Press(t, model, "ctrl+s")
+	plugintest.Press(t, model, "enter")
 
 	if line := lineWith(model, branchLabel); !strings.Contains(line, "required") {
 		t.Fatalf("the branch is drawn as %q", line)
@@ -267,7 +281,7 @@ func TestSubmittingANumberFieldThatIsNotANumberMarksIt(t *testing.T) {
 	replicas := deployWorkflow(provider).Inputs[4]
 
 	model := openedForm(t, provider)
-	plugintest.Press(t, model, "down", "down", "down", "make deploy", "down", "down", "three", "ctrl+s")
+	plugintest.Press(t, model, "down", "down", "down", "make deploy", "down", "down", "three", "enter")
 
 	if line := lineWith(model, replicas.Name); !strings.Contains(line, "must be a number") {
 		t.Fatalf("the replicas are drawn as %q", line)
@@ -278,7 +292,7 @@ func TestSubmittingANumberFieldThatIsNotANumberMarksIt(t *testing.T) {
 // fillInCommand types the one required value of the deploy form.
 func fillInCommand(t *testing.T, model *plugin.Model) {
 	t.Helper()
-	plugintest.Press(t, model, "down", "down", "down", "make deploy", "ctrl+s")
+	plugintest.Press(t, model, "down", "down", "down", "make deploy", "enter")
 }
 
 func TestSubmittingAsksToConfirmWithTheValuesInTheQuestionAndStartsNothingYet(t *testing.T) {
@@ -291,7 +305,7 @@ func TestSubmittingAsksToConfirmWithTheValuesInTheQuestionAndStartsNothingYet(t 
 	question := fmt.Sprintf("Start %s in %s on %s with environment=%s, size=%s, command=make deploy, verbose=true?",
 		deploy.Name, deploy.Repository.Name, deploy.DefaultBranch, deploy.Inputs[0].Default, deploy.Inputs[1].Default)
 	assertShows(t, model, question)
-	assertHides(t, model, "replicas=", "ctrl+s")
+	assertHides(t, model, "replicas=", "enter run")
 	assertNothingStarted(t, provider)
 }
 
@@ -333,7 +347,7 @@ func TestSubmittingClosesTheForm(t *testing.T) {
 
 	fillInCommand(t, model)
 
-	assertHides(t, model, "ctrl+s run")
+	assertHides(t, model, "enter run")
 }
 
 func TestEscapeClosesTheFormWithoutStartingAnything(t *testing.T) {
@@ -342,7 +356,7 @@ func TestEscapeClosesTheFormWithoutStartingAnything(t *testing.T) {
 	model := openedForm(t, provider)
 	plugintest.Press(t, model, "down", "down", "down", "make deploy", "esc", "y")
 
-	assertHides(t, model, "ctrl+s run")
+	assertHides(t, model, "enter run")
 	assertNothingStarted(t, provider)
 }
 
