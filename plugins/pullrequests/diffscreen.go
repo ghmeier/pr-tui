@@ -109,8 +109,15 @@ type diffScreen struct {
 	splitDiff  bool
 	diffCursor int
 	threads    map[threadKey][]*commentThread
-	rows       []viewRow
 	notice     string
+
+	// rows is the selected file laid out for the current layout and width. It is rebuilt only
+	// when rowsKey changes, because wrapping every line of a large file on each key would be slow.
+	rows      []viewRow
+	rowsKey   rowsKey
+	rowsBuilt bool
+	// dataVersion changes whenever the files or the comment threads are replaced.
+	dataVersion int
 
 	commenting       bool
 	commentOnOldSide bool
@@ -159,17 +166,51 @@ func (screen *diffScreen) fileListWidth() int {
 	return min(widest, max(20, screen.width*2/5))
 }
 
+// rowsKey is everything the rows depend on that can change while the screen is open.
+type rowsKey struct {
+	fileCursor  int
+	splitDiff   bool
+	width       int
+	dataVersion int
+}
+
+func (screen *diffScreen) diffWidth() int {
+	return max(screen.width-screen.fileListWidth()-3, 1)
+}
+
 func (screen *diffScreen) diffRowCount() int {
 	return len(screen.rows)
 }
 
 // rebuildRows lays out the selected file for the current layout and width, with each
-// comment thread directly under the line it is attached to.
+// comment thread directly under the line it is attached to. A line too long for the width
+// takes a row for each of its wrapped parts.
 func (screen *diffScreen) rebuildRows() {
+	key := rowsKey{screen.fileCursor, screen.splitDiff, screen.width, screen.dataVersion}
+	if screen.rowsBuilt && key == screen.rowsKey {
+		return
+	}
+	// A resize moves the rows around, so the cursor follows its line. Any other change starts
+	// from wherever the caller put the cursor.
+	keptLine := -1
+	if screen.rowsBuilt && key.width != screen.rowsKey.width {
+		previous := screen.rowsKey
+		previous.width = key.width
+		if previous == key {
+			keptLine = screen.cursorLine()
+		}
+	}
+	screen.rowsKey, screen.rowsBuilt = key, true
 	screen.rows = nil
+	defer func() {
+		if keptLine >= 0 {
+			screen.diffCursor = screen.rowForLine(keptLine)
+		}
+	}()
 	if len(screen.files) == 0 {
 		return
 	}
+	diffWidth := screen.diffWidth()
 	file := screen.files[screen.fileCursor]
 	commentWidth := max(screen.width-screen.fileListWidth()-7, 20)
 	appendThreads := func(lineIndex int) {
@@ -182,14 +223,18 @@ func (screen *diffScreen) rebuildRows() {
 		}
 	}
 	if !screen.splitDiff {
-		for index := range file.lines {
-			screen.rows = append(screen.rows, viewRow{left: index, right: index})
+		for index, line := range file.lines {
+			for part := range len(line.parts(diffWidth)) {
+				screen.rows = append(screen.rows, viewRow{left: index, right: index, part: part})
+			}
 			appendThreads(index)
 		}
 		return
 	}
 	for _, row := range file.splitRows {
-		screen.rows = append(screen.rows, viewRow{left: row.left, right: row.right})
+		for part := range file.splitRowHeight(row, diffWidth) {
+			screen.rows = append(screen.rows, viewRow{left: row.left, right: row.right, part: part})
+		}
 		if row.left >= 0 {
 			appendThreads(row.left)
 		}
@@ -292,20 +337,28 @@ func (screen *diffScreen) renderDiffRow(index, width int) string {
 	case row.thread != nil:
 		return ansi.Truncate("  "+row.comment, width, "…")
 	case !screen.splitDiff:
-		return file.lines[row.left].render(width)
+		return partOf(file.lines[row.left].renderLines(width), row.part)
 	}
-	separator := ui.DimStyle.Render(" │ ")
+	separator := splitSeparator
 	if index == screen.diffCursor && screen.cursorIsOnNewSide(index) {
 		separator = " " + ui.CursorMarker + " "
 	}
-	return file.renderSplitRow(splitRow{row.left, row.right}, width, separator)
+	return partOf(file.renderSplitRow(splitRow{row.left, row.right}, width, separator), row.part)
+}
+
+func partOf(lines []string, part int) string {
+	if part >= len(lines) {
+		return ""
+	}
+	return lines[part]
 }
 
 // diffSeparator sits between the file list and the diff. On the cursor row it carries the
-// cursor, unless the cursor is on the new side of a side-by-side row.
+// cursor, unless the cursor is on the new side of a side-by-side row. The cursor is always on the
+// first part of a wrapped line, so the parts after it never carry the marker.
 func (screen *diffScreen) diffSeparator(index int) string {
 	if index != screen.diffCursor || index >= len(screen.rows) || screen.cursorIsOnNewSide(index) {
-		return ui.DimStyle.Render(" │ ")
+		return splitSeparator
 	}
 	return " " + ui.CursorMarker + " "
 }
@@ -316,8 +369,36 @@ func (screen *diffScreen) keepPositionVisible() {
 	screen.fileOffset = max(screen.fileOffset, screen.fileCursor-screen.diffRows()+1)
 	screen.rebuildRows()
 	screen.diffCursor = max(0, min(screen.diffCursor, screen.diffRowCount()-1))
+	for screen.diffCursor > 0 && screen.rows[screen.diffCursor].part > 0 {
+		screen.diffCursor--
+	}
+	// Scroll far enough to show as many parts of the cursor's line as fit.
+	lastPart := screen.diffCursor
+	for lastPart+1 < len(screen.rows) && lastPart+1 < screen.diffCursor+screen.diffRows() && screen.rows[lastPart+1].part > 0 {
+		lastPart++
+	}
 	screen.diffOffset = min(screen.diffOffset, screen.diffCursor)
-	screen.diffOffset = max(screen.diffOffset, screen.diffCursor-screen.diffRows()+1, 0)
+	screen.diffOffset = max(screen.diffOffset, lastPart-screen.diffRows()+1, 0)
+}
+
+// nextLineRow is the first row after the given one that starts a line, or the given row when
+// there is none.
+func (screen *diffScreen) nextLineRow(from int) int {
+	for index := from + 1; index < len(screen.rows); index++ {
+		if screen.rows[index].part == 0 {
+			return index
+		}
+	}
+	return from
+}
+
+func (screen *diffScreen) previousLineRow(from int) int {
+	for index := from - 1; index >= 0; index-- {
+		if screen.rows[index].part == 0 {
+			return index
+		}
+	}
+	return from
 }
 
 // Update ignores messages about other pull requests, because screens are given every message
@@ -340,6 +421,7 @@ func (screen *diffScreen) update(message tea.Msg) (plugin.Screen, tea.Cmd) {
 			return nil, screen.selection.Run(plugin.Effect{Notice: "Diff failed: " + ui.FirstLine(message.err)})
 		}
 		screen.files, screen.loading = message.files, false
+		screen.dataVersion++
 	case commentPostedMessage:
 		if message.url != screen.pullRequest.URL {
 			return screen, nil
@@ -361,6 +443,7 @@ func (screen *diffScreen) update(message tea.Msg) (plugin.Screen, tea.Cmd) {
 			return screen, nil
 		}
 		screen.threads = groupThreads(message.comments)
+		screen.dataVersion++
 	case tea.KeyMsg:
 		if screen.commenting {
 			return screen, screen.handleCommentKey(message)
@@ -399,9 +482,9 @@ func (screen *diffScreen) handleKey(key string) (plugin.Screen, tea.Cmd) {
 	case "c":
 		return screen, screen.startComment()
 	case "k":
-		screen.diffCursor--
+		screen.diffCursor = screen.previousLineRow(screen.diffCursor)
 	case "j":
-		screen.diffCursor++
+		screen.diffCursor = screen.nextLineRow(screen.diffCursor)
 	case "pgup", "b":
 		screen.diffCursor -= screen.diffRows()
 	case "pgdown", " ":
@@ -432,7 +515,7 @@ func (screen *diffScreen) body() []string {
 		return []string{ui.DimStyle.Render("No changes.")}
 	}
 	listWidth := screen.fileListWidth()
-	diffWidth := max(screen.width-listWidth-3, 1)
+	diffWidth := screen.diffWidth()
 	rowCount := screen.diffRowCount()
 	var body []string
 	for row := range screen.diffRows() {

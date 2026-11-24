@@ -10,7 +10,6 @@ import (
 	"github.com/alecthomas/chroma/v2/lexers"
 	"github.com/alecthomas/chroma/v2/styles"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/x/ansi"
 
 	"github.com/ghmeier/pr-tui/internal/ui"
 )
@@ -58,6 +57,9 @@ type diffFile struct {
 }
 
 var hunkHeaderPattern = regexp.MustCompile(`^@@ -(\d+)(?:,\d+)? \+(\d+)`)
+
+// splitSeparator sits between the two sides of a side-by-side row.
+var splitSeparator = ui.DimStyle.Render(" │ ")
 
 var diffLineSanitizer = strings.NewReplacer("\t", "    ", "\r", "", "\x1b", "␛")
 
@@ -183,25 +185,82 @@ func (file *diffFile) pairLines() {
 	file.numberWidth = len(strconv.Itoa(highestNumber))
 }
 
-func (file diffFile) renderSplitRow(row splitRow, width int, separator string) string {
-	if row.left == row.right && file.lines[row.left].kind < contextLine {
-		return file.lines[row.left].render(width)
-	}
-	side := (width - 3) / 2
-	return file.renderSide(row.left, side, true) + separator + file.renderSide(row.right, side, false)
+// splitSideWidth is the width of each side of a side-by-side row, which has a three-cell
+// separator between the sides.
+func splitSideWidth(width int) int {
+	return (width - 3) / 2
 }
 
-func (file diffFile) renderSide(index, width int, isOldSide bool) string {
+func (file diffFile) sideCodeWidth(sideWidth int) int {
+	return max(sideWidth-file.numberWidth-1, 1)
+}
+
+func (row splitRow) spansBothSides(file diffFile) bool {
+	return row.left == row.right && file.lines[row.left].kind < contextLine
+}
+
+// splitRowHeight is how many terminal lines the row takes once its long lines wrap.
+func (file diffFile) splitRowHeight(row splitRow, width int) int {
+	if row.spansBothSides(file) {
+		return len(file.lines[row.left].parts(width))
+	}
+	codeWidth := file.sideCodeWidth(splitSideWidth(width))
+	height := 1
+	for _, index := range []int{row.left, row.right} {
+		if index >= 0 {
+			height = max(height, len(file.lines[index].parts(codeWidth)))
+		}
+	}
+	return height
+}
+
+// renderSplitRow draws the row as one string per terminal line. The first line has the given
+// separator between the sides, and the lines that a long line wraps onto have the plain one.
+func (file diffFile) renderSplitRow(row splitRow, width int, firstSeparator string) []string {
+	if row.spansBothSides(file) {
+		return file.lines[row.left].renderLines(width)
+	}
+	sideWidth := splitSideWidth(width)
+	left, right := file.renderSide(row.left, sideWidth, true), file.renderSide(row.right, sideWidth, false)
+	blank := strings.Repeat(" ", sideWidth)
+	sideAt := func(side []string, offset int) string {
+		if offset < len(side) {
+			return side[offset]
+		}
+		return blank
+	}
+	lines := make([]string, max(len(left), len(right), 1))
+	for offset := range lines {
+		separator := splitSeparator
+		if offset == 0 {
+			separator = firstSeparator
+		}
+		lines[offset] = sideAt(left, offset) + separator + sideAt(right, offset)
+	}
+	return lines
+}
+
+// renderSide shows the line number beside the first line of the code only, so a wrapped
+// line is not mistaken for several.
+func (file diffFile) renderSide(index, width int, isOldSide bool) []string {
 	if index < 0 {
-		return strings.Repeat(" ", width)
+		return nil
 	}
 	line := file.lines[index]
 	number := line.newNumber
 	if isOldSide {
 		number = line.oldNumber
 	}
-	codeWidth := max(width-file.numberWidth-1, 1)
-	return ui.DimStyle.Render(fmt.Sprintf("%*d ", file.numberWidth, number)) + ui.Fit(line.render(codeWidth), codeWidth)
+	codeWidth := file.sideCodeWidth(width)
+	lines := line.renderLines(codeWidth)
+	for offset, text := range lines {
+		gutter := strings.Repeat(" ", file.numberWidth+1)
+		if offset == 0 {
+			gutter = ui.DimStyle.Render(fmt.Sprintf("%*d ", file.numberWidth, number))
+		}
+		lines[offset] = gutter + ui.Fit(text, codeWidth)
+	}
+	return lines
 }
 
 func codeSegments(tokens []chroma.Token) []ui.Segment {
@@ -224,35 +283,58 @@ func codeSegments(tokens []chroma.Token) []ui.Segment {
 	return segments
 }
 
-func (line diffLine) render(width int) string {
+// parts splits the line into the pieces that each take one terminal line. For a line of
+// code the width includes the column of the +, - or space marker.
+func (line diffLine) parts(width int) [][]ui.Segment {
 	switch line.kind {
 	case metadataLine:
-		return ui.DimStyle.Render(ansi.Truncate(line.text, width, "…"))
+		return ui.WrapSegments([]ui.Segment{{Text: line.text, Style: ui.DimStyle}}, width)
 	case hunkLine:
-		return ui.CyanStyle.Render(ansi.Truncate(line.text, width, "…"))
+		return ui.WrapSegments([]ui.Segment{{Text: line.text, Style: ui.CyanStyle}}, width)
 	}
-	marker, code := "", line.code
-	if line.text != "" {
-		marker = line.text[:1]
-		if code == nil {
-			code = []ui.Segment{{Text: line.text[1:], Style: ui.PlainStyle}}
+	code := line.code
+	if line.text == "" {
+		code = nil
+	} else if code == nil {
+		code = ui.PlainSegments(line.text[1:])
+	}
+	return ui.WrapSegments(code, width-1)
+}
+
+// renderLines draws the line wrapped to the width. A line that was added or removed keeps its
+// background across every wrapped part, up to the full width.
+func (line diffLine) renderLines(width int) []string {
+	parts := line.parts(width)
+	rendered := make([]string, len(parts))
+	for offset, part := range parts {
+		marker := " "
+		if offset == 0 {
+			marker = ""
+			if line.text != "" {
+				marker = line.text[:1]
+			}
 		}
+		switch line.kind {
+		case metadataLine, hunkLine:
+			rendered[offset] = ui.StyledText(part)
+			continue
+		case contextLine:
+			rendered[offset] = marker + ui.StyledText(part)
+			continue
+		}
+		markerStyle, background := ui.GreenStyle, ui.AddedBackground
+		if line.kind == removedLine {
+			markerStyle, background = ui.RedStyle, ui.RemovedBackground
+		}
+		var text strings.Builder
+		text.WriteString(markerStyle.Background(background).Render(marker))
+		for _, segment := range part {
+			text.WriteString(segment.Style.Background(background).Render(segment.Text))
+		}
+		padding := strings.Repeat(" ", max(0, width-lipgloss.Width(text.String())))
+		rendered[offset] = text.String() + lipgloss.NewStyle().Background(background).Render(padding)
 	}
-	if line.kind == contextLine {
-		return ansi.Truncate(marker+ui.StyledText(code), width, "…")
-	}
-	markerStyle, background := ui.GreenStyle, ui.AddedBackground
-	if line.kind == removedLine {
-		markerStyle, background = ui.RedStyle, ui.RemovedBackground
-	}
-	var rendered strings.Builder
-	rendered.WriteString(markerStyle.Background(background).Render(marker))
-	for _, part := range code {
-		rendered.WriteString(part.Style.Background(background).Render(part.Text))
-	}
-	text := ansi.Truncate(rendered.String(), width, "…")
-	padding := strings.Repeat(" ", max(0, width-lipgloss.Width(text)))
-	return text + lipgloss.NewStyle().Background(background).Render(padding)
+	return rendered
 }
 
 func (file diffFile) listSegments(width int) []ui.Segment {
