@@ -2,6 +2,7 @@ package pullrequests
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 
@@ -35,34 +36,29 @@ type (
 	}
 )
 
-// cachedDiff is reused only while the pull request's head commit is unchanged.
-type cachedDiff struct {
-	headCommit string
-	files      []diffFile
-}
-
-// diffCache outlives the diff screens, and is written by the command that loads a diff, which
-// may finish after its screen was closed. The mutex is what makes that safe.
+// diffCache holds the last diff loaded for each pull request, to show while a newer one loads.
+// It outlives the diff screens, and is written by the command that loads a diff, which may
+// finish after its screen was closed. The mutex is what makes that safe.
 type diffCache struct {
 	mutex   sync.Mutex
-	entries map[string]cachedDiff
+	entries map[string][]diffFile
 }
 
 func newDiffCache() *diffCache {
-	return &diffCache{entries: map[string]cachedDiff{}}
+	return &diffCache{entries: map[string][]diffFile{}}
 }
 
 func (cache *diffCache) lookup(pr PullRequest) ([]diffFile, bool) {
 	cache.mutex.Lock()
 	defer cache.mutex.Unlock()
-	cached, found := cache.entries[pr.URL]
-	return cached.files, found && cached.headCommit == pr.HeadCommit
+	files, found := cache.entries[pr.URL]
+	return files, found
 }
 
 func (cache *diffCache) store(pr PullRequest, files []diffFile) {
 	cache.mutex.Lock()
 	defer cache.mutex.Unlock()
-	cache.entries[pr.URL] = cachedDiff{headCommit: pr.HeadCommit, files: files}
+	cache.entries[pr.URL] = files
 }
 
 func (board *pullRequestBoard) loadDiff(pr PullRequest) tea.Cmd {
@@ -98,18 +94,23 @@ type diffScreen struct {
 	// selection is what the screen was opened from, and how it hands effects to the board.
 	selection plugin.Selection
 	// lineCount is the loaded value of the Lines column, or nil.
-	lineCount  any
-	width      int
-	height     int
-	files      []diffFile
-	loading    bool
+	lineCount any
+	width     int
+	height    int
+	files     []diffFile
+	loading   bool
+	// refreshing is true while a newer diff loads behind the cached one on screen.
+	refreshing bool
 	fileCursor int
 	fileOffset int
 	diffOffset int
-	splitDiff  bool
-	diffCursor int
-	threads    map[threadKey][]*commentThread
-	notice     string
+	// splitDiff is the layout preference for files with two sides.
+	splitDiff bool
+	// splitOneSided holds the paths of one-sided files the person chose to see split.
+	splitOneSided map[string]bool
+	diffCursor    int
+	threads       map[threadKey][]*commentThread
+	notice        string
 
 	// rows is the selected file laid out for the current layout and width. It is rebuilt only
 	// when rowsKey changes, because wrapping every line of a large file on each key would be slow.
@@ -134,7 +135,7 @@ func (board *pullRequestBoard) newDiffScreen(selection plugin.Selection) *diffSc
 		splitDiff: true, width: 120, height: 30,
 	}
 	if files, cached := board.diffs.lookup(pr); cached {
-		screen.files = files
+		screen.files, screen.refreshing = files, true
 	} else {
 		screen.loading = true
 	}
@@ -142,10 +143,72 @@ func (board *pullRequestBoard) newDiffScreen(selection plugin.Selection) *diffSc
 }
 
 func (screen *diffScreen) Init() tea.Cmd {
-	if screen.loading {
-		return tea.Batch(screen.board.loadDiff(screen.pullRequest), screen.board.loadComments(screen.pullRequest))
+	return tea.Batch(screen.board.loadDiff(screen.pullRequest), screen.board.loadComments(screen.pullRequest))
+}
+
+// selectedFile is the file being shown, if there is one.
+func (screen *diffScreen) selectedFile() (diffFile, bool) {
+	if screen.fileCursor < 0 || screen.fileCursor >= len(screen.files) {
+		return diffFile{}, false
 	}
-	return screen.board.loadComments(screen.pullRequest)
+	return screen.files[screen.fileCursor], true
+}
+
+// showsSplit is whether the file being shown is laid out side by side. A one-sided file
+// is unified unless the person asked otherwise for that file.
+func (screen *diffScreen) showsSplit() bool {
+	file, found := screen.selectedFile()
+	if found && file.oneSided {
+		return screen.splitOneSided[file.path]
+	}
+	return screen.splitDiff
+}
+
+func (screen *diffScreen) toggleLayout() {
+	file, found := screen.selectedFile()
+	switch {
+	case !found:
+	case !file.oneSided:
+		screen.splitDiff = !screen.splitDiff
+	case screen.splitOneSided[file.path]:
+		delete(screen.splitOneSided, file.path)
+	default:
+		if screen.splitOneSided == nil {
+			screen.splitOneSided = map[string]bool{}
+		}
+		screen.splitOneSided[file.path] = true
+	}
+}
+
+// replaceFiles shows a newly loaded diff. It stays on the same file, and on the same line
+// of it where that line still exists.
+func (screen *diffScreen) replaceFiles(files []diffFile) {
+	var keptPath string
+	var keptLine *diffLine
+	if file, found := screen.selectedFile(); found {
+		keptPath = file.path
+		if index := screen.cursorLine(); index >= 0 && file.lines[index].kind >= contextLine {
+			keptLine = &file.lines[index]
+		}
+	}
+	screen.files = files
+	screen.dataVersion++
+	fileIndex := slices.IndexFunc(files, func(file diffFile) bool { return file.path == keptPath })
+	if fileIndex < 0 {
+		screen.fileCursor, screen.diffCursor, screen.diffOffset = 0, 0, 0
+		return
+	}
+	screen.fileCursor = fileIndex
+	if keptLine == nil {
+		return
+	}
+	screen.rebuildRows()
+	lineIndex := slices.IndexFunc(files[fileIndex].lines, func(line diffLine) bool {
+		return line.kind == keptLine.kind && line.oldNumber == keptLine.oldNumber && line.newNumber == keptLine.newNumber
+	})
+	if lineIndex >= 0 {
+		screen.diffCursor = screen.rowForLine(lineIndex)
+	}
 }
 
 func (screen *diffScreen) diffRows() int {
@@ -160,7 +223,7 @@ func (screen *diffScreen) fileListWidth() int {
 	for _, file := range screen.files {
 		widest = max(widest, lipgloss.Width(ui.PlainText(file.listSegments(screen.width))))
 	}
-	if screen.splitDiff {
+	if screen.showsSplit() {
 		return min(widest, max(20, screen.width/4))
 	}
 	return min(widest, max(20, screen.width*2/5))
@@ -186,7 +249,7 @@ func (screen *diffScreen) diffRowCount() int {
 // comment thread directly under the line it is attached to. A line too long for the width
 // takes a row for each of its wrapped parts.
 func (screen *diffScreen) rebuildRows() {
-	key := rowsKey{screen.fileCursor, screen.splitDiff, screen.width, screen.dataVersion}
+	key := rowsKey{screen.fileCursor, screen.showsSplit(), screen.width, screen.dataVersion}
 	if screen.rowsBuilt && key == screen.rowsKey {
 		return
 	}
@@ -222,7 +285,7 @@ func (screen *diffScreen) rebuildRows() {
 			}
 		}
 	}
-	if !screen.splitDiff {
+	if !screen.showsSplit() {
 		for index, line := range file.lines {
 			for part := range len(line.parts(diffWidth)) {
 				screen.rows = append(screen.rows, viewRow{left: index, right: index, part: part})
@@ -327,7 +390,7 @@ func (screen *diffScreen) handleCommentKey(message tea.KeyMsg) tea.Cmd {
 
 func (screen *diffScreen) cursorIsOnNewSide(index int) bool {
 	row := screen.rows[index]
-	return screen.splitDiff && row.thread == nil && row.left != row.right && screen.cursorLine() == row.right
+	return screen.showsSplit() && row.thread == nil && row.left != row.right && screen.cursorLine() == row.right
 }
 
 func (screen *diffScreen) renderDiffRow(index, width int) string {
@@ -336,7 +399,7 @@ func (screen *diffScreen) renderDiffRow(index, width int) string {
 	switch {
 	case row.thread != nil:
 		return ansi.Truncate("  "+row.comment, width, "…")
-	case !screen.splitDiff:
+	case !screen.showsSplit():
 		return partOf(file.lines[row.left].renderLines(width), row.part)
 	}
 	separator := splitSeparator
@@ -418,10 +481,15 @@ func (screen *diffScreen) update(message tea.Msg) (plugin.Screen, tea.Cmd) {
 			return screen, nil
 		}
 		if message.err != nil {
-			return nil, screen.selection.Run(plugin.Effect{Notice: "Diff failed: " + ui.FirstLine(message.err)})
+			if screen.loading {
+				return nil, screen.selection.Run(plugin.Effect{Notice: "Diff failed: " + ui.FirstLine(message.err)})
+			}
+			screen.refreshing = false
+			screen.notice = "Diff failed: " + ui.FirstLine(message.err)
+			return screen, nil
 		}
-		screen.files, screen.loading = message.files, false
-		screen.dataVersion++
+		screen.loading, screen.refreshing = false, false
+		screen.replaceFiles(message.files)
 	case commentPostedMessage:
 		if message.url != screen.pullRequest.URL {
 			return screen, nil
@@ -473,7 +541,7 @@ func (screen *diffScreen) handleKey(key string) (plugin.Screen, tea.Cmd) {
 	case "s":
 		if len(screen.files) > 0 {
 			line := screen.cursorLine()
-			screen.splitDiff = !screen.splitDiff
+			screen.toggleLayout()
 			screen.rebuildRows()
 			screen.diffCursor = screen.rowForLine(line)
 		}
@@ -561,7 +629,7 @@ func (screen *diffScreen) help() string {
 		position = ui.DimStyle.Render(fmt.Sprintf("file %d of %d · ", screen.fileCursor+1, len(screen.files)))
 	}
 	layout := "split"
-	if screen.splitDiff {
+	if screen.showsSplit() {
 		layout = "unified"
 	}
 	keysAndLabels := []string{
@@ -580,7 +648,11 @@ func (screen *diffScreen) View(width, height int) string {
 	screen.width, screen.height = width, height
 	screen.keepPositionVisible()
 	pr := screen.pullRequest
-	header := ui.BoldStyle.Render(pr.label()) + "  " + pr.Title + "  " + ui.StyledText(lineCountCellSegments(screen.lineCount))
+	header := ui.BoldStyle.Render(pr.label()) + "  " + pr.Title
+	if screen.refreshing {
+		header += ui.DimStyle.Render("  Refreshing…")
+	}
+	header += "  " + ui.StyledText(lineCountCellSegments(screen.lineCount))
 	lines := append([]string{ansi.Truncate(header, screen.width, "…")}, screen.body()...)
 	for len(lines) < screen.diffRows()+1 {
 		lines = append(lines, "")

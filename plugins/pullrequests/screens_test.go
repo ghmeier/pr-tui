@@ -7,6 +7,7 @@ import (
 
 	"github.com/ghmeier/pr-tui/internal/plugin"
 	"github.com/ghmeier/pr-tui/internal/plugin/plugintest"
+	"github.com/ghmeier/pr-tui/internal/ui"
 )
 
 func TestEnterOpensTheDiffListingTheChangedFilesWithoutChangingAnything(t *testing.T) {
@@ -130,27 +131,227 @@ func TestDiffViewOpensTheBrowserAndTheEditorForItsPullRequest(t *testing.T) {
 	)
 }
 
-func TestReopeningADiffReusesTheCachedCopy(t *testing.T) {
+// newerFixtureDiff is fixtureDiff after a push: a new file sorts ahead of the others, and the
+// first file gains a removed line above the line the cursor tests stop on.
+const newerFixtureDiff = `diff --git a/aaa.py b/aaa.py
+new file mode 100644
+--- /dev/null
++++ b/aaa.py
+@@ -0,0 +1 @@
++brand new
+diff --git a/first.py b/first.py
+index 111..222 100644
+--- a/first.py
++++ b/first.py
+@@ -1,4 +1,4 @@
+-dropped
+ unchanged
+-removed
++added
++added again
+`
+
+// removedFileDiff is a diff without the first file of fixtureDiff.
+const removedFileDiff = `diff --git a/other.py b/other.py
+--- a/other.py
++++ b/other.py
+@@ -1 +1 @@
+-before
++after
+`
+
+func TestOpeningACachedDiffShowsItAtOnceWhileRefreshing(t *testing.T) {
 	provider := newFakeProvider()
 	model := loadedBoardWith(t, provider)
+	press(t, model, "enter", "esc")
 
-	press(t, model, "enter", "esc", "enter")
+	model.Update(keyMessage("enter"))
 
-	if provider.fetchesOfTheDiff() != 1 || !strings.Contains(view(model), "+added again") {
+	if !strings.Contains(view(model), "+added again") || !strings.Contains(view(model), "Refreshing…") {
+		t.Fatalf("cached diff should show while refreshing:\n%s", view(model))
+	}
+}
+
+func TestOpeningACachedDiffLoadsItAgainAndStopsRefreshing(t *testing.T) {
+	provider := newFakeProvider()
+	model := loadedBoardWith(t, provider)
+	press(t, model, "enter", "esc")
+
+	_, loading := model.Update(keyMessage("enter"))
+	fetchesBeforeTheCommandRan := provider.fetchesOfTheDiff()
+	plugintest.Settle(t, model, loading)
+
+	if fetchesBeforeTheCommandRan != 1 || provider.fetchesOfTheDiff() != 2 || strings.Contains(view(model), "Refreshing…") {
 		t.Fatalf("diff fetched %d times:\n%s", provider.fetchesOfTheDiff(), view(model))
 	}
 }
 
-func TestReopeningADiffAfterANewCommitFetchesItAgain(t *testing.T) {
+func TestOpeningADiffThatIsNotCachedShowsLoadingInsteadOfRefreshing(t *testing.T) {
+	model := loadedBoard(t)
+
+	model.Update(keyMessage("enter"))
+
+	if !strings.Contains(view(model), "Loading diff…") || strings.Contains(view(model), "Refreshing…") {
+		t.Fatalf("view:\n%s", view(model))
+	}
+}
+
+func TestANewerDiffReplacesTheCachedOneWhenItArrives(t *testing.T) {
 	provider := newFakeProvider()
 	model := loadedBoardWith(t, provider)
 	press(t, model, "enter", "esc")
-	provider.pullRequests[0].HeadCommit = "second-commit"
+	provider.diff = newerFixtureDiff
 
-	press(t, model, "r", "enter")
+	press(t, model, "enter")
 
-	if provider.fetchesOfTheDiff() != 2 {
-		t.Fatalf("diff fetched %d times, expected 2", provider.fetchesOfTheDiff())
+	if !strings.Contains(view(model), "file 2 of 2") || !strings.Contains(view(model), "aaa.py") {
+		t.Fatalf("the newer diff should replace the cached one:\n%s", view(model))
+	}
+}
+
+func TestANewerDiffIsCachedForTheNextOpening(t *testing.T) {
+	provider := newFakeProvider()
+	model := loadedBoardWith(t, provider)
+	press(t, model, "enter", "esc")
+	provider.diff = newerFixtureDiff
+	press(t, model, "enter", "esc")
+
+	model.Update(keyMessage("enter"))
+
+	if !strings.Contains(view(model), "aaa.py") {
+		t.Fatalf("the cache should hold the newer diff:\n%s", view(model))
+	}
+}
+
+func TestANewerDiffKeepsTheSelectedFileAndTheCursorLine(t *testing.T) {
+	provider := newFakeProvider()
+	model := loadedBoardWith(t, provider)
+	press(t, model, pressToTheAddedLine()...)
+	if !strings.Contains(lineWith(t, model, "2 +added"), ui.CursorMarker) {
+		t.Fatalf("the cursor should start on the added line:\n%s", view(model))
+	}
+
+	plugintest.Send(t, model, diffLoadedMessage{pullRequest: provider.pullRequest(1), files: parseDiff(newerFixtureDiff)})
+
+	if !strings.Contains(view(model), "file 2 of 2") {
+		t.Fatalf("the selected file should be followed to its new position:\n%s", view(model))
+	}
+	if !strings.Contains(lineWith(t, model, "2 +added"), ui.CursorMarker) {
+		t.Fatalf("the cursor should stay on the added line:\n%s", view(model))
+	}
+}
+
+func TestANewerDiffThatDropsTheSelectedFileShowsTheFirstFile(t *testing.T) {
+	provider := newFakeProvider()
+	model := loadedBoardWith(t, provider)
+	press(t, model, "enter", "down")
+
+	plugintest.Send(t, model, diffLoadedMessage{pullRequest: provider.pullRequest(1), files: parseDiff(removedFileDiff)})
+
+	if !strings.Contains(view(model), "file 1 of 1") || !strings.Contains(view(model), "other.py") {
+		t.Fatalf("view:\n%s", view(model))
+	}
+}
+
+func TestAFailedRefreshKeepsTheCachedDiffAndShowsANotice(t *testing.T) {
+	provider := newFakeProvider()
+	model := loadedBoardWith(t, provider)
+	press(t, model, "enter", "esc")
+	provider.fail("Diff", errorForTests)
+
+	press(t, model, "enter")
+
+	shown := view(model)
+	for _, expected := range []string{"+added again", "Diff failed: " + errorForTests.Error()} {
+		if !strings.Contains(shown, expected) {
+			t.Fatalf("view is missing %q:\n%s", expected, shown)
+		}
+	}
+	if strings.Contains(shown, "Refreshing…") {
+		t.Fatalf("view still says it is refreshing:\n%s", shown)
+	}
+}
+
+func TestAFailedFirstLoadClosesTheDiffWithANotice(t *testing.T) {
+	provider := newFakeProvider()
+	provider.fail("Diff", errorForTests)
+	model := loadedBoardWith(t, provider)
+
+	press(t, model, "enter")
+
+	shown := view(model)
+	if strings.Contains(shown, "file 1 of") || !strings.Contains(shown, "Diff failed: "+errorForTests.Error()) {
+		t.Fatalf("view:\n%s", shown)
+	}
+}
+
+// oneSidedBoard opens the diff of oneSidedFixtureDiff, whose files are created.py, deleted.py,
+// and modified.py, with the first file selected.
+func oneSidedBoard(t *testing.T) *plugin.Model {
+	t.Helper()
+	provider := newFakeProvider()
+	provider.diff = oneSidedFixtureDiff
+	model := loadedBoardWith(t, provider)
+	press(t, model, "enter")
+	return model
+}
+
+// showsSplitRows is whether a row of the view has a separator between two sides of the diff,
+// besides the one between the file list and the diff.
+func showsSplitRows(model *plugin.Model) bool {
+	for _, line := range strings.Split(view(model), "\n") {
+		if strings.Count(line, "│") >= 2 {
+			return true
+		}
+	}
+	return false
+}
+
+func TestAnAddedFileOpensUnifiedWhileTheLayoutPreferenceIsSplit(t *testing.T) {
+	model := oneSidedBoard(t)
+
+	if showsSplitRows(model) || !strings.Contains(helpLine(model), "s split") {
+		t.Fatalf("view:\n%s", view(model))
+	}
+}
+
+func TestAModifiedFileIsShownSplitWhileTheLayoutPreferenceIsSplit(t *testing.T) {
+	model := oneSidedBoard(t)
+
+	press(t, model, "down", "down")
+
+	if !showsSplitRows(model) || !strings.Contains(helpLine(model), "s unified") {
+		t.Fatalf("view:\n%s", view(model))
+	}
+}
+
+func TestSplitKeyOnAOneSidedFileChangesOnlyThatFile(t *testing.T) {
+	model := oneSidedBoard(t)
+
+	press(t, model, "s")
+	shownSplit := showsSplitRows(model)
+	press(t, model, "down")
+	otherOneSidedFile := showsSplitRows(model)
+	press(t, model, "down")
+	modifiedFile := showsSplitRows(model)
+	press(t, model, "up", "up")
+	backOnTheFirstFile := showsSplitRows(model)
+
+	if !shownSplit || otherOneSidedFile || !modifiedFile || !backOnTheFirstFile {
+		t.Fatalf("split: first %v, other one-sided %v, modified %v, first again %v", shownSplit, otherOneSidedFile, modifiedFile, backOnTheFirstFile)
+	}
+}
+
+func TestSplitKeyOnATwoSidedFileChangesThePreferenceForTheOtherTwoSidedFiles(t *testing.T) {
+	provider := newFakeProvider()
+	provider.comments = nil
+	model := loadedBoardWith(t, provider)
+	press(t, model, "enter", "s")
+	firstFileSplit := showsSplitRows(model)
+	press(t, model, "down")
+
+	if firstFileSplit || showsSplitRows(model) {
+		t.Fatalf("both modified files should be unified:\n%s", view(model))
 	}
 }
 
@@ -161,7 +362,7 @@ func TestADiffThatFinishesLoadingAfterItsScreenWasClosedStillFillsTheCache(t *te
 	model.Update(keyMessage("esc"))
 
 	plugintest.Settle(t, model, loading)
-	press(t, model, "enter")
+	model.Update(keyMessage("enter"))
 
 	if provider.fetchesOfTheDiff() != 1 || !strings.Contains(view(model), "+added again") {
 		t.Fatalf("diff fetched %d times:\n%s", provider.fetchesOfTheDiff(), view(model))

@@ -116,7 +116,7 @@ Diff view keys:
 | --- | --- |
 | `↑` / `↓` | Previous / next file |
 | `j` / `k`, `space` / `b` | Move the line cursor by a line or a page |
-| `s` | Toggle split and unified layouts |
+| `s` | Toggle split and unified layouts; a file that was added or deleted opens unified, and the key changes only that file |
 | `c` | Comment on the line under the cursor, or reply to the thread under it (`ctrl+s` posts) |
 | `tab` | Choose the old or new side of a split row for the comment |
 | `d` | Toggle draft / ready for review |
