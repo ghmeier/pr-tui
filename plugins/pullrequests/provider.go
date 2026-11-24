@@ -32,7 +32,10 @@ type Provider interface {
 	// Merge merges the pull request now with a squash commit. On a branch that requires a merge
 	// queue, the provider queues it instead.
 	Merge(pullRequest PullRequest) error
-	RequestTeamReview(pullRequest PullRequest) error
+	RequestReview(pullRequest PullRequest, reviewer Reviewer) error
+	// TeamMembers lists the review team's members, sorted, in the organization that owns the
+	// repository. It is nil when no team is configured.
+	TeamMembers(repository Repository) ([]string, error)
 	// SubmitReview submits the review once: its event, its body, and its line comments together.
 	SubmitReview(pullRequest PullRequest, review Review) error
 }

@@ -152,12 +152,18 @@ func (action Action) LabelOf(row Row) (label string, applies bool) {
 }
 
 // Choice asks for one of a few options in the status line, numbered from 1. A number key picks
-// one and esc cancels. Options past the ninth are not shown.
+// one and esc cancels. Options past the ninth are not shown, unless Menu is set.
 type Choice struct {
 	Question string
 	Options  []string
 	// Current is marked among the options, or empty.
 	Current string
+	// Menu shows the options in a list above the board, or at the bottom of a screen, instead of
+	// in the status line. It suits a choice that can have more options than number keys: the list
+	// scrolls, typing narrows it to the options that contain the typed text, ignoring case, the
+	// arrows move the cursor, enter picks the option under it, backspace removes a typed
+	// character, and esc cancels. Every key but ctrl+c goes to the menu, q included.
+	Menu bool
 	// Pick returns what choosing the option does. It runs on the update loop, so it must return
 	// quickly; slow work belongs in the returned Effect's Command.
 	Pick func(option string) Effect

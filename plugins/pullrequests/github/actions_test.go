@@ -193,11 +193,11 @@ func TestMergeSquashMergesThePullRequestByItsUrl(t *testing.T) {
 	stub.assertCommands(t, []string{"gh", "pr", "merge", pr.URL, "--squash"})
 }
 
-func TestRequestTeamReviewGoesToTheOwnerOfThePullRequest(t *testing.T) {
+func TestRequestReviewFromTheTeamSendsItsSlugAsATeamReviewer(t *testing.T) {
 	pr := fixturePullRequest(partners)
 	stub := stubShell(t, "")
 
-	err := providerFor(partners).RequestTeamReview(pr)
+	err := providerFor(partners).RequestReview(pr, pullrequests.Reviewer{Login: reviewTeamName, Team: true})
 
 	if err != nil {
 		t.Fatal(err)
@@ -206,6 +206,49 @@ func TestRequestTeamReviewGoesToTheOwnerOfThePullRequest(t *testing.T) {
 		"gh", "api", "--method", "POST", "repos/" + partners.FullName() + "/pulls/7/requested_reviewers",
 		"-f", "team_reviewers[]=" + reviewTeamName,
 	})
+}
+
+func TestRequestReviewFromAPersonSendsTheirLoginAsAReviewer(t *testing.T) {
+	pr := fixturePullRequest(partners)
+	stub := stubShell(t, "")
+
+	err := providerFor(partners).RequestReview(pr, pullrequests.Reviewer{Login: "alice"})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	stub.assertCommands(t, []string{
+		"gh", "api", "--method", "POST", "repos/" + partners.FullName() + "/pulls/7/requested_reviewers",
+		"-f", "reviewers[]=alice",
+	})
+}
+
+func TestTeamMembersAreListedFromTheOrganizationOfTheRepositoryAndSorted(t *testing.T) {
+	stub := stubShell(t, "carol\nalice\nbob\n")
+
+	members, err := providerFor(partners).TeamMembers(partners)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if expected := []string{"alice", "bob", "carol"}; !reflect.DeepEqual(members, expected) {
+		t.Fatalf("members = %v, expected %v", members, expected)
+	}
+	stub.assertCommands(t, []string{
+		"gh", "api", "--paginate", "orgs/" + partners.Owner + "/teams/" + reviewTeamName + "/members", "--jq", ".[].login",
+	})
+}
+
+func TestTeamMembersAreNotListedWithoutAReviewTeam(t *testing.T) {
+	stub := stubShell(t, "alice\n")
+	withoutTeam := &provider{repositories: []pullrequests.Repository{partners}}
+
+	members, err := withoutTeam.TeamMembers(partners)
+
+	if err != nil || members != nil {
+		t.Fatalf("members = %v, err = %v", members, err)
+	}
+	stub.assertCommands(t)
 }
 
 func TestSubmitReviewOfAnApprovalWithoutABodyOrCommentsSendsOnlyTheEvent(t *testing.T) {
@@ -270,13 +313,14 @@ func TestEveryMethodReturnsTheFailureOfTheCommandItRan(t *testing.T) {
 		"SaveDescription": func(p *provider) error {
 			return p.SaveDescription(pr, pullrequests.Description{Title: "title", Body: "body"})
 		},
-		"Comments":          func(p *provider) error { _, err := p.Comments(pr); return err },
-		"PostComment":       func(p *provider) error { return p.PostComment(pr, target, "body") },
-		"SetDraft":          func(p *provider) error { return p.SetDraft(pr, false) },
-		"SetAutoMerge":      func(p *provider) error { return p.SetAutoMerge(pr, true) },
-		"Merge":             func(p *provider) error { return p.Merge(pr) },
-		"SubmitReview":      func(p *provider) error { return p.SubmitReview(pr, pullrequests.Review{}) },
-		"RequestTeamReview": func(p *provider) error { return p.RequestTeamReview(pr) },
+		"Comments":      func(p *provider) error { _, err := p.Comments(pr); return err },
+		"PostComment":   func(p *provider) error { return p.PostComment(pr, target, "body") },
+		"SetDraft":      func(p *provider) error { return p.SetDraft(pr, false) },
+		"SetAutoMerge":  func(p *provider) error { return p.SetAutoMerge(pr, true) },
+		"Merge":         func(p *provider) error { return p.Merge(pr) },
+		"SubmitReview":  func(p *provider) error { return p.SubmitReview(pr, pullrequests.Review{}) },
+		"RequestReview": func(p *provider) error { return p.RequestReview(pr, pullrequests.Reviewer{Login: "alice"}) },
+		"TeamMembers":   func(p *provider) error { _, err := p.TeamMembers(storefront); return err },
 	}
 	stubShellWith(t, func([]string) ([]byte, error) { return nil, errorFromGh })
 

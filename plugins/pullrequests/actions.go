@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -13,8 +14,8 @@ import (
 	"github.com/ghmeier/pr-tui/internal/shell"
 )
 
-// actions are listed in the order the help line shows them. Requesting a team review is
-// offered only when a review team is configured.
+// actions are listed in the order the help line shows them. Requesting a review is offered only
+// when a review team is configured.
 func (board *pullRequestBoard) actions() []plugin.Action {
 	actions := []plugin.Action{
 		{Key: "enter", Label: "diff", Run: board.showDiff},
@@ -24,7 +25,7 @@ func (board *pullRequestBoard) actions() []plugin.Action {
 		{Key: "d", LabelFor: draftLabel, Run: board.toggleDraft},
 	}
 	if board.reviewTeam != "" {
-		actions = append(actions, plugin.Action{Key: "t", LabelFor: board.requestTeamLabel, Run: board.requestTeamReview})
+		actions = append(actions, plugin.Action{Key: "t", LabelFor: board.requestReviewLabel, Run: board.chooseReviewer})
 	}
 	return append(actions,
 		plugin.Action{Key: "m", Label: "merge", Run: board.chooseMerge},
@@ -41,13 +42,35 @@ func draftLabel(row plugin.Row) string {
 	return "draft"
 }
 
-// requestTeamLabel is empty once the team is already requested, because asking again does
-// nothing.
-func (board *pullRequestBoard) requestTeamLabel(row plugin.Row) string {
-	if row.(Row).PullRequest.requestsTeam(board.reviewTeam) {
+// requestReviewLabel is empty once nobody is left to ask, because asking again does nothing.
+func (board *pullRequestBoard) requestReviewLabel(row plugin.Row) string {
+	if len(board.reviewerOptions(row.(Row))) == 0 {
 		return ""
 	}
-	return "request " + board.reviewTeam
+	return "request"
+}
+
+// teamOption is how the review team is listed among the people. A login cannot contain a space,
+// so it never equals a person's.
+func (board *pullRequestBoard) teamOption() string {
+	return board.reviewTeam + " (team)"
+}
+
+// reviewerOptions are the review team, unless it is already requested, followed by its members
+// in order, leaving out the author and anyone already requested.
+func (board *pullRequestBoard) reviewerOptions(row Row) []string {
+	pr := row.PullRequest
+	var options []string
+	if !pr.requestsTeam(board.reviewTeam) {
+		options = append(options, board.teamOption())
+	}
+	for _, member := range slices.Sorted(slices.Values(row.TeamMembers)) {
+		isRequested := slices.ContainsFunc(pr.RequestedUsers, func(login string) bool { return strings.EqualFold(login, member) })
+		if !strings.EqualFold(member, pr.Author) && !isRequested {
+			options = append(options, member)
+		}
+	}
+	return options
 }
 
 // reviewLabel says "comment" on the viewer's own pull request, where a comment review is the
@@ -201,19 +224,35 @@ func (board *pullRequestBoard) setAutoMerge(selection plugin.Selection, enabled 
 	}
 }
 
-// requestTeamReview marks a draft ready first, because a review request on a draft does not
-// ask anyone to look yet. If marking it ready fails, no review is requested.
-func (board *pullRequestBoard) requestTeamReview(selection plugin.Selection) plugin.Effect {
+// chooseReviewer lists the review team and the people who can still be asked.
+func (board *pullRequestBoard) chooseReviewer(selection plugin.Selection) plugin.Effect {
+	pr := pullRequestOf(selection)
+	return plugin.Effect{Choice: &plugin.Choice{
+		Question: "Request review on " + pr.label() + " from",
+		Options:  board.reviewerOptions(selection.Row.(Row)),
+		Menu:     true,
+		Pick: func(option string) plugin.Effect {
+			if option == board.teamOption() {
+				return board.requestReview(selection, Reviewer{Login: board.reviewTeam, Team: true})
+			}
+			return board.requestReview(selection, Reviewer{Login: option})
+		},
+	}}
+}
+
+// requestReview marks a draft ready first, because a review request on a draft does not ask
+// anyone to look yet. If marking it ready fails, no review is requested.
+func (board *pullRequestBoard) requestReview(selection plugin.Selection, reviewer Reviewer) plugin.Effect {
 	pr := pullRequestOf(selection)
 	return plugin.Effect{
-		Notice: pr.requestTeamReviewNotice(board.reviewTeam),
+		Notice: pr.requestReviewNotice(reviewer.Login),
 		Command: func() error {
 			if pr.IsDraft {
 				if err := board.provider.SetDraft(pr, false); err != nil {
 					return err
 				}
 			}
-			return board.provider.RequestTeamReview(pr)
+			return board.provider.RequestReview(pr, reviewer)
 		},
 		RefreshRow: selection.Row,
 	}
@@ -247,11 +286,11 @@ func (pr PullRequest) autoMergeNotice(enabled bool) string {
 	return "Disabling auto-merge on " + pr.label() + "…"
 }
 
-func (pr PullRequest) requestTeamReviewNotice(reviewTeam string) string {
+func (pr PullRequest) requestReviewNotice(reviewer string) string {
 	if pr.IsDraft {
-		return "Marking " + pr.label() + " ready and requesting review from " + reviewTeam + "…"
+		return "Marking " + pr.label() + " ready and requesting review from " + reviewer + "…"
 	}
-	return "Requesting review from " + reviewTeam + " on " + pr.label() + "…"
+	return "Requesting review from " + reviewer + " on " + pr.label() + "…"
 }
 
 // commandToOpenInBrowser is for the screens, which cannot return an Effect.

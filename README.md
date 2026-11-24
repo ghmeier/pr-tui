@@ -112,7 +112,7 @@ Board keys:
 | `o` | Open in the browser |
 | `v` | Check out the branch with `wt switch` and open it, with its changed files, in the configured editor |
 | `d` | Mark a draft ready for review, or convert a ready pull request back to draft; the help line shows which |
-| `t` | Request review from the configured team, marking a draft ready for review first. Hidden once the team is already requested |
+| `t` | Request review: opens a list of the review team and its members, which you narrow by typing and pick with enter. The team is left out once it is requested, and so are the author and anyone already requested. A draft is marked ready for review first. Hidden when nobody is left to ask |
 | `m` | Merge now (squash, after a confirmation), or enable or disable auto-merge (squash) |
 | `a` | Review (labelled comment on your own pull request): approve, request changes, or comment, written in your editor. It submits the pending comments you have collected in the diff view, after a confirmation. On your own pull request only a comment review is offered |
 | `f` | Filter by repository and by people or bots: `j`/`k` move, `space` toggles, `1` to `9` toggle the first nine options, `b` switches people and bots |
@@ -140,7 +140,7 @@ Diff view keys:
 | `s` | Toggle split and unified layouts; a file that was added or deleted opens unified, and the key changes only that file |
 | `c` | Write a comment in your editor on the line under the cursor and add it to the pending review. On a posted thread it replies at once, and on a pending comment it edits it (saving nothing removes it) |
 | `d` | Mark a draft ready for review, or convert a ready pull request back to draft; the help line shows which |
-| `t` | Request review from the configured team, as on the board; hidden once it is requested |
+| `t` | Request review from the team or one of its members, as on the board; hidden when nobody is left to ask |
 | `m` | Merge now (squash, after a confirmation), or enable or disable auto-merge (squash) |
 | `a` | Review (labelled comment on your own pull request): approve, request changes, or comment, written in your editor. It submits the pending comments you have collected in the diff view, after a confirmation. On your own pull request only a comment review is offered |
 | `esc` | Back |
@@ -161,7 +161,7 @@ Description view keys:
 | `↑` / `↓`, `space` / `b` | Scroll by a line or a page |
 | `e` | Edit the title and the description in your editor: the title on the first line, a blank line, then the description. Saving changes either or both; an empty title is refused |
 | `d` | Mark a draft ready for review, or convert a ready pull request back to draft; the help line shows which |
-| `t` | Request review from the configured team, as on the board; hidden once it is requested |
+| `t` | Request review from the team or one of its members, as on the board; hidden when nobody is left to ask |
 | `m` | Merge now (squash, after a confirmation), or enable or disable auto-merge (squash) |
 | `a` | Review (labelled comment on your own pull request): approve, request changes, or comment, written in your editor. It submits the pending comments you have collected in the diff view, after a confirmation. On your own pull request only a comment review is offered |
 | `esc` | Back |

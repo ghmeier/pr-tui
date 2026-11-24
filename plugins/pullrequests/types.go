@@ -37,6 +37,13 @@ type LineCount struct {
 	Deletions int
 }
 
+// Reviewer is who a review is requested from: a person, or the review team when Team is set. For
+// the team, Login is the team's name.
+type Reviewer struct {
+	Login string
+	Team  bool
+}
+
 // Description is a pull request's title and the markdown body under it.
 type Description struct {
 	Title string

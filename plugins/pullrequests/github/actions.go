@@ -3,6 +3,7 @@ package github
 import (
 	"encoding/json"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -187,7 +188,27 @@ func (github *provider) SubmitReview(pr pullrequests.PullRequest, review pullreq
 	return sendJSON("POST", apiEndpoint(pr)+"/reviews", payload)
 }
 
-func (github *provider) RequestTeamReview(pr pullrequests.PullRequest) error {
-	_, err := shell.Run("gh", "api", "--method", "POST", apiEndpoint(pr)+"/requested_reviewers", "-f", "team_reviewers[]="+github.reviewTeam)
+// RequestReview asks the team, whose slug is the reviewer's login, or the person.
+func (github *provider) RequestReview(pr pullrequests.PullRequest, reviewer pullrequests.Reviewer) error {
+	field := "reviewers[]="
+	if reviewer.Team {
+		field = "team_reviewers[]="
+	}
+	_, err := shell.Run("gh", "api", "--method", "POST", apiEndpoint(pr)+"/requested_reviewers", "-f", field+reviewer.Login)
 	return err
+}
+
+// TeamMembers lists the review team's members in the repository's organization, sorted, or
+// nothing when no team is configured.
+func (github *provider) TeamMembers(repository pullrequests.Repository) ([]string, error) {
+	if github.reviewTeam == "" {
+		return nil, nil
+	}
+	output, err := shell.Run("gh", "api", "--paginate", "orgs/"+repository.Owner+"/teams/"+github.reviewTeam+"/members", "--jq", ".[].login")
+	if err != nil {
+		return nil, err
+	}
+	logins := strings.Fields(string(output))
+	sort.Strings(logins)
+	return logins, nil
 }

@@ -4,6 +4,8 @@ package pullrequests
 
 import (
 	"flag"
+	"strings"
+	"sync"
 
 	"github.com/ghmeier/pr-tui/internal/config"
 	"github.com/ghmeier/pr-tui/internal/plugin"
@@ -87,17 +89,61 @@ func (board *pullRequestBoard) reload(row plugin.Row) (plugin.Row, error) {
 	if err != nil || !open {
 		return nil, err
 	}
-	return Row{PullRequest: pr, Viewer: previous.Viewer}, nil
+	return Row{PullRequest: pr, Viewer: previous.Viewer, TeamMembers: previous.TeamMembers}, nil
 }
 
 func (board *pullRequestBoard) load() ([]plugin.Row, error) {
+	membersByOwner := board.loadTeamMembers()
 	pullRequests, viewer, err := board.provider.PullRequests()
+	membersByOwner.wait()
 	if err != nil {
 		return nil, err
 	}
 	rows := make([]plugin.Row, len(pullRequests))
 	for index, pr := range pullRequests {
-		rows[index] = Row{PullRequest: pr, Viewer: viewer}
+		rows[index] = Row{PullRequest: pr, Viewer: viewer, TeamMembers: membersByOwner.of(pr.Repository)}
 	}
 	return rows, nil
+}
+
+// teamMembersByOwner collects the review team's members of each organization while the pull
+// requests load. Members are a convenience, so an organization whose members cannot be listed
+// simply has none.
+type teamMembersByOwner struct {
+	mutex   sync.Mutex
+	group   sync.WaitGroup
+	members map[string][]string
+}
+
+// loadTeamMembers starts listing the members once per distinct owner of the configured
+// repositories.
+func (board *pullRequestBoard) loadTeamMembers() *teamMembersByOwner {
+	collected := &teamMembersByOwner{members: map[string][]string{}}
+	if board.reviewTeam == "" {
+		return collected
+	}
+	started := map[string]bool{}
+	for _, repository := range board.provider.Repositories() {
+		owner := strings.ToLower(repository.Owner)
+		if started[owner] {
+			continue
+		}
+		started[owner] = true
+		collected.group.Go(func() {
+			logins, err := board.provider.TeamMembers(repository)
+			if err != nil {
+				return
+			}
+			collected.mutex.Lock()
+			defer collected.mutex.Unlock()
+			collected.members[owner] = logins
+		})
+	}
+	return collected
+}
+
+func (collected *teamMembersByOwner) wait() { collected.group.Wait() }
+
+func (collected *teamMembersByOwner) of(repository Repository) []string {
+	return collected.members[strings.ToLower(repository.Owner)]
 }

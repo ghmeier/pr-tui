@@ -112,6 +112,10 @@ type Model struct {
 	pending      Effect
 	pendingBoard int
 	choice       *Choice
+	// choiceTyped and choiceCursor are the text typed into a menu choice and the position of its
+	// cursor among the options that match it.
+	choiceTyped  string
+	choiceCursor int
 	// lastClick is the most recent left click on a cell, to recognise a double click.
 	lastClick cellClick
 	// textCommand is the command that writes text beside prs. Empty means RunEditor.
@@ -519,9 +523,10 @@ func (m *Model) updateEveryScreen(message tea.Msg) tea.Cmd {
 }
 
 // handleKey routes a key on the boards. Unlike on a screen, q quits here even while a question
-// or choice is pending, because only a screen can have a use for q of its own.
+// or status line choice is pending, because only a screen can have a use for q of its own. A menu
+// choice takes q to type it.
 func (m *Model) handleKey(key string) tea.Cmd {
-	if key == "q" {
+	if key == "q" && !m.menuOpen() {
 		return tea.Quit
 	}
 	switch m.mode {
@@ -595,6 +600,7 @@ func (m *Model) asking() bool {
 func (m *Model) applyEffect(index int, effect Effect) tea.Cmd {
 	if effect.Choice != nil {
 		m.mode, m.choice, m.pendingBoard = choiceMode, effect.Choice, index
+		m.choiceTyped, m.choiceCursor = "", 0
 		return nil
 	}
 	if effect.Confirm != "" {
@@ -670,8 +676,11 @@ func (m *Model) handleAnswerKey(key string) tea.Cmd {
 }
 
 func (m *Model) handleChoiceKey(key string) tea.Cmd {
+	if m.choice.Menu {
+		return m.handleMenuKey(key)
+	}
 	if key == "esc" {
-		m.mode, m.choice = boardMode, nil
+		m.closeChoice()
 		return nil
 	}
 	number, err := strconv.Atoi(key)
@@ -680,7 +689,7 @@ func (m *Model) handleChoiceKey(key string) tea.Cmd {
 		return nil
 	}
 	choice, index := m.choice, m.pendingBoard
-	m.mode, m.choice = boardMode, nil
+	m.closeChoice()
 	return m.applyEffect(index, choice.Pick(options[number-1]))
 }
 
