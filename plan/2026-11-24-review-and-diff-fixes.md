@@ -2,7 +2,7 @@
 title: Code review, one editing pattern, and diff fixes
 status: active
 tags: [pull-requests, host]
-next_step: Step 3 (fresh-diff) dispatched; steps 1 and 2 await review as pull requests #9 and #10.
+next_step: Step 4 (pending-review) dispatched from main.
 created: 2026-11-24
 updated: 2026-11-24
 ---
@@ -112,13 +112,14 @@ Steps 2 to 4 all touch `diffscreen.go`, so they run in sequence.
 
 1. **`editor-effect`** from `main`: the host `Edit` effect with mouse re-enabled, the description
    screen moved onto it, and `enter` instead of `ctrl+s` submitting the workflow run form.
-   **Done:** pull request #9 (commits 722d703, c6318b6). Verify with host tests for the effect
+   **Done:** pull request #9 (commits 722d703, c6318b6), merged. Verify with host tests for the effect
    (text in, trimmed text to `Done`, editor failure notice, file removed) and a manual check in
    kitty that double-click copies after editing a description.
 2. **`wrap-diff-lines`**: `ui.WrapSegments` and wrapped diff rendering. Verify with tests for
    wrapping in both layouts and cursor movement over wrapped lines, plus a look at a real pull
-   request with long lines. **Done:** https://github.com/ghmeier/pr-tui/pull/10 (66acad9, 424e0f5).
-3. **`fresh-diff`**: always reload the diff, and one-sided files open unified.
+   request with long lines. **Done (merged):** https://github.com/ghmeier/pr-tui/pull/10 (66acad9, 424e0f5).
+3. **`fresh-diff`**: always reload the diff, and one-sided files open unified. **Done:** pull
+   request #11, merged.
 4. **`pending-review`**: comments through the editor, pending review, the review action, and
    the provider's `SubmitReview`; README key tables updated.
 
