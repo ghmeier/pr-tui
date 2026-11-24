@@ -2,7 +2,7 @@
 title: Code review, one editing pattern, and diff fixes
 status: active
 tags: [pull-requests, host]
-next_step: Step 2 (wrap-diff-lines) dispatched; step 1 awaits review as pull request #9.
+next_step: Step 3 (fresh-diff) dispatched; steps 1 and 2 await review as pull requests #9 and #10.
 created: 2026-11-24
 updated: 2026-11-24
 ---
@@ -117,7 +117,7 @@ Steps 2 to 4 all touch `diffscreen.go`, so they run in sequence.
    kitty that double-click copies after editing a description.
 2. **`wrap-diff-lines`**: `ui.WrapSegments` and wrapped diff rendering. Verify with tests for
    wrapping in both layouts and cursor movement over wrapped lines, plus a look at a real pull
-   request with long lines.
+   request with long lines. **Done:** https://github.com/ghmeier/pr-tui/pull/10 (66acad9, 424e0f5).
 3. **`fresh-diff`**: always reload the diff, and one-sided files open unified.
 4. **`pending-review`**: comments through the editor, pending review, the review action, and
    the provider's `SubmitReview`; README key tables updated.
