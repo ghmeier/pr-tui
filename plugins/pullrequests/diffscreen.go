@@ -113,10 +113,9 @@ type diffScreen struct {
 
 	// rows is the selected file laid out for the current layout and width. It is rebuilt only
 	// when rowsKey changes, because wrapping every line of a large file on each key would be slow.
-	rows          []viewRow
-	rowsKey       rowsKey
-	rowsBuilt     bool
-	rowBuildCount int
+	rows      []viewRow
+	rowsKey   rowsKey
+	rowsBuilt bool
 	// dataVersion changes whenever the files or the comment threads are replaced.
 	dataVersion int
 
@@ -202,7 +201,6 @@ func (screen *diffScreen) rebuildRows() {
 		}
 	}
 	screen.rowsKey, screen.rowsBuilt = key, true
-	screen.rowBuildCount++
 	screen.rows = nil
 	defer func() {
 		if keptLine >= 0 {

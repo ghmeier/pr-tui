@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-	"time"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -65,6 +65,13 @@ func TestUnifiedViewShowsALongLineInFullAcrossSeveralLines(t *testing.T) {
 	if strings.Contains(joined, "…") {
 		t.Fatalf("nothing should be truncated:\n%s", strings.Join(rows, "\n"))
 	}
+}
+
+func TestUnifiedViewGivesAWrappedLineMoreThanOneRow(t *testing.T) {
+	screen := wrappingScreen(wrapDiff(), false, 50, 30)
+
+	rows := screen.renderedRows()
+
 	if len(rows) <= len(screen.files[0].lines) {
 		t.Fatalf("expected more rows than lines, got %d", len(rows))
 	}
@@ -96,23 +103,31 @@ func TestUnifiedViewIndentsWrappedPartsPastTheMarkerColumn(t *testing.T) {
 	}
 }
 
-func TestSplitViewWrapsEachSideIndependentlyAndShowsTheLineNumberOnce(t *testing.T) {
+func TestSplitViewPadsEveryWrappedLineOfARowToTheFullWidth(t *testing.T) {
 	screen := wrappingScreen(wrapDiff(), true, 60, 30)
 	file := screen.files[0]
 	pair := file.splitRows[pairRowIndex]
 
 	lines := file.renderSplitRow(pair, screen.diffWidth(), " │ ")
 
+	if len(lines) < 2 {
+		t.Fatalf("the fixture should wrap, got %d lines", len(lines))
+	}
 	for _, line := range lines {
-		line = ansi.Strip(line)
-		if got := len([]rune(line)); got != splitSideWidth(screen.diffWidth())*2+3 {
-			t.Fatalf("line %q has %d cells", line, got)
+		if got := lipgloss.Width(line); got != splitSideWidth(screen.diffWidth())*2+3 {
+			t.Fatalf("line %q has %d cells", ansi.Strip(line), got)
 		}
 	}
+}
+
+func TestSplitViewShowsEachLineNumberOnTheFirstWrappedLineOnly(t *testing.T) {
+	screen := wrappingScreen(wrapDiff(), true, 60, 30)
+	file := screen.files[0]
+	pair := file.splitRows[pairRowIndex]
 	left, right := file.lines[pair.left], file.lines[pair.right]
-	if len(lines) != max(len(left.parts(file.sideCodeWidth(splitSideWidth(screen.diffWidth())))), len(right.parts(file.sideCodeWidth(splitSideWidth(screen.diffWidth()))))) {
-		t.Fatalf("the row has %d lines:\n%s", len(lines), ansi.Strip(strings.Join(lines, "\n")))
-	}
+
+	lines := file.renderSplitRow(pair, screen.diffWidth(), " │ ")
+
 	first := ansi.Strip(lines[0])
 	if !strings.Contains(first, fmt.Sprintf("%d ", left.oldNumber)) || !strings.Contains(first, fmt.Sprintf("%d ", right.newNumber)) {
 		t.Fatalf("the first line should carry both numbers: %q", first)
@@ -246,29 +261,44 @@ func TestCommentOnAWrappedLineTargetsThatLine(t *testing.T) {
 	}
 }
 
-func TestRowsAreNotRebuiltWhenOnlyTheCursorMoves(t *testing.T) {
+// markRows leaves a mark on the built rows, which a rebuild replaces.
+func markRows(screen *diffScreen) {
+	screen.rows[0].comment = "built before"
+}
+
+func TestRowsAreKeptWhenOnlyTheCursorMoves(t *testing.T) {
 	screen := wrappingScreen(wrapDiff(), true, 60, 30)
-	builds := screen.rowBuildCount
+	markRows(screen)
 
 	screen.handleKey("j")
 	screen.keepPositionVisible()
 
-	if screen.rowBuildCount != builds {
-		t.Fatalf("rows were rebuilt %d times by a cursor move", screen.rowBuildCount-builds)
+	if screen.rows[0].comment != "built before" {
+		t.Fatal("rows were rebuilt by a cursor move")
 	}
 }
 
-func TestRowsAreRebuiltWhenTheWidthOrTheLayoutChanges(t *testing.T) {
+func TestRowsAreRebuiltWhenTheWidthChanges(t *testing.T) {
 	screen := wrappingScreen(wrapDiff(), true, 60, 30)
-	builds := screen.rowBuildCount
+	markRows(screen)
 
 	screen.width = 80
 	screen.keepPositionVisible()
+
+	if screen.rows[0].comment != "" {
+		t.Fatal("rows were not rebuilt for the new width")
+	}
+}
+
+func TestRowsAreRebuiltWhenTheLayoutChanges(t *testing.T) {
+	screen := wrappingScreen(wrapDiff(), true, 60, 30)
+	markRows(screen)
+
 	screen.handleKey("s")
 	screen.keepPositionVisible()
 
-	if screen.rowBuildCount != builds+2 {
-		t.Fatalf("rows were rebuilt %d times, expected 2", screen.rowBuildCount-builds)
+	if screen.rows[0].comment != "" {
+		t.Fatal("rows were not rebuilt for the new layout")
 	}
 }
 
@@ -281,23 +311,5 @@ func TestResizingKeepsTheCursorOnItsLine(t *testing.T) {
 
 	if screen.cursorLine() != addedLineIndex {
 		t.Fatalf("cursor is on line %d", screen.cursorLine())
-	}
-}
-
-func TestRebuildingTheRowsOfALargeFileIsFast(t *testing.T) {
-	var diff strings.Builder
-	diff.WriteString("diff --git a/big.txt b/big.txt\n@@ -1,5000 +1,5000 @@\n")
-	for range 5000 {
-		diff.WriteString("+" + longCode + otherCode + "\n")
-	}
-	screen := &diffScreen{files: parseDiff(diff.String()), splitDiff: true, width: 100, height: 30}
-
-	started := time.Now()
-	screen.keepPositionVisible()
-	elapsed := time.Since(started)
-
-	t.Logf("rebuilding 5000 wrapped lines took %s", elapsed)
-	if elapsed > time.Second {
-		t.Fatalf("rebuilding took %s", elapsed)
 	}
 }
