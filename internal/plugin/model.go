@@ -419,18 +419,11 @@ func (m *Model) update(message tea.Msg) tea.Cmd {
 		}
 		board.applyFilters()
 	case commandFinishedMessage:
-		board := m.boards[message.board]
-		board.running--
-		switch {
-		case message.err != nil:
-			board.reportFailure("Failed: " + ui.FirstLine(message.err))
-		case message.refreshRow != nil && board.spec.Reload != nil:
-			return m.reloadRow(message.board, message.refreshRow)
-		case message.refresh || message.refreshRow != nil:
-			return m.load(message.board)
-		default:
-			board.reportFinished(message.successNotice)
+		finished := m.finishCommand(message)
+		if len(m.screens) == 0 {
+			return finished
 		}
+		return tea.Batch(finished, m.updateEveryScreen(CommandFinished{Err: message.err}))
 	case refreshTickMessage:
 		return m.refreshDue(message)
 	case tea.MouseMsg:
@@ -452,6 +445,24 @@ func (m *Model) update(message tea.Msg) tea.Cmd {
 		return m.handleKey(message.String())
 	default:
 		return m.updateEveryScreen(message)
+	}
+	return nil
+}
+
+// finishCommand shows the outcome of a command that an effect started, and starts the reload
+// the effect asked for when the command succeeded.
+func (m *Model) finishCommand(message commandFinishedMessage) tea.Cmd {
+	board := m.boards[message.board]
+	board.running--
+	switch {
+	case message.err != nil:
+		board.reportFailure("Failed: " + ui.FirstLine(message.err))
+	case message.refreshRow != nil && board.spec.Reload != nil:
+		return m.reloadRow(message.board, message.refreshRow)
+	case message.refresh || message.refreshRow != nil:
+		return m.load(message.board)
+	default:
+		board.reportFinished(message.successNotice)
 	}
 	return nil
 }

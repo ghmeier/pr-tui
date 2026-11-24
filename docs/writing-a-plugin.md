@@ -454,9 +454,11 @@ It is a Bubble Tea model in miniature. `Init` returns the first command, such as
 `Update` returns the screen to keep, and returns `nil` to close itself. `View` draws at the
 size it is given.
 
-While any screen is open it receives every key except `ctrl+c`, and also every message the host
-does not recognise, because screens run their own background commands and their results come
-back as messages. The host does not route them: a screen sees messages meant for other
+While any screen is open it receives every key except `ctrl+c`. It also receives a
+`plugin.CommandFinished` message whenever a command started by an effect finishes, so that it can
+show what the command changed, and every message the host does not recognise, because screens run
+their own background commands and their results come back as messages. The host does not route
+them: a screen sees messages meant for other
 screens, and for other rows of the same screen type. A screen must ignore a message that is
 not its own, for example by comparing the pull request in the message with its own and
 returning unchanged on a mismatch.

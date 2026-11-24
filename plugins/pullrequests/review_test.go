@@ -398,7 +398,7 @@ func TestReviewKeyOnAScreenAsksThenSubmits(t *testing.T) {
 	}
 }
 
-func TestDiffScreenLoadsTheCommentsAgainAfterASubmission(t *testing.T) {
+func TestDiffScreenShowsPostedReviewCommentsAsSoonAsTheSubmissionFinishes(t *testing.T) {
 	provider := newFakeProvider()
 	editorWritesInTurn(t, "Draft", "")
 	model := loadedBoardWith(t, provider)
@@ -409,7 +409,7 @@ func TestDiffScreenLoadsTheCommentsAgainAfterASubmission(t *testing.T) {
 	press(t, model, "k")
 	assertDoesNotShow(t, model, "Posted by the review")
 
-	press(t, model, "a", "3", "y", "k")
+	press(t, model, "a", "3", "y")
 
 	assertShows(t, model, "Posted by the review")
 }

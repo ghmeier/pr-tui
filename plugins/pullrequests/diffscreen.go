@@ -491,14 +491,12 @@ func (screen *diffScreen) Update(message tea.Msg) (plugin.Screen, tea.Cmd) {
 	next, command := screen.update(message)
 	if next != nil {
 		screen.keepPositionVisible()
-		command = tea.Batch(command, screen.reloadCommentsAfterSubmission())
 	}
 	return next, command
 }
 
 // reloadCommentsAfterSubmission fetches the comments again once a review has been submitted,
-// because the comments it carried are posted comments from then on. The host does not tell a
-// screen when a command finishes, so this is noticed on the next message the screen gets.
+// because the comments it carried are posted comments from then on.
 func (screen *diffScreen) reloadCommentsAfterSubmission() tea.Cmd {
 	submissions := screen.board.reviews.submissions(screen.pullRequest.URL)
 	if submissions == screen.seenSubmissions {
@@ -549,6 +547,8 @@ func (screen *diffScreen) update(message tea.Msg) (plugin.Screen, tea.Cmd) {
 		}
 		screen.threads = groupThreads(message.comments)
 		screen.dataVersion++
+	case plugin.CommandFinished:
+		return screen, screen.reloadCommentsAfterSubmission()
 	case tea.KeyMsg:
 		return screen.handleKey(message.String())
 	}
