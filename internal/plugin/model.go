@@ -568,7 +568,7 @@ func (m *Model) runAction(key string) tea.Cmd {
 // runBoardAction runs the board's action with the key on the selection, if it has one.
 func (m *Model) runBoardAction(index int, selection Selection, key string) tea.Cmd {
 	for _, action := range m.boards[index].spec.Actions {
-		if action.Key == key {
+		if _, applies := action.LabelOf(selection.Row); action.Key == key && applies {
 			return m.applyEffect(index, action.Run(selection))
 		}
 	}

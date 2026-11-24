@@ -82,6 +82,7 @@ func TestReviewKeyOnADraftMarksItReadyThenRequestsTheTeam(t *testing.T) {
 
 func TestReviewKeyOnAReadyPullRequestOnlyRequestsTheTeam(t *testing.T) {
 	provider := newFakeProvider()
+	provider.pullRequests[2].RequestedTeams = nil
 
 	press(t, loadedBoardWith(t, provider), "down", "t")
 
@@ -124,13 +125,70 @@ func TestHelpOffersTheReviewKeyWithTheTeamNameWhenOneIsConfigured(t *testing.T) 
 	}
 }
 
+func TestDraftKeyIsLabelledReadyOnADraftAndDraftOnAReadyPullRequest(t *testing.T) {
+	model := loadedBoard(t)
+
+	onDraft := helpLine(model)
+	press(t, model, "down")
+	onReady := helpLine(model)
+
+	if !strings.Contains(onDraft, "d ready") || strings.Contains(onDraft, "d draft") {
+		t.Fatalf("help on the draft = %q", onDraft)
+	}
+	if !strings.Contains(onReady, "d draft") || strings.Contains(onReady, "d ready") {
+		t.Fatalf("help on the ready pull request = %q", onReady)
+	}
+}
+
+func TestReviewTeamKeyIsHiddenAndDoesNothingOnceTheTeamIsRequested(t *testing.T) {
+	provider := newFakeProvider()
+	model := loadedBoardWith(t, provider)
+	requested := provider.pullRequest(3)
+	press(t, model, "down")
+
+	press(t, model, "t")
+
+	if !requested.requestsTeam(testReviewTeam) {
+		t.Fatalf("the fixture should already request %s", testReviewTeam)
+	}
+	if help := helpLine(model); strings.Contains(help, "request") {
+		t.Fatalf("help = %q", help)
+	}
+	assertCalls(t, provider)
+}
+
+func TestReviewTeamKeyIsOfferedWhileTheTeamIsNotRequested(t *testing.T) {
+	model := loadedBoard(t)
+
+	if help := helpLine(model); !strings.Contains(help, "t request "+testReviewTeam) {
+		t.Fatalf("help = %q", help)
+	}
+}
+
+func TestReviewKeyIsLabelledCommentOnTheViewersOwnPullRequestAndReviewOnOthers(t *testing.T) {
+	provider := newFakeProvider()
+	provider.pullRequests[0].Author = testViewer
+	model := loadedBoardWith(t, provider)
+
+	onOwn := helpLine(model)
+	press(t, model, "down")
+	onOthers := helpLine(model)
+
+	if !strings.Contains(onOwn, "a comment") || strings.Contains(onOwn, "a review") {
+		t.Fatalf("help on the viewer's own pull request = %q", onOwn)
+	}
+	if !strings.Contains(onOthers, "a review") || strings.Contains(onOthers, "a comment") {
+		t.Fatalf("help on someone else's pull request = %q", onOthers)
+	}
+}
+
 func TestHelpListsTheActionsInTheOrderOfTheBoardAndNamesTheConfiguredEditor(t *testing.T) {
 	model := loadedBoard(t)
 	plugintest.Resize(t, model, 200, 30)
 
 	help := helpLine(model)
 
-	expected := "enter diff · p description · o open · v " + testEditorName + " · d draft / ready · t request " + testReviewTeam +
+	expected := "enter diff · p description · o open · v " + testEditorName + " · d ready · t request " + testReviewTeam +
 		" · m merge · a review · f filters · r refresh · q quit"
 	if help != expected {
 		t.Fatalf("help = %q, expected %q", help, expected)

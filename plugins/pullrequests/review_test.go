@@ -59,12 +59,12 @@ func TestPendingCommentIsSubmittedWithTheLineAndSideItWasWrittenOn(t *testing.T)
 	assertCalls(t, provider, reviewCall(provider.pullRequest(1), review))
 }
 
-func TestTabMovesAPendingCommentToTheRemovedLine(t *testing.T) {
+func TestLeftArrowMovesAPendingCommentToTheRemovedLine(t *testing.T) {
 	provider := newFakeProvider()
 	editorWrites(t, "Why remove this?", "")
 	model := loadedBoardWith(t, provider)
 
-	press(t, model, append(pressToTheAddedLine(), "tab", "c", "a", "3", "y")...)
+	press(t, model, append(pressToTheAddedLine(), "left", "c", "a", "3", "y")...)
 
 	removedLineTarget := CommentTarget{Path: "first.py", Line: 2, Side: CommentSideOld}
 	review := Review{Event: ReviewEventComment, Comments: []DraftComment{draftAt(removedLineTarget, "Why remove this?")}}
@@ -313,7 +313,7 @@ func TestConfirmingSubmitsTheEventTheBodyAndAllDrafts(t *testing.T) {
 	model := loadedBoardWith(t, provider)
 	selected := provider.pullRequest(1)
 
-	press(t, model, append(pressToTheAddedLine(), "c", "tab", "c", "a", "2", "y")...)
+	press(t, model, append(pressToTheAddedLine(), "c", "left", "c", "a", "2", "y")...)
 
 	removedLineTarget := CommentTarget{Path: "first.py", Line: 2, Side: CommentSideOld}
 	review := Review{

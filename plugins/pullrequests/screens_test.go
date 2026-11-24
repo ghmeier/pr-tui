@@ -81,6 +81,58 @@ func TestDiffViewArrowKeysStopAtFirstAndLastFile(t *testing.T) {
 	}
 }
 
+func TestDiffViewLeftAndRightArrowsKeepTheSelectedFile(t *testing.T) {
+	model := loadedBoard(t)
+	press(t, model, "enter", "down")
+
+	press(t, model, "left", "right", "left")
+
+	if !strings.Contains(view(model), "file 2 of 2") {
+		t.Fatalf("view:\n%s", view(model))
+	}
+}
+
+func TestDiffViewRightArrowChoosesTheNewSideAgainAfterTheOldSide(t *testing.T) {
+	provider := newFakeProvider()
+	editorWrites(t, "Looks good", "")
+	model := loadedBoardWith(t, provider)
+
+	press(t, model, append(pressToTheAddedLine(), "left", "right", "c", "a", "3", "y")...)
+
+	review := Review{Event: ReviewEventComment, Comments: []DraftComment{draftAt(addedLineTarget, "Looks good")}}
+	assertCalls(t, provider, reviewCall(provider.pullRequest(1), review))
+}
+
+func TestDiffViewTabDoesNotChangeTheSideOfAComment(t *testing.T) {
+	provider := newFakeProvider()
+	editorWrites(t, "Looks good", "")
+	model := loadedBoardWith(t, provider)
+
+	press(t, model, append(pressToTheAddedLine(), "tab", "c", "a", "3", "y")...)
+
+	review := Review{Event: ReviewEventComment, Comments: []DraftComment{draftAt(addedLineTarget, "Looks good")}}
+	assertCalls(t, provider, reviewCall(provider.pullRequest(1), review))
+}
+
+func TestDiffHelpNamesTheSideKeysOnlyForASplitFile(t *testing.T) {
+	provider := newFakeProvider()
+	provider.comments = nil
+	model := loadedBoardWith(t, provider)
+	plugintest.Resize(t, model, 300, 30)
+
+	press(t, model, "enter")
+	inSplit := helpLine(model)
+	press(t, model, "s")
+	inUnified := helpLine(model)
+
+	if !strings.Contains(inSplit, "←/→ side") || strings.Contains(inSplit, "tab") {
+		t.Fatalf("help in the split layout = %q", inSplit)
+	}
+	if strings.Contains(inUnified, "←/→") {
+		t.Fatalf("help in the unified layout = %q", inUnified)
+	}
+}
+
 func TestDiffViewReportsAFailureToLoadTheDiffAndReturnsToTheBoard(t *testing.T) {
 	provider := newFakeProvider()
 	provider.fail("Diff", errorForTests)
@@ -681,9 +733,45 @@ func TestScreenHelpOffersTheBoardsChangeKeysBeforeBack(t *testing.T) {
 
 			help := helpLine(model)
 
-			expected := "d draft / ready · t request " + testReviewTeam + " · m merge · a review · esc back"
+			expected := "d ready · t request " + testReviewTeam + " · m merge · a review · esc back"
 			if !strings.Contains(help, expected) {
 				t.Fatalf("help = %q, expected it to contain %q", help, expected)
+			}
+		})
+	}
+}
+
+func TestScreenHelpLabelsDraftFromTheReloadedPullRequestAfterItIsToggled(t *testing.T) {
+	for name, opener := range screenOpeners {
+		t.Run(name, func(t *testing.T) {
+			model := loadedBoard(t)
+			plugintest.Resize(t, model, 300, 30)
+			press(t, model, opener...)
+			before := helpLine(model)
+
+			press(t, model, "d")
+
+			after := helpLine(model)
+			if !strings.Contains(before, "d ready") || !strings.Contains(after, "d draft") || strings.Contains(after, "d ready") {
+				t.Fatalf("help before = %q, after = %q", before, after)
+			}
+		})
+	}
+}
+
+func TestReviewTeamKeyOnAScreenDoesNothingOnceTheTeamIsRequested(t *testing.T) {
+	for name, opener := range screenOpeners {
+		t.Run(name, func(t *testing.T) {
+			provider := newFakeProvider()
+			model := loadedBoardWith(t, provider)
+			plugintest.Resize(t, model, 300, 30)
+			press(t, model, append([]string{"down"}, opener...)...)
+
+			press(t, model, "t")
+
+			assertCalls(t, provider)
+			if help := helpLine(model); strings.Contains(help, "request") {
+				t.Fatalf("help = %q", help)
 			}
 		})
 	}

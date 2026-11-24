@@ -200,7 +200,7 @@ func (screen *descriptionScreen) View(width, height int) string {
 		lines = append(lines, "")
 	}
 	keysAndLabels := []string{"↑/↓", "scroll", "space/b", "page", "e", "edit", "o", "open", "v", screen.board.editor.Name}
-	keysAndLabels = append(keysAndLabels, screen.board.screenActionHelp()...)
+	keysAndLabels = append(keysAndLabels, screen.board.screenActionHelp(currentRow(screen.selection))...)
 	help := ui.HelpLine(append(keysAndLabels, "esc", "back")...)
 	lines = append(lines, ansi.Truncate(screen.notice, screen.width, "…"), ansi.Truncate(help, screen.width, "…"))
 	return strings.Join(lines, "\n")

@@ -90,6 +90,18 @@ type Selection struct {
 	Data func(columnHeader string) any
 
 	boardIndex int
+	current    func() (Row, bool)
+}
+
+// Current is the board's version of this selection's row as it is now, found by the row's key
+// among all the rows the board has loaded. Row, in contrast, stays as it was when the selection
+// was built. The second result is false when the board no longer has the row. It reads the
+// board's rows, so call it only on the update loop, such as from a screen's Update or View.
+func (selection Selection) Current() (Row, bool) {
+	if selection.current == nil {
+		return nil, false
+	}
+	return selection.current()
 }
 
 // Run has the host carry out an effect for this selection's board, from a screen or a
@@ -105,7 +117,7 @@ func (selection Selection) Run(effect Effect) tea.Cmd {
 // it now, found by this selection's row key among all the rows the board has loaded and not
 // only the visible ones. When that row is gone it runs on this selection's own row. It is
 // exactly as if the key had been pressed on the board, including the question the action asks.
-// A key the board has no action for does nothing.
+// A key the board has no action for, or whose action does not apply to the row, does nothing.
 func (selection Selection) RunAction(key string) tea.Cmd {
 	return func() tea.Msg {
 		return actionMessage{board: selection.boardIndex, rowKey: selection.Row.Key(), fallback: selection.Row, key: key}
@@ -117,9 +129,26 @@ type Action struct {
 	Key string
 	// Label is shown in the help line. An empty label hides the action there.
 	Label string
+	// LabelFor, when set, replaces Label for the selected row. An empty label means the action
+	// does not apply to that row: it is hidden from the help line and its key does nothing. It
+	// runs on the update loop, so it must return quickly.
+	LabelFor func(row Row) string
 	// Run describes what the key does. It runs on the update loop, so it must return quickly
 	// without blocking; slow work belongs in the returned Effect's Command.
 	Run func(selection Selection) Effect
+}
+
+// LabelOf is the action's label for the row, and whether the action applies to it. A nil row,
+// which an empty board has, applies only to an action without LabelFor.
+func (action Action) LabelOf(row Row) (label string, applies bool) {
+	if action.LabelFor == nil {
+		return action.Label, true
+	}
+	if row == nil {
+		return "", false
+	}
+	label = action.LabelFor(row)
+	return label, label != ""
 }
 
 // Choice asks for one of a few options in the status line, numbered from 1. A number key picks

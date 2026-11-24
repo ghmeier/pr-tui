@@ -1,0 +1,155 @@
+package plugin
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/ghmeier/pr-tui/internal/plugin/plugintest"
+)
+
+// labelledBoard has an action whose label depends on the row, which is empty for vegetables, and
+// an action without a label function.
+func labelledBoard(source *rowSource, ran *[]string) Board {
+	board := groceryBoard(source)
+	board.Actions = []Action{
+		{Key: "x", Label: "fixed", Run: func(Selection) Effect { *ran = append(*ran, "x"); return Effect{} }},
+		{Key: "y", LabelFor: func(row Row) string {
+			if row.(fakeRow).group == "vegetable" {
+				return ""
+			}
+			return "eat " + row.(fakeRow).name
+		}, Run: func(Selection) Effect { *ran = append(*ran, "y"); return Effect{} }},
+	}
+	return board
+}
+
+func TestLabelForReplacesTheLabelWithTheOneForTheCursorRow(t *testing.T) {
+	rows := groceries()
+	model := modelForBoard(t, labelledBoard(newRowSource(rows...), new([]string)))
+
+	onFruit := helpLine(model)
+	plugintest.Press(t, model, "down", "down")
+	onOtherFruit := helpLine(model)
+
+	for help, row := range map[string]fakeRow{onFruit: rows[0].(fakeRow), onOtherFruit: rows[2].(fakeRow)} {
+		if !strings.Contains(help, "y eat "+row.name) {
+			t.Fatalf("help = %q, expected the label for %s", help, row.name)
+		}
+	}
+}
+
+func TestAnEmptyLabelForHidesTheActionAndItsKeyDoesNothing(t *testing.T) {
+	var ran []string
+	model := modelForBoard(t, labelledBoard(newRowSource(groceries()...), &ran))
+
+	plugintest.Press(t, model, "down")
+	hidden := helpLine(model)
+	plugintest.Press(t, model, "y")
+
+	if strings.Contains(hidden, "y ") {
+		t.Fatalf("help = %q", hidden)
+	}
+	if len(ran) != 0 {
+		t.Fatalf("the action ran for a row it does not apply to: %v", ran)
+	}
+}
+
+func TestAnActionWithLabelForRunsOnARowItAppliesTo(t *testing.T) {
+	var ran []string
+	model := modelForBoard(t, labelledBoard(newRowSource(groceries()...), &ran))
+
+	plugintest.Press(t, model, "y")
+
+	if len(ran) != 1 || ran[0] != "y" {
+		t.Fatalf("ran = %v", ran)
+	}
+}
+
+func TestAnActionWithoutLabelForKeepsItsLabelOnEveryRow(t *testing.T) {
+	var ran []string
+	model := modelForBoard(t, labelledBoard(newRowSource(groceries()...), &ran))
+
+	plugintest.Press(t, model, "down", "x")
+
+	if help := helpLine(model); !strings.Contains(help, "x fixed") {
+		t.Fatalf("help = %q", help)
+	}
+	if len(ran) != 1 || ran[0] != "x" {
+		t.Fatalf("ran = %v", ran)
+	}
+}
+
+func TestSelectionRunActionDoesNothingForAnActionThatDoesNotApply(t *testing.T) {
+	var ran []string
+	var opened Selection
+	board := labelledBoard(newRowSource(groceries()...), &ran)
+	board.Actions = append(board.Actions, Action{Key: "z", Label: "open", Run: func(selection Selection) Effect {
+		opened = selection
+		return Effect{}
+	}})
+	model := modelForBoard(t, board)
+	plugintest.Press(t, model, "down", "z")
+
+	plugintest.Settle(t, model, opened.RunAction("y"))
+	plugintest.Settle(t, model, opened.RunAction("x"))
+
+	if len(ran) != 1 || ran[0] != "x" {
+		t.Fatalf("ran = %v", ran)
+	}
+}
+
+func TestLabelOfAppliesOnlyToActionsWithoutLabelForWhenThereIsNoRow(t *testing.T) {
+	fixed := Action{Label: "fixed"}
+	labelled := Action{LabelFor: func(Row) string { return "label" }}
+
+	fixedLabel, fixedApplies := fixed.LabelOf(nil)
+	_, labelledApplies := labelled.LabelOf(nil)
+
+	if fixedLabel != "fixed" || !fixedApplies || labelledApplies {
+		t.Fatalf("fixed = %q, %v; labelled applies = %v", fixedLabel, fixedApplies, labelledApplies)
+	}
+}
+
+// boardCapturingSelection has an action on "x" that keeps the selection it ran on and reloads the
+// row, and an action on "z" that only keeps the selection.
+func boardCapturingSelection(source *rowSource, reload *reloader, captured *Selection) Board {
+	board := boardRefreshingRow(source, reload, succeeds)
+	board.Actions = append(board.Actions,
+		Action{Key: "z", Label: "keep", Run: func(selection Selection) Effect {
+			*captured = selection
+			return Effect{Command: succeeds, RefreshRow: selection.Row}
+		}},
+	)
+	return board
+}
+
+func TestSelectionCurrentReturnsTheReloadedRowAfterARowRefresh(t *testing.T) {
+	rows := groceries()
+	renamed := fruit(rows[0].Key(), "green apple")
+	reload := &reloader{current: map[string]Row{renamed.key: renamed}}
+	var captured Selection
+	model := modelForBoard(t, boardCapturingSelection(newRowSource(rows...), reload, &captured))
+
+	plugintest.Press(t, model, "z")
+	current, found := captured.Current()
+
+	if !found || current.(fakeRow).name != renamed.name {
+		t.Fatalf("current = %v, %v, expected %v", current, found, renamed)
+	}
+	if captured.Row.(fakeRow).name != rows[0].(fakeRow).name {
+		t.Fatalf("the selection's own row changed to %v", captured.Row)
+	}
+}
+
+func TestSelectionCurrentReportsFalseOnceTheRowIsGone(t *testing.T) {
+	reload := &reloader{current: map[string]Row{}}
+	var captured Selection
+	model := modelForBoard(t, boardCapturingSelection(newRowSource(groceries()...), reload, &captured))
+
+	plugintest.Press(t, model, "z")
+	_, found := captured.Current()
+
+	if found {
+		t.Fatalf("the row was removed but Current still found it")
+	}
+}

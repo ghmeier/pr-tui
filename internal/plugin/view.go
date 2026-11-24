@@ -57,9 +57,10 @@ func (m *Model) help() string {
 		return ""
 	}
 	var keysAndLabels []string
+	row, _ := m.current().selected()
 	for _, action := range m.current().spec.Actions {
-		if action.Label != "" {
-			keysAndLabels = append(keysAndLabels, action.Key, action.Label)
+		if label, applies := action.LabelOf(row); applies && label != "" {
+			keysAndLabels = append(keysAndLabels, action.Key, label)
 		}
 	}
 	if len(m.current().facets) > 0 {
