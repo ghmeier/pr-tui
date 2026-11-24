@@ -11,22 +11,11 @@ import (
 	"github.com/ghmeier/pr-tui/internal/ui"
 )
 
-// EditorRunner hands the terminal to an editor on the file at path, and delivers finished's
-// message once the editor exits.
-type EditorRunner func(path string, finished func(error) tea.Msg) tea.Cmd
-
-var runEditor EditorRunner = func(path string, finished func(error) tea.Msg) tea.Cmd {
+// RunEditor hands the terminal to an editor on the file at path, and delivers finished's message
+// once the editor exits. Tests replace it, because they must never hand the terminal to an editor.
+var RunEditor = func(path string, finished func(error) tea.Msg) tea.Cmd {
 	editor := strings.Fields(cmp.Or(os.Getenv("VISUAL"), os.Getenv("EDITOR"), "vi"))
 	return tea.ExecProcess(exec.Command(editor[0], append(editor[1:], path)...), finished)
-}
-
-// ReplaceEditorRunner makes the host use the given runner instead of starting a real editor, and
-// returns the function that puts the real one back. It exists for tests, which must never hand
-// the terminal to an editor.
-func ReplaceEditorRunner(runner EditorRunner) (restore func()) {
-	original := runEditor
-	runEditor = runner
-	return func() { runEditor = original }
 }
 
 // editFinishedMessage says the editor started for an edit has exited.
@@ -48,7 +37,7 @@ func (m *Model) startEdit(index int, edit *Edit) tea.Cmd {
 		m.boards[index].reportFailure("Editor failed: " + ui.FirstLine(err))
 		return nil
 	}
-	return runEditor(file.Name(), func(err error) tea.Msg {
+	return RunEditor(file.Name(), func(err error) tea.Msg {
 		return editFinishedMessage{board: index, edit: edit, path: file.Name(), err: err}
 	})
 }

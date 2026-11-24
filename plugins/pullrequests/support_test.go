@@ -522,7 +522,9 @@ type editorSession struct {
 func editorWrites(t *testing.T, text string) *editorSession {
 	t.Helper()
 	session := &editorSession{}
-	restore := plugin.ReplaceEditorRunner(func(path string, finished func(error) tea.Msg) tea.Cmd {
+	original := plugin.RunEditor
+	t.Cleanup(func() { plugin.RunEditor = original })
+	plugin.RunEditor = func(path string, finished func(error) tea.Msg) tea.Cmd {
 		return func() tea.Msg {
 			opened, _ := os.ReadFile(path)
 			session.opened = append(session.opened, strings.TrimSpace(string(opened)))
@@ -531,8 +533,7 @@ func editorWrites(t *testing.T, text string) *editorSession {
 			}
 			return finished(nil)
 		}
-	})
-	t.Cleanup(restore)
+	}
 	return session
 }
 

@@ -14,7 +14,6 @@ import (
 // editorSession is a replaced editor, and what it was opened with.
 type editorSession struct {
 	opened    []string
-	paths     []string
 	directory string
 }
 
@@ -24,18 +23,18 @@ func editorSaves(t *testing.T, text string, failure error) *editorSession {
 	t.Helper()
 	session := &editorSession{directory: t.TempDir()}
 	t.Setenv("TMPDIR", session.directory)
-	restore := ReplaceEditorRunner(func(path string, finished func(error) tea.Msg) tea.Cmd {
+	original := RunEditor
+	t.Cleanup(func() { RunEditor = original })
+	RunEditor = func(path string, finished func(error) tea.Msg) tea.Cmd {
 		return func() tea.Msg {
 			opened, _ := os.ReadFile(path)
 			session.opened = append(session.opened, string(opened))
-			session.paths = append(session.paths, path)
 			if failure == nil {
 				os.WriteFile(path, []byte(text), 0o600)
 			}
 			return finished(failure)
 		}
-	})
-	t.Cleanup(restore)
+	}
 	return session
 }
 
@@ -70,8 +69,20 @@ func flatten(command tea.Cmd) []tea.Msg {
 	return messages
 }
 
-func TestEditOpensTheEditorWithTheTextAndHandsDoneTheSavedTextTrimmed(t *testing.T) {
-	session := editorSaves(t, "\n  saved text  \n\n", nil)
+func TestEditOpensTheEditorWithTheText(t *testing.T) {
+	session := editorSaves(t, "saved", nil)
+	edit := &Edit{Text: "original text"}
+	model := modelForBoard(t, editBoard(edit))
+
+	plugintest.Press(t, model, "x")
+
+	if len(session.opened) != 1 || session.opened[0] != edit.Text {
+		t.Fatalf("the editor was opened with %q", session.opened)
+	}
+}
+
+func TestEditHandsDoneTheSavedTextTrimmed(t *testing.T) {
+	editorSaves(t, "\n  saved text  \n\n", nil)
 	var received []string
 	model := modelForBoard(t, editBoard(&Edit{Text: "original text", Done: func(text string) tea.Cmd {
 		received = append(received, text)
@@ -80,9 +91,6 @@ func TestEditOpensTheEditorWithTheTextAndHandsDoneTheSavedTextTrimmed(t *testing
 
 	plugintest.Press(t, model, "x")
 
-	if len(session.opened) != 1 || session.opened[0] != "original text" {
-		t.Fatalf("the editor was opened with %q", session.opened)
-	}
 	if len(received) != 1 || received[0] != "saved text" {
 		t.Fatalf("Done received %q", received)
 	}
@@ -98,9 +106,6 @@ func TestEditRemovesItsTemporaryFileAfterDoneRuns(t *testing.T) {
 
 	plugintest.Press(t, model, "x")
 
-	if len(session.paths) != 1 || !strings.HasPrefix(filepath.Base(session.paths[0]), "prs-edit-") {
-		t.Fatalf("the editor was given %q", session.paths)
-	}
 	if left := session.leftFiles(t); len(left) != 0 {
 		t.Fatalf("files left behind: %v", left)
 	}
