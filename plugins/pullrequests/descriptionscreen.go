@@ -100,8 +100,14 @@ func (screen *descriptionScreen) show(body string) {
 // edit opens the title and the description in the editor laid out like a commit message, or
 // the last edit that could not be saved.
 func (screen *descriptionScreen) edit() tea.Cmd {
-	text := cmp.Or(screen.failedEdit, screen.title+"\n\n"+screen.body)
+	text := cmp.Or(screen.failedEdit, formatEditableDescription(Description{Title: screen.title, Body: screen.body}))
 	return screen.selection.Run(plugin.Effect{Edit: &plugin.Edit{Text: text, Done: screen.finishEditing}})
+}
+
+// formatEditableDescription lays the title and the body out as the editor shows them. It is
+// the inverse of parseEditedDescription.
+func formatEditableDescription(description Description) string {
+	return description.Title + "\n\n" + description.Body
 }
 
 // parseEditedDescription reads the first line as the title and the rest as the body.
@@ -151,7 +157,7 @@ func (screen *descriptionScreen) update(message tea.Msg) (plugin.Screen, tea.Cmd
 			return screen, nil
 		}
 		if message.err != nil {
-			screen.failedEdit = message.description.Title + "\n\n" + message.description.Body
+			screen.failedEdit = formatEditableDescription(message.description)
 			screen.notice = "Failed: " + ui.FirstLine(message.err) + " · press e to edit again"
 			return screen, nil
 		}
