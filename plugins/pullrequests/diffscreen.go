@@ -2,6 +2,7 @@ package pullrequests
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 
@@ -147,23 +148,28 @@ func (screen *diffScreen) Init() tea.Cmd {
 
 // showsSplit is whether the file being shown is laid out side by side. A one-sided file
 // is unified unless the person asked otherwise for that file.
-func (screen *diffScreen) showsSplit() bool {
+// selectedFile is the file being shown, if there is one.
+func (screen *diffScreen) selectedFile() (diffFile, bool) {
 	if screen.fileCursor < 0 || screen.fileCursor >= len(screen.files) {
-		return screen.splitDiff
+		return diffFile{}, false
 	}
-	file := screen.files[screen.fileCursor]
-	if file.oneSided {
+	return screen.files[screen.fileCursor], true
+}
+
+// showsSplit is whether the file being shown is laid out side by side. A one-sided file
+// is unified unless the person asked otherwise for that file.
+func (screen *diffScreen) showsSplit() bool {
+	file, found := screen.selectedFile()
+	if found && file.oneSided {
 		return screen.splitOneSided[file.path]
 	}
 	return screen.splitDiff
 }
 
 func (screen *diffScreen) toggleLayout() {
-	if screen.fileCursor < 0 || screen.fileCursor >= len(screen.files) {
-		return
-	}
-	file := screen.files[screen.fileCursor]
+	file, found := screen.selectedFile()
 	switch {
+	case !found:
 	case !file.oneSided:
 		screen.splitDiff = !screen.splitDiff
 	case screen.splitOneSided[file.path]:
@@ -179,38 +185,31 @@ func (screen *diffScreen) toggleLayout() {
 // replaceFiles shows a newly loaded diff. It stays on the same file, and on the same line
 // of it where that line still exists.
 func (screen *diffScreen) replaceFiles(files []diffFile) {
-	var keptLine diffLine
-	keptPath, hadLine := "", false
-	if screen.fileCursor < len(screen.files) {
-		keptPath = screen.files[screen.fileCursor].path
-		if index := screen.cursorLine(); index >= 0 {
-			keptLine = screen.files[screen.fileCursor].lines[index]
-			hadLine = keptLine.kind >= contextLine
+	var keptPath string
+	var keptLine *diffLine
+	if file, found := screen.selectedFile(); found {
+		keptPath = file.path
+		if index := screen.cursorLine(); index >= 0 && file.lines[index].kind >= contextLine {
+			keptLine = &file.lines[index]
 		}
 	}
 	screen.files = files
 	screen.dataVersion++
-	fileFound := false
-	screen.fileCursor = 0
-	for index, file := range files {
-		if file.path == keptPath {
-			screen.fileCursor, fileFound = index, true
-			break
-		}
-	}
-	if !fileFound {
-		screen.diffCursor, screen.diffOffset = 0, 0
+	fileIndex := slices.IndexFunc(files, func(file diffFile) bool { return file.path == keptPath })
+	if fileIndex < 0 {
+		screen.fileCursor, screen.diffCursor, screen.diffOffset = 0, 0, 0
 		return
 	}
-	if !hadLine {
+	screen.fileCursor = fileIndex
+	if keptLine == nil {
 		return
 	}
 	screen.rebuildRows()
-	for index, line := range files[screen.fileCursor].lines {
-		if line.kind == keptLine.kind && line.oldNumber == keptLine.oldNumber && line.newNumber == keptLine.newNumber {
-			screen.diffCursor = screen.rowForLine(index)
-			return
-		}
+	lineIndex := slices.IndexFunc(files[fileIndex].lines, func(line diffLine) bool {
+		return line.kind == keptLine.kind && line.oldNumber == keptLine.oldNumber && line.newNumber == keptLine.newNumber
+	})
+	if lineIndex >= 0 {
+		screen.diffCursor = screen.rowForLine(lineIndex)
 	}
 }
 

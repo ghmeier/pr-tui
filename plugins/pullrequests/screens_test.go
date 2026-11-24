@@ -160,23 +160,28 @@ const removedFileDiff = `diff --git a/other.py b/other.py
 +after
 `
 
-func TestOpeningACachedDiffShowsItAtOnceAndLoadsItAgain(t *testing.T) {
+func TestOpeningACachedDiffShowsItAtOnceWhileRefreshing(t *testing.T) {
+	provider := newFakeProvider()
+	model := loadedBoardWith(t, provider)
+	press(t, model, "enter", "esc")
+
+	model.Update(keyMessage("enter"))
+
+	if !strings.Contains(view(model), "+added again") || !strings.Contains(view(model), "Refreshing…") {
+		t.Fatalf("cached diff should show while refreshing:\n%s", view(model))
+	}
+}
+
+func TestOpeningACachedDiffLoadsItAgainAndStopsRefreshing(t *testing.T) {
 	provider := newFakeProvider()
 	model := loadedBoardWith(t, provider)
 	press(t, model, "enter", "esc")
 
 	_, loading := model.Update(keyMessage("enter"))
-
-	if !strings.Contains(view(model), "+added again") || !strings.Contains(view(model), "Refreshing…") {
-		t.Fatalf("cached diff should show while refreshing:\n%s", view(model))
-	}
-	if provider.fetchesOfTheDiff() != 1 {
-		t.Fatalf("diff fetched %d times before the command ran", provider.fetchesOfTheDiff())
-	}
-
+	fetchesBeforeTheCommandRan := provider.fetchesOfTheDiff()
 	plugintest.Settle(t, model, loading)
 
-	if provider.fetchesOfTheDiff() != 2 || strings.Contains(view(model), "Refreshing…") {
+	if fetchesBeforeTheCommandRan != 1 || provider.fetchesOfTheDiff() != 2 || strings.Contains(view(model), "Refreshing…") {
 		t.Fatalf("diff fetched %d times:\n%s", provider.fetchesOfTheDiff(), view(model))
 	}
 }
@@ -191,23 +196,30 @@ func TestOpeningADiffThatIsNotCachedShowsLoadingInsteadOfRefreshing(t *testing.T
 	}
 }
 
-func TestANewerDiffReplacesTheCachedOneWhenItArrivesAndIsCached(t *testing.T) {
+func TestANewerDiffReplacesTheCachedOneWhenItArrives(t *testing.T) {
 	provider := newFakeProvider()
 	model := loadedBoardWith(t, provider)
 	press(t, model, "enter", "esc")
 	provider.diff = newerFixtureDiff
 
 	press(t, model, "enter")
-	replaced := view(model)
-	press(t, model, "esc")
-	model.Update(keyMessage("enter"))
-	cached := view(model)
 
-	if !strings.Contains(replaced, "file 2 of 2") || !strings.Contains(replaced, "aaa.py") {
-		t.Fatalf("the newer diff should replace the cached one:\n%s", replaced)
+	if !strings.Contains(view(model), "file 2 of 2") || !strings.Contains(view(model), "aaa.py") {
+		t.Fatalf("the newer diff should replace the cached one:\n%s", view(model))
 	}
-	if !strings.Contains(cached, "aaa.py") {
-		t.Fatalf("the cache should hold the newer diff:\n%s", cached)
+}
+
+func TestANewerDiffIsCachedForTheNextOpening(t *testing.T) {
+	provider := newFakeProvider()
+	model := loadedBoardWith(t, provider)
+	press(t, model, "enter", "esc")
+	provider.diff = newerFixtureDiff
+	press(t, model, "enter", "esc")
+
+	model.Update(keyMessage("enter"))
+
+	if !strings.Contains(view(model), "aaa.py") {
+		t.Fatalf("the cache should hold the newer diff:\n%s", view(model))
 	}
 }
 
