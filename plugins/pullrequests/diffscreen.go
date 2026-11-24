@@ -248,7 +248,7 @@ type rowsKey struct {
 }
 
 func (screen *diffScreen) diffWidth() int {
-	return max(screen.width-screen.fileListWidth()-3, 1)
+	return max(screen.width-screen.fileListWidth()-splitSeparatorWidth, 1)
 }
 
 func (screen *diffScreen) diffRowCount() int {

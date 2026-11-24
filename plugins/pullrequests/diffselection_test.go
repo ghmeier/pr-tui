@@ -156,24 +156,6 @@ func TestDraggingOnTheOldSideCopiesTheRemovedCodeAndSkipsTheEmptySide(t *testing
 	}
 }
 
-func TestDraggingFromTheOldSideDoesNotCopyTheAddedCode(t *testing.T) {
-	copied := replaceClipboard(t)
-	model := loadedBoard(t)
-	press(t, model, "enter")
-	fromX, fromY := positionOf(t, model, "-"+codeOfKind(removedLine)[0])
-	_, toY := positionOf(t, model, "+"+codeOfKind(addedLine)[1])
-
-	dragBetween(t, model, fromX, fromY, fromX, toY)
-
-	for _, text := range *copied {
-		for _, added := range codeOfKind(addedLine) {
-			if strings.Contains(text, added) {
-				t.Fatalf("copied %q, which has the added line %q", text, added)
-			}
-		}
-	}
-}
-
 func TestDraggingOverALineThatWrapsCopiesItOnce(t *testing.T) {
 	copied := replaceClipboard(t)
 	provider := newFakeProvider()

@@ -10,9 +10,6 @@ import (
 	"github.com/ghmeier/pr-tui/internal/ui"
 )
 
-// splitSeparatorWidth is the width of the separator between the two sides of a side-by-side row.
-const splitSeparatorWidth = 3
-
 // dragSelection is the rows of the diff that the pointer was dragged over. The terminal's own
 // selection spans the whole screen while prs has the mouse, so the diff screen selects lines
 // itself.
@@ -119,24 +116,29 @@ func (screen *diffScreen) release() tea.Cmd {
 func (screen *diffScreen) selectedCode() string {
 	file := screen.files[screen.fileCursor]
 	var code []string
-	copied := -1
+	lastLine := -1
 	for index := min(screen.drag.anchor, screen.drag.end); index <= max(screen.drag.anchor, screen.drag.end); index++ {
 		row := screen.rows[index]
 		line := row.left
 		if screen.showsSplit() && !screen.drag.onOldSide {
 			line = row.right
 		}
-		if row.isComment() || line < 0 || line == copied || file.lines[line].kind < contextLine {
+		if row.isComment() || line < 0 || line == lastLine || file.lines[line].kind < contextLine {
 			continue
 		}
-		copied = line
-		if source := file.lines[line].source; source != "" {
-			code = append(code, source[1:])
-		} else {
-			code = append(code, "")
-		}
+		lastLine = line
+		code = append(code, codeOfSource(file.lines[line].source))
 	}
 	return strings.Join(code, "\n")
+}
+
+// codeOfSource drops the marker that starts a line of a diff. A blank context line may have lost
+// its marker, so the source can be empty.
+func codeOfSource(source string) string {
+	if source == "" {
+		return ""
+	}
+	return source[1:]
 }
 
 // highlightSelected shows the row selected: its chosen side in the side-by-side layout, and
