@@ -2,7 +2,7 @@
 title: Code review, one editing pattern, and diff fixes
 status: active
 tags: [pull-requests, host]
-next_step: Step 1 (editor-effect) dispatched to an implementer.
+next_step: Step 2 (wrap-diff-lines) dispatched; step 1 awaits review as pull request #9.
 created: 2026-11-24
 updated: 2026-11-24
 ---
@@ -111,7 +111,8 @@ No configuration changes.
 Steps 2 to 4 all touch `diffscreen.go`, so they run in sequence.
 
 1. **`editor-effect`** from `main`: the host `Edit` effect with mouse re-enabled, the description
-   screen moved onto it, and `enter` instead of `ctrl+s` submitting the workflow run form. Verify with host tests for the effect
+   screen moved onto it, and `enter` instead of `ctrl+s` submitting the workflow run form.
+   **Done:** pull request #9 (commits 722d703, c6318b6). Verify with host tests for the effect
    (text in, trimmed text to `Done`, editor failure notice, file removed) and a manual check in
    kitty that double-click copies after editing a description.
 2. **`wrap-diff-lines`**: `ui.WrapSegments` and wrapped diff rendering. Verify with tests for
