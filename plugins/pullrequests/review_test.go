@@ -16,7 +16,7 @@ func draftAt(target CommentTarget, body string) DraftComment {
 
 // postedThreadRows are the presses that move from the diff's first line to the first posted
 // comment of the thread on the added line.
-var postedThreadRows = []string{"enter", "j", "j", "j", "j", "j", "j", "j"}
+var postedThreadRows = []string{"enter", "down", "down", "down", "down", "down", "down", "down"}
 
 func assertShows(t *testing.T, model *plugin.Model, expected ...string) {
 	t.Helper()
@@ -98,7 +98,7 @@ func TestCommentKeyOnAPendingCommentEditsIt(t *testing.T) {
 	editorWrites(t, "First draft", "Second draft")
 	model := loadedBoard(t)
 
-	press(t, model, append(pressToTheAddedLine(), "c", "j", "j", "j", "j", "j", "c")...)
+	press(t, model, append(pressToTheAddedLine(), "c", "down", "down", "down", "down", "down", "c")...)
 
 	assertShows(t, model, "Pending comment updated.", "│ Second draft", "· 1 pending")
 	assertDoesNotShow(t, model, "First draft")
@@ -120,7 +120,7 @@ func TestSavingAnEmptyTextOnAPendingCommentRemovesIt(t *testing.T) {
 	editorWrites(t, "First draft", "\n")
 	model := loadedBoard(t)
 
-	press(t, model, append(pressToTheAddedLine(), "c", "j", "j", "j", "j", "j", "c")...)
+	press(t, model, append(pressToTheAddedLine(), "c", "down", "down", "down", "down", "down", "c")...)
 
 	assertShows(t, model, "Pending comment removed.")
 	assertDoesNotShow(t, model, "First draft", "pending")
@@ -211,7 +211,7 @@ func TestHeaderCountsThePendingCommentsOnlyWhenThereAreSome(t *testing.T) {
 	press(t, model, pressToTheAddedLine()[1:]...)
 	press(t, model, "c")
 	withOne := view(model)
-	press(t, model, "j", "j", "j", "j", "j", "j", "j", "c")
+	press(t, model, "down", "down", "down", "down", "down", "down", "down", "c")
 
 	if strings.Contains(withoutAny, "pending") {
 		t.Fatalf("view:\n%s", withoutAny)
@@ -407,7 +407,7 @@ func TestDiffScreenShowsPostedReviewCommentsAsSoonAsTheSubmissionFinishes(t *tes
 	provider.comments = append(provider.comments, ReviewComment{
 		ID: 20, Path: "first.py", Line: 3, Side: CommentSideNew, Author: "newcomer", Body: "Posted by the review",
 	})
-	press(t, model, "k")
+	press(t, model, "up")
 	assertDoesNotShow(t, model, "Posted by the review")
 
 	press(t, model, "a", "3", "y")
@@ -542,7 +542,7 @@ func TestPendingCommentWhoseFileLeftTheDiffIsDrawnAtTheTopOfTheFirstFile(t *test
 func TestOutdatedPendingCommentIsNotDrawnOnAnotherFileThanItsOwn(t *testing.T) {
 	model, _ := reopenedDiffAfterAPush(t, diffWithoutTheAddedLine)
 
-	press(t, model, "down")
+	press(t, model, "j")
 
 	assertDoesNotShow(t, model, "outdated")
 }
