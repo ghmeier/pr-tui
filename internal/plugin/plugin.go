@@ -177,11 +177,13 @@ type Effect struct {
 	// Command runs on a background goroutine. A failure shows "Failed: " and its first line.
 	// State that it shares with a function that runs on the update loop needs a lock.
 	Command func() error
-	// Refresh reloads the whole board after Command succeeds. It is an alternative to
-	// RefreshRow, which is cheaper when the command changed one row.
+	// Refresh reloads the whole board after Command succeeds, or at once when there is no
+	// Command. It is an alternative to RefreshRow, which is cheaper when the command changed one
+	// row.
 	Refresh bool
-	// RefreshRow reloads only this row, with the board's Reload, after Command succeeds. A board
-	// without a Reload is reloaded whole, as Refresh does. It is an alternative to Refresh.
+	// RefreshRow reloads only this row, with the board's Reload, after Command succeeds, or at
+	// once when there is no Command. A board without a Reload is reloaded whole, as Refresh does.
+	// It is an alternative to Refresh.
 	RefreshRow Row
 	// Screen, when set, opens a full-screen view.
 	Screen Screen

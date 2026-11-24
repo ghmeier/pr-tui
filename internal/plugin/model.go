@@ -455,14 +455,21 @@ func (m *Model) finishCommand(message commandFinishedMessage) tea.Cmd {
 	switch {
 	case message.err != nil:
 		board.reportFailure("Failed: " + ui.FirstLine(message.err))
-	case message.refreshRow != nil && board.spec.Reload != nil:
-		return m.reloadRow(message.board, message.refreshRow)
 	case message.refresh || message.refreshRow != nil:
-		return m.load(message.board)
+		return m.reloadAfterEffect(message.board, message.refreshRow)
 	default:
 		board.reportFinished(message.successNotice)
 	}
 	return nil
+}
+
+// reloadAfterEffect reloads the row when there is one and the board can reload a single row,
+// and otherwise the whole board.
+func (m *Model) reloadAfterEffect(index int, row Row) tea.Cmd {
+	if row != nil && m.boards[index].spec.Reload != nil {
+		return m.reloadRow(index, row)
+	}
+	return m.load(index)
 }
 
 // applyLoaded shows a load's rows, or its failure, unless a newer load's rows are already
@@ -613,6 +620,9 @@ func (m *Model) execute(index int, effect Effect) tea.Cmd {
 	}
 	if effect.Edit != nil {
 		return m.startEdit(index, effect.Edit)
+	}
+	if effect.Command == nil && (effect.Refresh || effect.RefreshRow != nil) {
+		commands = append(commands, m.reloadAfterEffect(index, effect.RefreshRow))
 	}
 	if effect.Command != nil {
 		commands = append(commands, m.startCommand(index, effect.Command,

@@ -159,10 +159,7 @@ func (screen *descriptionScreen) update(message tea.Msg) (plugin.Screen, tea.Cmd
 		screen.notice = "Description updated."
 		screen.title = message.description.Title
 		screen.show(message.description.Body)
-		// The command has nothing to do; it is what makes the host reload the row afterwards.
-		return screen, screen.selection.Run(plugin.Effect{
-			Command: func() error { return nil }, RefreshRow: screen.selection.Row,
-		})
+		return screen, screen.selection.Run(plugin.Effect{RefreshRow: screen.selection.Row})
 	case tea.KeyMsg:
 		return screen.handleKey(message.String())
 	}
