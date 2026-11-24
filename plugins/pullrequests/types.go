@@ -87,6 +87,30 @@ func (target CommentTarget) label() string {
 	return fmt.Sprintf("%s line %d (%s)", target.Path, target.Line, version)
 }
 
+// ReviewEvent is how a submitted review ends.
+type ReviewEvent int
+
+const (
+	ReviewEventApprove ReviewEvent = iota
+	ReviewEventRequestChanges
+	ReviewEventComment
+)
+
+// DraftComment is a line comment waiting in a pending review.
+type DraftComment struct {
+	Path string
+	Line int
+	Side CommentSide
+	Body string
+}
+
+// Review is what a reviewer submits in one go.
+type Review struct {
+	Event    ReviewEvent
+	Body     string
+	Comments []DraftComment
+}
+
 // ReviewComment is one comment on a line of a diff. A comment whose code has since changed
 // has no Line.
 type ReviewComment struct {

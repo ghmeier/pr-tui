@@ -33,7 +33,8 @@ type Provider interface {
 	// queue, the provider queues it instead.
 	Merge(pullRequest PullRequest) error
 	RequestTeamReview(pullRequest PullRequest) error
-	Approve(pullRequest PullRequest) error
+	// SubmitReview submits the review once: its event, its body, and its line comments together.
+	SubmitReview(pullRequest PullRequest, review Review) error
 }
 
 // SectionDecoder decodes one table of the configuration file into target, rejecting unknown

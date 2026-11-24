@@ -28,7 +28,7 @@ func (board *pullRequestBoard) actions() []plugin.Action {
 	}
 	return append(actions,
 		plugin.Action{Key: "m", Label: "merge", Run: board.chooseMerge},
-		plugin.Action{Key: "a", Label: "approve", Run: board.approve},
+		plugin.Action{Key: "a", Label: "review", Run: board.review},
 	)
 }
 
@@ -159,23 +159,6 @@ func (board *pullRequestBoard) setAutoMerge(selection plugin.Selection, enabled 
 	}
 }
 
-const approveOwnPullRequestNotice = "You cannot approve your own pull request."
-
-// approve refuses the viewer's own pull request up front, because GitHub rejects it anyway.
-func (board *pullRequestBoard) approve(selection plugin.Selection) plugin.Effect {
-	row := selection.Row.(Row)
-	pr := row.PullRequest
-	if pr.Author == row.Viewer {
-		return plugin.Effect{Notice: approveOwnPullRequestNotice}
-	}
-	return plugin.Effect{
-		Confirm:    pr.approveQuestion(),
-		Notice:     pr.approveNotice(),
-		Command:    func() error { return board.provider.Approve(pr) },
-		RefreshRow: selection.Row,
-	}
-}
-
 // requestTeamReview marks a draft ready first, because a review request on a draft does not
 // ask anyone to look yet. If marking it ready fails, no review is requested.
 func (board *pullRequestBoard) requestTeamReview(selection plugin.Selection) plugin.Effect {
@@ -227,14 +210,6 @@ func (pr PullRequest) requestTeamReviewNotice(reviewTeam string) string {
 		return "Marking " + pr.label() + " ready and requesting review from " + reviewTeam + "…"
 	}
 	return "Requesting review from " + reviewTeam + " on " + pr.label() + "…"
-}
-
-func (pr PullRequest) approveQuestion() string {
-	return "Approve " + pr.label() + "?"
-}
-
-func (pr PullRequest) approveNotice() string {
-	return "Approving " + pr.label() + "…"
 }
 
 // commandToOpenInBrowser is for the screens, which cannot return an Effect.

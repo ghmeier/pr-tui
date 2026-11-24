@@ -60,6 +60,7 @@ type recordedCall struct {
 	flag   bool
 	body   string
 	target CommentTarget
+	review Review
 }
 
 func draftCall(pr PullRequest, draft bool) recordedCall {
@@ -78,8 +79,8 @@ func teamReviewCall(pr PullRequest) recordedCall {
 	return recordedCall{method: "RequestTeamReview", url: pr.URL}
 }
 
-func approveCall(pr PullRequest) recordedCall {
-	return recordedCall{method: "Approve", url: pr.URL}
+func reviewCall(pr PullRequest, review Review) recordedCall {
+	return recordedCall{method: "SubmitReview", url: pr.URL, review: review}
 }
 
 func saveDescriptionCall(pr PullRequest, body string) recordedCall {
@@ -110,6 +111,9 @@ type fakeProvider struct {
 	failures    map[string]error
 	calls       []recordedCall
 	diffFetches int
+	// whileSubmitting, when set, runs inside SubmitReview before the review is recorded, so that a
+	// test can act while a submission is in flight.
+	whileSubmitting func()
 	// listings counts the loads of every pull request, and reloaded holds the URL of each
 	// pull request that was loaded on its own.
 	listings int
@@ -324,8 +328,11 @@ func (fake *fakeProvider) RequestTeamReview(pr PullRequest) error {
 	return fake.change("RequestTeamReview", recordedCall{url: pr.URL})
 }
 
-func (fake *fakeProvider) Approve(pr PullRequest) error {
-	return fake.change("Approve", recordedCall{url: pr.URL})
+func (fake *fakeProvider) SubmitReview(pr PullRequest, review Review) error {
+	if fake.whileSubmitting != nil {
+		fake.whileSubmitting()
+	}
+	return fake.change("SubmitReview", recordedCall{url: pr.URL, review: review})
 }
 
 const (
@@ -517,9 +524,10 @@ type editorSession struct {
 	opened []string
 }
 
-// editorWrites replaces the editor with one that saves the given text, or leaves the file as it
-// was when the text is empty.
-func editorWrites(t *testing.T, text string) *editorSession {
+// editorWrites replaces the editor with one that saves the given texts in turn: the first opening
+// saves the first text, the second the second, and any later one the last. An empty text leaves
+// the file as it was.
+func editorWrites(t *testing.T, texts ...string) *editorSession {
 	t.Helper()
 	session := &editorSession{}
 	original := plugin.RunEditor
@@ -527,6 +535,7 @@ func editorWrites(t *testing.T, text string) *editorSession {
 	plugin.RunEditor = func(path string, finished func(error) tea.Msg) tea.Cmd {
 		return func() tea.Msg {
 			opened, _ := os.ReadFile(path)
+			text := texts[min(len(session.opened), len(texts)-1)]
 			session.opened = append(session.opened, strings.TrimSpace(string(opened)))
 			if text != "" {
 				os.WriteFile(path, []byte(text), 0o600)

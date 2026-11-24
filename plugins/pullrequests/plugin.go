@@ -43,6 +43,7 @@ type pullRequestBoard struct {
 	editor     config.Editor
 	reviewTeam string
 	diffs      *diffCache
+	reviews    *pendingReviews
 }
 
 func (pullRequests *pullRequestsPlugin) Setup(host *plugin.Host) error {
@@ -64,6 +65,7 @@ func (pullRequests *pullRequestsPlugin) Setup(host *plugin.Host) error {
 		editor:     host.Editor(),
 		reviewTeam: provider.ReviewTeam(),
 		diffs:      newDiffCache(),
+		reviews:    newPendingReviews(),
 	}
 	host.AddBoard(plugin.Board{
 		Name:    BoardName,

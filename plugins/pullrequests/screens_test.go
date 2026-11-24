@@ -530,99 +530,6 @@ func pressToTheAddedLine() []string {
 	return []string{"enter", "j", "j", "j", "j", "j"}
 }
 
-func TestCommentPostsOnTheNewLineUnderTheCursor(t *testing.T) {
-	provider := newFakeProvider()
-	model := loadedBoardWith(t, provider)
-
-	press(t, model, append(pressToTheAddedLine(), "c", "Looks good", "ctrl+s")...)
-
-	target := CommentTarget{Path: "first.py", Line: 2, Side: CommentSideNew}
-	assertCalls(t, provider, postCommentCall(provider.pullRequest(1), target, "Looks good"))
-	if !strings.Contains(view(model), "Comment posted on first.py line 2 (new).") {
-		t.Fatalf("view:\n%s", view(model))
-	}
-}
-
-func TestTabMovesTheCommentToTheRemovedLine(t *testing.T) {
-	provider := newFakeProvider()
-
-	press(t, loadedBoardWith(t, provider), append(pressToTheAddedLine(), "tab", "c", "Why remove this?", "ctrl+s")...)
-
-	target := CommentTarget{Path: "first.py", Line: 2, Side: CommentSideOld}
-	assertCalls(t, provider, postCommentCall(provider.pullRequest(1), target, "Why remove this?"))
-}
-
-func TestCommentBoxLeavesTheCodeOnScreen(t *testing.T) {
-	model := loadedBoard(t)
-
-	press(t, model, append(pressToTheAddedLine(), "c", "Draft text")...)
-
-	for _, expected := range []string{"-removed", "+added", "Comment on first.py line 2 (new)", "Draft text", "ctrl+s post"} {
-		if !strings.Contains(view(model), expected) {
-			t.Fatalf("view is missing %q:\n%s", expected, view(model))
-		}
-	}
-}
-
-func TestCommentKeyOnAHeaderLinePostsNothingAndSaysWhy(t *testing.T) {
-	provider := newFakeProvider()
-	model := loadedBoardWith(t, provider)
-
-	press(t, model, "enter", "c")
-
-	assertCalls(t, provider)
-	if !strings.Contains(view(model), "Move to a code line to comment on it.") {
-		t.Fatalf("view:\n%s", view(model))
-	}
-}
-
-func TestCommentBoxShowsTheFailureWhenThePostFails(t *testing.T) {
-	provider := newFakeProvider()
-	provider.fail("PostComment", errorForTests)
-	model := loadedBoardWith(t, provider)
-
-	press(t, model, append(pressToTheAddedLine(), "c", "Looks good", "ctrl+s")...)
-
-	if shown := view(model); !strings.Contains(shown, "Failed: "+errorForTests.Error()) || !strings.Contains(shown, "Looks good") {
-		t.Fatalf("view:\n%s", shown)
-	}
-}
-
-func TestEscapeDiscardsTheCommentWithoutPosting(t *testing.T) {
-	provider := newFakeProvider()
-	model := loadedBoardWith(t, provider)
-
-	press(t, model, append(pressToTheAddedLine(), "c", "Never mind", "esc")...)
-
-	assertCalls(t, provider)
-	if shown := view(model); strings.Contains(shown, "Never mind") || !strings.Contains(shown, "file 1 of 2") {
-		t.Fatalf("view:\n%s", shown)
-	}
-}
-
-func TestTypingBoardKeysInTheCommentBoxOnlyTypes(t *testing.T) {
-	provider := newFakeProvider()
-	commands := recordShell(t)
-	model := loadedBoardWith(t, provider)
-
-	press(t, model, append(pressToTheAddedLine(), "c", "q", "o", "v", "d")...)
-
-	if !strings.Contains(view(model), "qovd") {
-		t.Fatalf("view:\n%s", view(model))
-	}
-	assertCalls(t, provider)
-	assertCommands(t, commands)
-}
-
-func TestCtrlCQuitsFromTheCommentBox(t *testing.T) {
-	model := loadedBoard(t)
-	press(t, model, append(pressToTheAddedLine(), "c")...)
-
-	if !plugintest.Quits(model, "ctrl+c") {
-		t.Fatalf("ctrl+c should quit")
-	}
-}
-
 func TestDiffViewShowsACommentThreadUnderItsLine(t *testing.T) {
 	model := loadedBoard(t)
 	press(t, model, "enter")
@@ -652,21 +559,6 @@ func TestDiffViewLeavesOutOutdatedComments(t *testing.T) {
 	if strings.Contains(view(model), "Outdated remark") {
 		t.Fatalf("an outdated comment was shown:\n%s", view(model))
 	}
-}
-
-func TestCommentKeyOnAThreadRepliesToIt(t *testing.T) {
-	provider := newFakeProvider()
-	model := loadedBoardWith(t, provider)
-	press(t, model, "enter", "j", "j", "j", "j", "j", "j", "j", "c")
-
-	title := view(model)
-	press(t, model, "Thanks", "ctrl+s")
-
-	if !strings.Contains(title, "Reply to reviewer on first.py line 2 (new)") {
-		t.Fatalf("comment box:\n%s", title)
-	}
-	target := CommentTarget{Path: "first.py", Line: 2, Side: CommentSideNew, ReplyTo: provider.comments[0].ID, ReplyAuthor: provider.comments[0].Author}
-	assertCalls(t, provider, postCommentCall(provider.pullRequest(1), target, "Thanks"))
 }
 
 // cursorRow is the line of the view that carries the cursor marker.
@@ -750,26 +642,6 @@ func TestMergeKeyOnAScreenOffersTheMergeChoices(t *testing.T) {
 	}
 }
 
-func TestApproveKeyOnAScreenAsksThenApproves(t *testing.T) {
-	for name, opener := range screenOpeners {
-		t.Run(name, func(t *testing.T) {
-			provider := newFakeProvider()
-			model := loadedBoardWith(t, provider)
-			selected := provider.pullRequest(1)
-			press(t, model, opener...)
-
-			press(t, model, "a")
-			asked := view(model)
-			press(t, model, "y")
-
-			if !strings.Contains(asked, selected.approveQuestion()) {
-				t.Fatalf("view while asking:\n%s", asked)
-			}
-			assertCalls(t, provider, approveCall(selected))
-		})
-	}
-}
-
 func TestReviewKeyOnAScreenRequestsTheTeam(t *testing.T) {
 	for name, opener := range screenOpeners {
 		t.Run(name, func(t *testing.T) {
@@ -809,7 +681,7 @@ func TestScreenHelpOffersTheBoardsChangeKeysBeforeBack(t *testing.T) {
 
 			help := helpLine(model)
 
-			expected := "d draft / ready · t request " + testReviewTeam + " · m merge · a approve · esc back"
+			expected := "d draft / ready · t request " + testReviewTeam + " · m merge · a review · esc back"
 			if !strings.Contains(help, expected) {
 				t.Fatalf("help = %q, expected it to contain %q", help, expected)
 			}
@@ -825,20 +697,7 @@ func TestDescriptionScreenKeepsEForEditing(t *testing.T) {
 	press(t, model, "e")
 
 	assertCalls(t, provider)
-	if strings.Contains(view(model), "Approve") {
+	if strings.Contains(view(model), "Submit review") {
 		t.Fatalf("view:\n%s", view(model))
-	}
-}
-
-func TestChangeKeysTypedIntoACommentDoNotRunActions(t *testing.T) {
-	provider := newFakeProvider()
-	model := loadedBoardWith(t, provider)
-	press(t, model, append(pressToTheAddedLine(), "c")...)
-
-	press(t, model, "d", "t", "m", "a")
-
-	assertCalls(t, provider)
-	if !strings.Contains(view(model), "dtma") {
-		t.Fatalf("the keys should be in the comment:\n%s", view(model))
 	}
 }

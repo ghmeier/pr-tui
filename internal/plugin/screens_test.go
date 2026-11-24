@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -119,6 +120,60 @@ func TestScreenCanOpenAnotherScreenOnTopOfItselfAndReturnToIt(t *testing.T) {
 
 	if opened != "screen "+top.title || screenText(model) != "screen "+bottom.title {
 		t.Fatalf("opened view = %q, view after closing the top screen = %q", opened, screenText(model))
+	}
+}
+
+func commandFinishedMessages(screen *fakeScreen) []CommandFinished {
+	var finished []CommandFinished
+	for _, message := range screen.received {
+		if message, isFinished := message.(CommandFinished); isFinished {
+			finished = append(finished, message)
+		}
+	}
+	return finished
+}
+
+// screenRunningACommand opens a screen whose key "c" runs the command through its selection.
+func screenRunningACommand(t *testing.T, command func() error) (*Model, *fakeScreen) {
+	t.Helper()
+	var selection Selection
+	screen := &fakeScreen{title: "details"}
+	model := modelForBoard(t, boardOpeningScreen(&selection, screen))
+	plugintest.Press(t, model, "x")
+	screen.onKey = func(key string) (Screen, tea.Cmd, bool) {
+		return screen, selection.Run(Effect{Command: command}), key == "c"
+	}
+	return model, screen
+}
+
+func TestOpenScreenIsToldWhenACommandSucceeds(t *testing.T) {
+	model, screen := screenRunningACommand(t, func() error { return nil })
+
+	plugintest.Press(t, model, "c")
+
+	if finished := commandFinishedMessages(screen); len(finished) != 1 || finished[0].Err != nil {
+		t.Fatalf("the screen was told %+v", finished)
+	}
+}
+
+func TestOpenScreenIsToldWhyACommandFailed(t *testing.T) {
+	failure := errors.New("cannot do that")
+	model, screen := screenRunningACommand(t, func() error { return failure })
+
+	plugintest.Press(t, model, "c")
+
+	if finished := commandFinishedMessages(screen); len(finished) != 1 || finished[0].Err != failure {
+		t.Fatalf("the screen was told %+v", finished)
+	}
+}
+
+func TestScreenIsNotToldOfACommandThatHasNotFinished(t *testing.T) {
+	model, screen := screenRunningACommand(t, func() error { return nil })
+
+	plugintest.Press(t, model, "j")
+
+	if finished := commandFinishedMessages(screen); len(finished) != 0 {
+		t.Fatalf("the screen was told %+v", finished)
 	}
 }
 

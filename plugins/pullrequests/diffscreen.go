@@ -6,8 +6,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/charmbracelet/bubbles/cursor"
-	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
@@ -15,8 +13,6 @@ import (
 	"github.com/ghmeier/pr-tui/internal/plugin"
 	"github.com/ghmeier/pr-tui/internal/ui"
 )
-
-const commentRows = 4
 
 type (
 	diffLoadedMessage struct {
@@ -32,6 +28,7 @@ type (
 	commentPostedMessage struct {
 		url    string
 		target CommentTarget
+		body   string
 		err    error
 	}
 )
@@ -81,13 +78,13 @@ func (board *pullRequestBoard) loadComments(pr PullRequest) tea.Cmd {
 
 func (board *pullRequestBoard) sendComment(pr PullRequest, target CommentTarget, body string) tea.Cmd {
 	return func() tea.Msg {
-		return commentPostedMessage{url: pr.URL, target: target, err: board.provider.PostComment(pr, target, body)}
+		return commentPostedMessage{url: pr.URL, target: target, body: body, err: board.provider.PostComment(pr, target, body)}
 	}
 }
 
-// diffScreen shows a pull request's diff, file by file, with its review comments and a box to
-// write a new one. It learns its size from View, which is drawn after every update, so a key
-// that depends on the size uses the size of the last drawing.
+// diffScreen shows a pull request's diff, file by file, with its review comments and the
+// comments pending in the review. It learns its size from View, which is drawn after every
+// update, so a key that depends on the size uses the size of the last drawing.
 type diffScreen struct {
 	board       *pullRequestBoard
 	pullRequest PullRequest
@@ -120,19 +117,21 @@ type diffScreen struct {
 	// dataVersion changes whenever the files or the comment threads are replaced.
 	dataVersion int
 
-	commenting       bool
 	commentOnOldSide bool
-	commentTarget    CommentTarget
-	commentInput     textarea.Model
-	commentPosting   bool
-	commentError     string
+	// failedReplies holds the text of each reply that could not be posted, by the id of the
+	// comment it answers, so that the next reply to that thread starts from it.
+	failedReplies map[int64]string
+	// seenSubmissions is how many reviews of this pull request had been submitted when the
+	// comments were last loaded.
+	seenSubmissions int
 }
 
 func (board *pullRequestBoard) newDiffScreen(selection plugin.Selection) *diffScreen {
 	pr := pullRequestOf(selection)
 	screen := &diffScreen{
 		board: board, pullRequest: pr, selection: selection, lineCount: selection.Data(linesHeader),
-		splitDiff: true, width: 120, height: 30,
+		splitDiff: true, width: 120, height: 30, seenSubmissions: board.reviews.submissions(pr.URL),
+		failedReplies: map[int64]string{},
 	}
 	if files, cached := board.diffs.lookup(pr); cached {
 		screen.files, screen.refreshing = files, true
@@ -211,10 +210,16 @@ func (screen *diffScreen) replaceFiles(files []diffFile) {
 	}
 }
 
-func (screen *diffScreen) diffRows() int {
-	if screen.commenting {
-		return max(screen.height-3-commentRows, 1)
+// draftIsOutdatedIn says whether a pending comment whose line is not in the diff is shown at the
+// top of this file: the comment's own file when it is still in the diff, and otherwise the first.
+func (screen *diffScreen) draftIsOutdatedIn(draft DraftComment, file diffFile) bool {
+	if slices.ContainsFunc(screen.files, func(other diffFile) bool { return other.path == draft.Path }) {
+		return file.path == draft.Path
 	}
+	return screen.fileCursor == 0
+}
+
+func (screen *diffScreen) diffRows() int {
 	return max(screen.height-3, 1)
 }
 
@@ -235,6 +240,8 @@ type rowsKey struct {
 	splitDiff   bool
 	width       int
 	dataVersion int
+	// reviewVersion changes when a pending comment is added, edited, removed, or submitted.
+	reviewVersion int
 }
 
 func (screen *diffScreen) diffWidth() int {
@@ -246,10 +253,10 @@ func (screen *diffScreen) diffRowCount() int {
 }
 
 // rebuildRows lays out the selected file for the current layout and width, with each
-// comment thread directly under the line it is attached to. A line too long for the width
-// takes a row for each of its wrapped parts.
+// comment thread and pending comment directly under the line they are attached to. A line too
+// long for the width takes a row for each of its wrapped parts.
 func (screen *diffScreen) rebuildRows() {
-	key := rowsKey{screen.fileCursor, screen.showsSplit(), screen.width, screen.dataVersion}
+	key := rowsKey{screen.fileCursor, screen.showsSplit(), screen.width, screen.dataVersion, screen.board.reviews.currentVersion()}
 	if screen.rowsBuilt && key == screen.rowsKey {
 		return
 	}
@@ -276,11 +283,34 @@ func (screen *diffScreen) rebuildRows() {
 	diffWidth := screen.diffWidth()
 	file := screen.files[screen.fileCursor]
 	commentWidth := max(screen.width-screen.fileListWidth()-7, 20)
+	pending := map[threadKey][]DraftComment{}
+	anchored := map[threadKey]bool{}
+	for _, line := range file.lines {
+		for _, key := range line.threadKeys(file.path) {
+			anchored[key] = true
+		}
+	}
+	drafts := screen.board.reviews.drafts(screen.pullRequest.URL)
+	for _, draft := range drafts {
+		key := threadKey{draft.Path, draft.Side, draft.Line}
+		if anchored[key] {
+			pending[key] = append(pending[key], draft)
+		} else if screen.draftIsOutdatedIn(draft, file) {
+			for _, text := range draft.renderOutdated(commentWidth) {
+				screen.rows = append(screen.rows, viewRow{left: -1, right: -1, draft: &draft, comment: text})
+			}
+		}
+	}
 	appendThreads := func(lineIndex int) {
 		for _, key := range file.lines[lineIndex].threadKeys(file.path) {
 			for _, thread := range screen.threads[key] {
 				for _, text := range thread.render(commentWidth) {
 					screen.rows = append(screen.rows, viewRow{left: lineIndex, right: lineIndex, thread: thread, comment: text})
+				}
+			}
+			for _, draft := range pending[key] {
+				for _, text := range draft.render(commentWidth) {
+					screen.rows = append(screen.rows, viewRow{left: lineIndex, right: lineIndex, draft: &draft, comment: text})
 				}
 			}
 		}
@@ -322,7 +352,7 @@ func (screen *diffScreen) cursorLine() int {
 
 func (screen *diffScreen) rowForLine(line int) int {
 	for index, row := range screen.rows {
-		if row.thread == nil && (row.left == line || row.right == line) {
+		if !row.isComment() && (row.left == line || row.right == line) {
 			return index
 		}
 	}
@@ -330,12 +360,17 @@ func (screen *diffScreen) rowForLine(line int) int {
 }
 
 func (screen *diffScreen) cursorCommentTarget() (CommentTarget, bool) {
+	if screen.diffCursor >= 0 && screen.diffCursor < len(screen.rows) {
+		switch row := screen.rows[screen.diffCursor]; {
+		case row.thread != nil:
+			return row.thread.replyTarget(), true
+		case row.draft != nil:
+			return row.draft.target(), true
+		}
+	}
 	index := screen.cursorLine()
 	if index < 0 {
 		return CommentTarget{}, false
-	}
-	if thread := screen.rows[screen.diffCursor].thread; thread != nil {
-		return thread.replyTarget(), true
 	}
 	file := screen.files[screen.fileCursor]
 	switch line := file.lines[index]; line.kind {
@@ -347,57 +382,69 @@ func (screen *diffScreen) cursorCommentTarget() (CommentTarget, bool) {
 	return CommentTarget{}, false
 }
 
-func (screen *diffScreen) startComment() tea.Cmd {
+// comment writes in the editor. On a code line or a pending comment it keeps the text in the
+// pending review; on a posted thread it is a reply, which is posted at once because a review
+// cannot carry replies.
+func (screen *diffScreen) comment() tea.Cmd {
 	target, isCodeLine := screen.cursorCommentTarget()
-	if !isCodeLine {
+	switch {
+	case !isCodeLine:
 		screen.notice = "Move to a code line to comment on it."
 		return nil
+	case target.ReplyTo != 0:
+		return screen.reply(target)
 	}
-	screen.commenting = true
-	screen.commentTarget, screen.commentPosting, screen.commentError = target, false, ""
-	screen.commentInput = textarea.New()
-	screen.commentInput.Placeholder = "Write a comment…"
-	screen.commentInput.ShowLineNumbers = false
-	screen.commentInput.CharLimit = 0
-	screen.commentInput.SetWidth(screen.width)
-	screen.commentInput.SetHeight(commentRows)
-	screen.commentInput.Cursor.SetMode(cursor.CursorStatic)
-	return screen.commentInput.Focus()
+	return screen.writePendingComment(target)
 }
 
-func (screen *diffScreen) handleCommentKey(message tea.KeyMsg) tea.Cmd {
-	switch message.String() {
-	case "esc":
-		if !screen.commentPosting {
-			screen.commenting = false
+func (screen *diffScreen) edit(text string, done func(text string) tea.Cmd) tea.Cmd {
+	return screen.selection.Run(plugin.Effect{Edit: &plugin.Edit{Text: text, Done: done}})
+}
+
+func (screen *diffScreen) writePendingComment(target CommentTarget) tea.Cmd {
+	url := screen.pullRequest.URL
+	existing, isPending := screen.board.reviews.draftFor(url, target)
+	return screen.edit(existing.Body, func(text string) tea.Cmd {
+		switch {
+		case text == "" && isPending:
+			screen.board.reviews.remove(url, target)
+			screen.notice = "Pending comment removed."
+		case text == "":
+			screen.notice = "Comment discarded."
+		default:
+			pending := screen.board.reviews.save(url, DraftComment{Path: target.Path, Line: target.Line, Side: target.Side, Body: text})
+			if isPending {
+				screen.notice = "Pending comment updated."
+			} else {
+				screen.notice = fmt.Sprintf("Added to your review (%d pending) · a submits it", pending)
+			}
 		}
 		return nil
-	case "ctrl+s":
-		body := strings.TrimSpace(screen.commentInput.Value())
-		if screen.commentPosting || body == "" {
+	})
+}
+
+func (screen *diffScreen) reply(target CommentTarget) tea.Cmd {
+	return screen.edit(screen.failedReplies[target.ReplyTo], func(text string) tea.Cmd {
+		delete(screen.failedReplies, target.ReplyTo)
+		if text == "" {
+			screen.notice = "Comment discarded."
 			return nil
 		}
-		screen.commentPosting, screen.commentError = true, ""
-		return screen.board.sendComment(screen.pullRequest, screen.commentTarget, body)
-	}
-	if screen.commentPosting {
-		return nil
-	}
-	var command tea.Cmd
-	screen.commentInput, command = screen.commentInput.Update(message)
-	return command
+		screen.notice = "Posting reply…"
+		return screen.board.sendComment(screen.pullRequest, target, text)
+	})
 }
 
 func (screen *diffScreen) cursorIsOnNewSide(index int) bool {
 	row := screen.rows[index]
-	return screen.showsSplit() && row.thread == nil && row.left != row.right && screen.cursorLine() == row.right
+	return screen.showsSplit() && !row.isComment() && row.left != row.right && screen.cursorLine() == row.right
 }
 
 func (screen *diffScreen) renderDiffRow(index, width int) string {
 	file := screen.files[screen.fileCursor]
 	row := screen.rows[index]
 	switch {
-	case row.thread != nil:
+	case row.isComment():
 		return ansi.Truncate("  "+row.comment, width, "…")
 	case !screen.showsSplit():
 		return partOf(file.lines[row.left].renderLines(width), row.part)
@@ -474,6 +521,17 @@ func (screen *diffScreen) Update(message tea.Msg) (plugin.Screen, tea.Cmd) {
 	return next, command
 }
 
+// reloadCommentsAfterSubmission fetches the comments again once a review has been submitted,
+// because the comments it carried are posted comments from then on.
+func (screen *diffScreen) reloadCommentsAfterSubmission() tea.Cmd {
+	submissions := screen.board.reviews.submissions(screen.pullRequest.URL)
+	if submissions == screen.seenSubmissions {
+		return nil
+	}
+	screen.seenSubmissions = submissions
+	return screen.board.loadComments(screen.pullRequest)
+}
+
 func (screen *diffScreen) update(message tea.Msg) (plugin.Screen, tea.Cmd) {
 	switch message := message.(type) {
 	case diffLoadedMessage:
@@ -494,12 +552,12 @@ func (screen *diffScreen) update(message tea.Msg) (plugin.Screen, tea.Cmd) {
 		if message.url != screen.pullRequest.URL {
 			return screen, nil
 		}
-		screen.commentPosting = false
 		if message.err != nil {
-			screen.commentError = ui.FirstLine(message.err)
+			screen.failedReplies[message.target.ReplyTo] = message.body
+			screen.notice = "Failed: " + ui.FirstLine(message.err) + " · press c to try again"
 			return screen, nil
 		}
-		screen.commenting = false
+		delete(screen.failedReplies, message.target.ReplyTo)
 		screen.notice = "Comment posted on " + message.target.label() + "."
 		return screen, screen.board.loadComments(screen.pullRequest)
 	case commentsLoadedMessage:
@@ -512,17 +570,10 @@ func (screen *diffScreen) update(message tea.Msg) (plugin.Screen, tea.Cmd) {
 		}
 		screen.threads = groupThreads(message.comments)
 		screen.dataVersion++
+	case plugin.CommandFinished:
+		return screen, screen.reloadCommentsAfterSubmission()
 	case tea.KeyMsg:
-		if screen.commenting {
-			return screen, screen.handleCommentKey(message)
-		}
 		return screen.handleKey(message.String())
-	default:
-		if screen.commenting {
-			var command tea.Cmd
-			screen.commentInput, command = screen.commentInput.Update(message)
-			return screen, command
-		}
 	}
 	return screen, nil
 }
@@ -548,7 +599,7 @@ func (screen *diffScreen) handleKey(key string) (plugin.Screen, tea.Cmd) {
 	case "tab":
 		screen.commentOnOldSide = !screen.commentOnOldSide
 	case "c":
-		return screen, screen.startComment()
+		return screen, screen.comment()
 	case "k":
 		screen.diffCursor = screen.previousLineRow(screen.diffCursor)
 	case "j":
@@ -605,24 +656,6 @@ func (screen *diffScreen) body() []string {
 	return body
 }
 
-func (screen *diffScreen) commentPanel() []string {
-	title := ui.BoldStyle.Render("Comment on " + screen.commentTarget.label())
-	if screen.commentTarget.ReplyTo != 0 {
-		title = ui.BoldStyle.Render("Reply to " + screen.commentTarget.ReplyAuthor + " on " + screen.commentTarget.label())
-	}
-	switch {
-	case screen.commentPosting:
-		title += ui.DimStyle.Render("  Posting…")
-	case screen.commentError != "":
-		title += "  " + ui.RedStyle.Render("Failed: "+screen.commentError)
-	}
-	return []string{
-		ansi.Truncate(title, screen.width, "…"),
-		screen.commentInput.View(),
-		ui.HelpLine("ctrl+s", "post", "esc", "cancel"),
-	}
-}
-
 func (screen *diffScreen) help() string {
 	position := ""
 	if len(screen.files) > 0 {
@@ -642,9 +675,6 @@ func (screen *diffScreen) help() string {
 
 // View adopts the size it is drawn at, so that what follows a resize is laid out for it.
 func (screen *diffScreen) View(width, height int) string {
-	if width != screen.width && screen.commenting {
-		screen.commentInput.SetWidth(width)
-	}
 	screen.width, screen.height = width, height
 	screen.keepPositionVisible()
 	pr := screen.pullRequest
@@ -653,14 +683,13 @@ func (screen *diffScreen) View(width, height int) string {
 		header += ui.DimStyle.Render("  Refreshing…")
 	}
 	header += "  " + ui.StyledText(lineCountCellSegments(screen.lineCount))
+	if pending := len(screen.board.reviews.drafts(pr.URL)); pending > 0 {
+		header += ui.DimStyle.Render(fmt.Sprintf(" · %d pending", pending))
+	}
 	lines := append([]string{ansi.Truncate(header, screen.width, "…")}, screen.body()...)
 	for len(lines) < screen.diffRows()+1 {
 		lines = append(lines, "")
 	}
-	if screen.commenting {
-		lines = append(lines, screen.commentPanel()...)
-	} else {
-		lines = append(lines, ansi.Truncate(screen.notice, screen.width, "…"), ansi.Truncate(screen.help(), screen.width, "…"))
-	}
+	lines = append(lines, ansi.Truncate(screen.notice, screen.width, "…"), ansi.Truncate(screen.help(), screen.width, "…"))
 	return strings.Join(lines, "\n")
 }

@@ -40,7 +40,9 @@ func wrapDiff() string {
 
 // wrappingScreen is a diff screen over the text with nothing else around it.
 func wrappingScreen(text string, splitDiff bool, width, height int) *diffScreen {
-	screen := &diffScreen{files: parseDiff(text), splitDiff: splitDiff, width: width, height: height}
+	screen := &diffScreen{
+		board: &pullRequestBoard{reviews: newPendingReviews()}, files: parseDiff(text), splitDiff: splitDiff, width: width, height: height,
+	}
 	screen.keepPositionVisible()
 	return screen
 }

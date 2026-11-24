@@ -97,7 +97,7 @@ Board keys:
 | `d` | Toggle draft / ready for review |
 | `t` | Request review from the configured team, marking a draft ready for review first |
 | `m` | Merge now (squash, after a confirmation), or enable or disable auto-merge (squash) |
-| `a` | Approve someone else's pull request, after a confirmation |
+| `a` | Review: approve, request changes, or comment, written in your editor. It submits the pending comments you have collected in the diff view, after a confirmation. On your own pull request only a comment review is offered |
 | `f` | Filter by repository and by people or bots: `j`/`k` move, `space` toggles, `1` to `9` toggle the first nine options, `b` switches people and bots |
 | `tab` / `shift+tab` | Switch tabs, when plugins add more than one |
 | `←` / `→` or `h` / `l` | Move between the boards that share a tab, such as the workflow sections |
@@ -117,13 +117,16 @@ Diff view keys:
 | `↑` / `↓` | Previous / next file |
 | `j` / `k`, `space` / `b` | Move the line cursor by a line or a page |
 | `s` | Toggle split and unified layouts; a file that was added or deleted opens unified, and the key changes only that file |
-| `c` | Comment on the line under the cursor, or reply to the thread under it (`ctrl+s` posts) |
+| `c` | Write a comment in your editor on the line under the cursor and add it to the pending review. On a posted thread it replies at once, and on a pending comment it edits it (saving nothing removes it) |
 | `tab` | Choose the old or new side of a split row for the comment |
 | `d` | Toggle draft / ready for review |
 | `t` | Request review from the configured team, as on the board |
 | `m` | Merge now (squash, after a confirmation), or enable or disable auto-merge (squash) |
-| `a` | Approve someone else's pull request, after a confirmation |
+| `a` | Review: approve, request changes, or comment, written in your editor. It submits the pending comments you have collected in the diff view, after a confirmation. On your own pull request only a comment review is offered |
 | `esc` | Back |
+
+Pending comments are kept in memory, so they are lost when `prs` quits. They are posted together when
+you submit a review with `a`.
 
 Description view keys:
 
@@ -134,7 +137,7 @@ Description view keys:
 | `d` | Toggle draft / ready for review |
 | `t` | Request review from the configured team, as on the board |
 | `m` | Merge now (squash, after a confirmation), or enable or disable auto-merge (squash) |
-| `a` | Approve someone else's pull request, after a confirmation |
+| `a` | Review: approve, request changes, or comment, written in your editor. It submits the pending comments you have collected in the diff view, after a confirmation. On your own pull request only a comment review is offered |
 | `esc` | Back |
 
 ## Agent plans
