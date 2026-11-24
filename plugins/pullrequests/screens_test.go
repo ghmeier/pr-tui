@@ -2,6 +2,7 @@ package pullrequests
 
 import (
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -469,23 +470,103 @@ func TestDescriptionFailureToLoadIsShownInTheDescription(t *testing.T) {
 	}
 }
 
-func TestEditingTheDescriptionUpdatesThePullRequest(t *testing.T) {
+// firstPullRequestText is what the editor opens with for the first pull request of the fixture.
+func firstPullRequestText(provider *fakeProvider) string {
+	return provider.pullRequest(1).Title + "\n\n" + provider.description
+}
+
+func TestEditingTheDescriptionOpensTheTitleABlankLineAndTheBody(t *testing.T) {
 	provider := newFakeProvider()
-	editorWrites(t, "Edited description\n")
+	session := editorWrites(t, "")
 	model := loadedBoardWith(t, provider)
 
 	press(t, model, "p", "e")
 
-	assertCalls(t, provider, saveDescriptionCall(provider.pullRequest(1), "Edited description"))
+	if len(session.opened) != 1 || session.opened[0] != firstPullRequestText(provider) {
+		t.Fatalf("the editor was opened with %q, expected %q", session.opened, firstPullRequestText(provider))
+	}
+}
+
+func TestEditingTheTitleSavesItWithTheUnchangedBody(t *testing.T) {
+	provider := newFakeProvider()
+	original := provider.pullRequest(1)
+	editorWrites(t, "Edited title\n\n"+provider.description)
+	model := loadedBoardWith(t, provider)
+
+	press(t, model, "p", "e")
+
+	assertCalls(t, provider, saveDescriptionCall(original, Description{Title: "Edited title", Body: provider.description}))
+}
+
+func TestEditingTheBodySavesItWithTheUnchangedTitle(t *testing.T) {
+	provider := newFakeProvider()
+	original := provider.pullRequest(1)
+	editorWrites(t, original.Title+"\n\nEdited description\n")
+	model := loadedBoardWith(t, provider)
+
+	press(t, model, "p", "e")
+
+	assertCalls(t, provider, saveDescriptionCall(original, Description{Title: original.Title, Body: "Edited description"}))
 	if shown := view(model); !strings.Contains(shown, "Edited description") || !strings.Contains(shown, "Description updated.") {
 		t.Fatalf("view:\n%s", shown)
+	}
+}
+
+func TestOnlyTheFirstLineOfTheEditedTextIsTheTitle(t *testing.T) {
+	provider := newFakeProvider()
+	original := provider.pullRequest(1)
+	editorWrites(t, "  Edited title  \nStill the body\n\nMore body")
+	model := loadedBoardWith(t, provider)
+
+	press(t, model, "p", "e")
+
+	assertCalls(t, provider, saveDescriptionCall(original, Description{Title: "Edited title", Body: "Still the body\n\nMore body"}))
+}
+
+func TestSavingANewTitleShowsItInTheHeaderAndReloadsOnlyThatRow(t *testing.T) {
+	provider := newFakeProvider()
+	selected := provider.pullRequest(1)
+	editorWrites(t, "Edited title\n\n"+provider.description)
+	model := loadedBoardWith(t, provider)
+	listingsBefore, _ := provider.loads()
+
+	press(t, model, "p", "e")
+	shown := view(model)
+	press(t, model, "esc")
+
+	listings, reloaded := provider.loads()
+	if !strings.Contains(shown, "Edited title") || strings.Contains(shown, selected.Title) {
+		t.Fatalf("description view:\n%s", shown)
+	}
+	if expected := []string{selected.URL}; listings != listingsBefore || !slices.Equal(reloaded, expected) {
+		t.Fatalf("reloaded %v, expected %v; %d more full loads", reloaded, expected, listings-listingsBefore)
+	}
+	if !strings.Contains(view(model), "Edited title") {
+		t.Fatalf("board view:\n%s", view(model))
+	}
+}
+
+func TestDescriptionHeaderShowsTheRowsTitleWhileLoadingAndTheLoadedTitleAfter(t *testing.T) {
+	provider := newFakeProvider()
+	model := loadedBoardWith(t, provider)
+	title := provider.pullRequest(1).Title
+
+	_, loading := model.Update(keyMessage("p"))
+	whileLoading := view(model)
+	plugintest.Settle(t, model, loading)
+
+	if !strings.Contains(whileLoading, title) || !strings.Contains(whileLoading, "Loading description…") {
+		t.Fatalf("while loading:\n%s", whileLoading)
+	}
+	if !strings.Contains(view(model), title) || strings.Contains(view(model), "Loading description…") {
+		t.Fatalf("loaded:\n%s", view(model))
 	}
 }
 
 func TestFailedSaveOfTheDescriptionKeepsTheEditAndSaysHowToEditItAgain(t *testing.T) {
 	provider := newFakeProvider()
 	provider.fail("SaveDescription", errorForTests)
-	editorWrites(t, "Edited description\n")
+	editorWrites(t, "Edited title\n\nEdited description\n")
 	model := loadedBoardWith(t, provider)
 
 	press(t, model, "p", "e")
@@ -498,25 +579,25 @@ func TestFailedSaveOfTheDescriptionKeepsTheEditAndSaysHowToEditItAgain(t *testin
 func TestEditingAgainAfterAFailedSaveOpensTheFailedEdit(t *testing.T) {
 	provider := newFakeProvider()
 	provider.fail("SaveDescription", errorForTests)
-	session := editorWrites(t, "Edited description\n")
+	original := firstPullRequestText(provider)
+	session := editorWrites(t, "Edited title\n\nEdited description\n")
 	model := loadedBoardWith(t, provider)
 
 	press(t, model, "p", "e", "e")
 
-	original := provider.description
-	if len(session.opened) != 2 || session.opened[0] != strings.TrimSpace(original) || session.opened[1] != "Edited description" {
-		t.Fatalf("the editor was opened with %q, the description was %q", session.opened, original)
+	if len(session.opened) != 2 || session.opened[0] != original || session.opened[1] != "Edited title\n\nEdited description" {
+		t.Fatalf("the editor was opened with %q, the text was %q", session.opened, original)
 	}
 }
 
-func TestEditingAfterASuccessfulSaveOpensTheSavedDescription(t *testing.T) {
+func TestEditingAfterASuccessfulSaveOpensTheSavedTitleAndDescription(t *testing.T) {
 	provider := newFakeProvider()
-	session := editorWrites(t, "Edited description\n")
+	session := editorWrites(t, "Edited title\n\nEdited description\n")
 	model := loadedBoardWith(t, provider)
 
 	press(t, model, "p", "e", "e")
 
-	if len(session.opened) != 2 || session.opened[1] != "Edited description" {
+	if len(session.opened) != 2 || session.opened[1] != "Edited title\n\nEdited description" {
 		t.Fatalf("the editor was opened with %q", session.opened)
 	}
 }
@@ -524,7 +605,7 @@ func TestEditingAfterASuccessfulSaveOpensTheSavedDescription(t *testing.T) {
 func TestFailedSaveOfTheDescriptionLeavesANoticeOnTheBoardAfterTheScreenCloses(t *testing.T) {
 	provider := newFakeProvider()
 	provider.fail("SaveDescription", errorForTests)
-	editorWrites(t, "Edited description\n")
+	editorWrites(t, "Edited title\n\nEdited description\n")
 	model := loadedBoardWith(t, provider)
 	plugintest.Resize(t, model, 400, 30)
 
@@ -548,7 +629,7 @@ func TestClosingTheEditorWithoutChangesUpdatesNothing(t *testing.T) {
 	}
 }
 
-func TestSavingAnEmptyDescriptionUpdatesNothing(t *testing.T) {
+func TestSavingAnEmptyTitleUpdatesNothingAndSaysWhy(t *testing.T) {
 	provider := newFakeProvider()
 	editorWrites(t, "\n")
 	model := loadedBoardWith(t, provider)
@@ -556,8 +637,20 @@ func TestSavingAnEmptyDescriptionUpdatesNothing(t *testing.T) {
 	press(t, model, "p", "e")
 
 	assertCalls(t, provider)
-	if !strings.Contains(view(model), "Description unchanged.") {
+	if !strings.Contains(view(model), "A pull request needs a title.") {
 		t.Fatalf("view:\n%s", view(model))
+	}
+}
+
+func TestEditingAgainAfterAnEmptyTitleOpensTheTitleAndDescriptionAgain(t *testing.T) {
+	provider := newFakeProvider()
+	session := editorWrites(t, "\n")
+	model := loadedBoardWith(t, provider)
+
+	press(t, model, "p", "e", "e")
+
+	if expected := firstPullRequestText(provider); len(session.opened) != 2 || session.opened[1] != expected {
+		t.Fatalf("the editor was opened with %q, expected %q twice", session.opened, expected)
 	}
 }
 

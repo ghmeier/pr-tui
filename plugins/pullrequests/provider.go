@@ -23,8 +23,8 @@ type Provider interface {
 	Diff(pullRequest PullRequest) (string, error)
 	// ChangedFiles lists the files the pull request touches that still exist on its branch.
 	ChangedFiles(pullRequest PullRequest) ([]string, error)
-	Description(pullRequest PullRequest) (string, error)
-	SaveDescription(pullRequest PullRequest, body string) error
+	Description(pullRequest PullRequest) (Description, error)
+	SaveDescription(pullRequest PullRequest, description Description) error
 	Comments(pullRequest PullRequest) ([]ReviewComment, error)
 	PostComment(pullRequest PullRequest, target CommentTarget, body string) error
 	SetDraft(pullRequest PullRequest, draft bool) error

@@ -14,31 +14,31 @@ import (
 type (
 	descriptionLoadedMessage struct {
 		pullRequest PullRequest
-		body        string
+		description Description
 		err         error
 	}
 	descriptionSavedMessage struct {
 		pullRequest PullRequest
-		body        string
+		description Description
 		err         error
 	}
 )
 
 func (board *pullRequestBoard) loadDescription(pr PullRequest) tea.Cmd {
 	return func() tea.Msg {
-		body, err := board.provider.Description(pr)
-		return descriptionLoadedMessage{pullRequest: pr, body: body, err: err}
+		description, err := board.provider.Description(pr)
+		return descriptionLoadedMessage{pullRequest: pr, description: description, err: err}
 	}
 }
 
-// updateDescription saves the description. A failure is also put on the board as a notice,
+// updateDescription saves the title and the body. A failure is also put on the board as a notice,
 // because the screen that would have shown it may have been closed by the time it arrives.
-func (board *pullRequestBoard) updateDescription(selection plugin.Selection, body string) tea.Cmd {
+func (board *pullRequestBoard) updateDescription(selection plugin.Selection, description Description) tea.Cmd {
 	pr := pullRequestOf(selection)
 	return func() tea.Msg {
-		err := board.provider.SaveDescription(pr, body)
+		err := board.provider.SaveDescription(pr, description)
 		saved := func() tea.Msg {
-			return descriptionSavedMessage{pullRequest: pr, body: body, err: err}
+			return descriptionSavedMessage{pullRequest: pr, description: description, err: err}
 		}
 		if err == nil {
 			return saved()
@@ -47,8 +47,8 @@ func (board *pullRequestBoard) updateDescription(selection plugin.Selection, bod
 	}
 }
 
-// descriptionScreen shows a pull request's description as rendered markdown, and lets it be
-// edited in the user's editor.
+// descriptionScreen shows a pull request's description as rendered markdown, and lets the title
+// and the description be edited together in the user's editor.
 type descriptionScreen struct {
 	board       *pullRequestBoard
 	pullRequest PullRequest
@@ -56,7 +56,9 @@ type descriptionScreen struct {
 	selection plugin.Selection
 	width     int
 	height    int
-	body      string
+	// title is the title as loaded or last saved. It is empty until the description has loaded.
+	title string
+	body  string
 	// failedEdit is the text of an edit that could not be saved, which the next edit starts from
 	// so that it is not lost. It is empty when there is none.
 	failedEdit string
@@ -95,20 +97,32 @@ func (screen *descriptionScreen) show(body string) {
 	screen.renderedWidth = screen.width
 }
 
-// edit opens the description in the editor, or the last edit that could not be saved.
+// edit opens the title and the description in the editor laid out like a commit message, or
+// the last edit that could not be saved.
 func (screen *descriptionScreen) edit() tea.Cmd {
-	text := cmp.Or(screen.failedEdit, screen.body)
+	text := cmp.Or(screen.failedEdit, screen.title+"\n\n"+screen.body)
 	return screen.selection.Run(plugin.Effect{Edit: &plugin.Edit{Text: text, Done: screen.finishEditing}})
+}
+
+// parseEditedDescription reads the first line as the title and the rest as the body.
+func parseEditedDescription(text string) Description {
+	title, body, _ := strings.Cut(text, "\n")
+	return Description{Title: strings.TrimSpace(title), Body: strings.TrimSpace(body)}
 }
 
 func (screen *descriptionScreen) finishEditing(edited string) tea.Cmd {
 	screen.failedEdit = ""
-	if edited == "" || edited == strings.TrimSpace(screen.body) {
+	description := parseEditedDescription(edited)
+	if description.Title == "" {
+		screen.notice = "A pull request needs a title."
+		return nil
+	}
+	if description.Title == screen.title && description.Body == strings.TrimSpace(screen.body) {
 		screen.notice = "Description unchanged."
 		return nil
 	}
 	screen.notice = "Updating description…"
-	return screen.board.updateDescription(screen.selection, edited)
+	return screen.board.updateDescription(screen.selection, description)
 }
 
 // Update ignores messages about other pull requests, because screens are given every message
@@ -130,19 +144,25 @@ func (screen *descriptionScreen) update(message tea.Msg) (plugin.Screen, tea.Cmd
 			screen.notice = "Failed: " + ui.FirstLine(message.err)
 			return screen, nil
 		}
-		screen.show(message.body)
+		screen.title = message.description.Title
+		screen.show(message.description.Body)
 	case descriptionSavedMessage:
 		if message.pullRequest.URL != screen.pullRequest.URL {
 			return screen, nil
 		}
 		if message.err != nil {
-			screen.failedEdit = message.body
+			screen.failedEdit = message.description.Title + "\n\n" + message.description.Body
 			screen.notice = "Failed: " + ui.FirstLine(message.err) + " · press e to edit again"
 			return screen, nil
 		}
 		screen.failedEdit = ""
 		screen.notice = "Description updated."
-		screen.show(message.body)
+		screen.title = message.description.Title
+		screen.show(message.description.Body)
+		// The command has nothing to do; it is what makes the host reload the row afterwards.
+		return screen, screen.selection.Run(plugin.Effect{
+			Command: func() error { return nil }, RefreshRow: screen.selection.Row,
+		})
 	case tea.KeyMsg:
 		return screen.handleKey(message.String())
 	}
@@ -189,7 +209,7 @@ func (screen *descriptionScreen) View(width, height int) string {
 	}
 	screen.keepVisible()
 	pr := screen.pullRequest
-	header := ansi.Truncate(ui.BoldStyle.Render(pr.label())+"  "+pr.Title, screen.width, "…")
+	header := ansi.Truncate(ui.BoldStyle.Render(pr.label())+"  "+cmp.Or(screen.title, pr.Title), screen.width, "…")
 	body := []string{ui.DimStyle.Render("Loading description…")}
 	if !screen.loading {
 		body = screen.lines[min(screen.offset, len(screen.lines)):]
