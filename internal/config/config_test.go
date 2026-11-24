@@ -186,6 +186,40 @@ func TestLoadRejectsEditorCommandsThatCannotRun(t *testing.T) {
 	}
 }
 
+func TestLoadReadsATextCommandAsAStringOrAList(t *testing.T) {
+	asString := mustLoadText(t, "[editor]\ntext_command = \"/opt/My Tools/write\"\n")
+	asList := mustLoadText(t, "[editor]\ntext_command = [\"kitty\", \"@\", \"launch\"]\n")
+
+	if !reflect.DeepEqual(asString.Editor.TextCommand, []string{"/opt/My Tools/write"}) {
+		t.Fatalf("string form = %q", asString.Editor.TextCommand)
+	}
+	if !reflect.DeepEqual(asList.Editor.TextCommand, []string{"kitty", "@", "launch"}) {
+		t.Fatalf("list form = %q", asList.Editor.TextCommand)
+	}
+}
+
+func TestLoadLeavesTheTextCommandEmptyWhenItIsNotSet(t *testing.T) {
+	file := mustLoadText(t, "[editor]\nname = \"x\"\n")
+
+	if len(file.Editor.TextCommand) != 0 {
+		t.Fatalf("text command = %q", file.Editor.TextCommand)
+	}
+}
+
+func TestLoadRejectsTextCommandsThatCannotRunAndNamesTheKey(t *testing.T) {
+	rejected := map[string]struct{ value, message string }{
+		"an empty list":                    {`[]`, "[editor] text_command needs an executable"},
+		"a list with a non-string element": {`["kitty", 3]`, "[editor] text_command must contain only strings"},
+		"a number":                         {`3`, "[editor] text_command must be a string or a list of strings"},
+	}
+
+	for description, example := range rejected {
+		t.Run(description, func(t *testing.T) {
+			assertRejected(t, "[editor]\ntext_command = "+example.value+"\n", example.message)
+		})
+	}
+}
+
 func TestLoadLeavesJudgingPluginNamesToTheHost(t *testing.T) {
 	file := mustLoadText(t, `plugins = ["calendar"]`)
 

@@ -37,6 +37,7 @@ refresh_interval = "3m"            # a Go duration, at least 1s; default 3m
 name = "VS Code"                   # shown in the help line; default "VS Code"
 command = "code"                   # default "code"; a string is one executable, spaces included
 # command = ["code", "--reuse-window"]   # or a list: the executable, then its arguments
+# text_command = ["kitty", "@", "launch", "--type=window", "--location=vsplit", "--cwd=current", "--wait-for-child-to-exit", "nvim"]
 
 [pull_requests]
 provider = "github"                # only "github" is supported; default "github"
@@ -56,6 +57,22 @@ repositories = ["acme/storefront", "acme/billing"]   # required; owner/name
 The repositories and the review team belong to the provider, so they live in the table named
 after it. Without `review_team`, the `t` key is disabled and no team is highlighted or counted
 as waiting on you.
+
+By default, writing a comment, a review, or a description hands the whole terminal to `$VISUAL` or
+`$EDITOR`. Set `text_command` to run a command beside prs instead, so the diff stays visible
+and usable while you write. The file's path is added as the last argument, and prs reads the file when the
+command exits. With kitty, the example above opens a split next to prs. Turn on remote control over a socket
+in `kitty.conf` and restart kitty:
+
+```
+allow_remote_control socket-only
+listen_on unix:/tmp/kitty
+```
+
+Use a socket rather than `allow_remote_control yes` alone: without one, `kitty @` talks to kitty
+through the terminal that prs is reading keys from. `--location=vsplit` splits only in kitty's
+Splits layout (`enabled_layouts splits`). Other terminals can use a wrapper script that opens a
+pane and waits for the editor to exit.
 
 A mistake in the file, such as an unknown key or a repository not written as `owner/name`,
 is reported at startup with the file, the table, and the key.

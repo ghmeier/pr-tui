@@ -3,12 +3,14 @@ package plugin
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/ghmeier/pr-tui/internal/plugin/plugintest"
+	"github.com/ghmeier/pr-tui/internal/shell"
 )
 
 // editorSession is a replaced editor, and what it was opened with.
@@ -161,6 +163,125 @@ func TestEditTurnsMouseReportingBackOnAfterTheEditorReturns(t *testing.T) {
 				t.Fatalf("messages after the editor returned: %v", flatten(afterwards))
 			}
 		})
+	}
+}
+
+// textCommandRuns configures a text command and replaces shell.Run with one that records the
+// command line and saves the given text into the file it was given, or fails with the error.
+func textCommandRuns(t *testing.T, model *Model, text string, failure error) *[][]string {
+	t.Helper()
+	t.Setenv("TMPDIR", t.TempDir())
+	model.textCommand = []string{"split-editor", "--wait"}
+	var commandLines [][]string
+	original := shell.Run
+	t.Cleanup(func() { shell.Run = original })
+	shell.Run = func(arguments ...string) ([]byte, error) {
+		commandLines = append(commandLines, arguments)
+		if failure != nil {
+			return nil, failure
+		}
+		return []byte("0"), os.WriteFile(arguments[len(arguments)-1], []byte(text), 0o600)
+	}
+	return &commandLines
+}
+
+func TestEditWithATextCommandRunsItWithTheFilePathAddedAtTheEnd(t *testing.T) {
+	model := modelForBoard(t, editBoard(&Edit{Text: "original"}))
+	commandLines := textCommandRuns(t, model, "saved", nil)
+
+	plugintest.Press(t, model, "x")
+
+	if len(*commandLines) != 1 {
+		t.Fatalf("command lines = %v", *commandLines)
+	}
+	line := (*commandLines)[0]
+	prefix := len(model.textCommand)
+	if len(line) != prefix+1 || !reflect.DeepEqual(line[:prefix], model.textCommand) || !strings.HasSuffix(line[prefix], ".md") {
+		t.Fatalf("command line = %v", line)
+	}
+}
+
+func TestEditWithATextCommandDoesNotUseTheInTerminalEditor(t *testing.T) {
+	session := editorSaves(t, "from the terminal", nil)
+	model := modelForBoard(t, editBoard(&Edit{Text: "original"}))
+	textCommandRuns(t, model, "saved", nil)
+
+	plugintest.Press(t, model, "x")
+
+	if len(session.opened) != 0 {
+		t.Fatalf("the in-terminal editor was opened with %q", session.opened)
+	}
+}
+
+func TestEditWithATextCommandHandsDoneTheSavedText(t *testing.T) {
+	var received []string
+	model := modelForBoard(t, editBoard(&Edit{Text: "original", Done: func(text string) tea.Cmd {
+		received = append(received, text)
+		return nil
+	}}))
+	textCommandRuns(t, model, "\nsaved beside\n", nil)
+
+	plugintest.Press(t, model, "x")
+
+	if len(received) != 1 || received[0] != "saved beside" {
+		t.Fatalf("Done received %q", received)
+	}
+}
+
+func TestEditWithATextCommandDoesNotRunItOnTheUpdateLoop(t *testing.T) {
+	model := modelForBoard(t, editBoard(&Edit{Text: "original"}))
+	commandLines := textCommandRuns(t, model, "saved", nil)
+
+	model.Update(plugintest.KeyMessage("x"))
+
+	if len(*commandLines) != 0 {
+		t.Fatalf("the command ran on the update loop: %v", *commandLines)
+	}
+}
+
+func TestEditWithATextCommandShowsANoticeUntilItExits(t *testing.T) {
+	model := modelForBoard(t, editBoard(&Edit{Text: "original"}))
+	textCommandRuns(t, model, "saved", nil)
+
+	_, command := model.Update(plugintest.KeyMessage("x"))
+
+	if !strings.Contains(statusLine(model), writingNotice) {
+		t.Fatalf("status = %q", statusLine(model))
+	}
+	model.Update(command())
+	if strings.Contains(statusLine(model), writingNotice) {
+		t.Fatalf("status after it exited = %q", statusLine(model))
+	}
+}
+
+func TestEditWithATextCommandKeepsItsOwnNoticeInsteadOfTheDefault(t *testing.T) {
+	model := modelForBoard(t, boardWithEffect(func(fakeRow) Effect {
+		return Effect{Notice: "Opening a split", Edit: &Edit{Text: "original"}}
+	}))
+	textCommandRuns(t, model, "saved", nil)
+
+	model.Update(plugintest.KeyMessage("x"))
+
+	if status := statusLine(model); !strings.Contains(status, "Opening a split") || strings.Contains(status, writingNotice) {
+		t.Fatalf("status = %q", status)
+	}
+}
+
+func TestEditWithATextCommandThatFailsShowsEditorFailedAndDoesNotCallDone(t *testing.T) {
+	called := false
+	model := modelForBoard(t, editBoard(&Edit{Text: "original", Done: func(string) tea.Cmd {
+		called = true
+		return nil
+	}}))
+	textCommandRuns(t, model, "", errorWithTwoLines)
+
+	plugintest.Press(t, model, "x")
+
+	if status := statusLine(model); !strings.Contains(status, "Editor failed: first line") || strings.Contains(status, "second line") {
+		t.Fatalf("status = %q", status)
+	}
+	if called {
+		t.Fatalf("Done was called")
 	}
 }
 
