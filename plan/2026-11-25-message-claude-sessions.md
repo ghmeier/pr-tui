@@ -232,5 +232,8 @@ None. Columns, actions, `Edit`, `Choice`, and `Command` cover it.
   comments and review text on the description screen, branch `conversation-comments` from #22.
 - 2026-11-25: Conversation on the description screen: #23, `bfe5db2`, refactor `64ea80b`, 1076 tests.
   Real data on gazebo#21493 is three bot comments, two with HTML bodies (`<details>`, `<h2>`).
+- 2026-11-25: Wheel scrolling on the description and document screens: `b976609` on #23. Next:
+  selecting and replying to conversation comments (j/k select, c reply with a quote), branch
+  `conversation-replies` from #23.
 - 2026-11-25: Auto mode blocked my own relay test from inside a Claude session, so the user
   runs it.
