@@ -43,6 +43,8 @@ type boardState struct {
 	// failure is the text of the last notice that reported a failure. A success does not clear
 	// a notice that still says so, because the failure has not been read yet.
 	failure string
+	// offerable are the board's actions that take a kind of value. They never change after setup.
+	offerable []Action
 	// running counts the commands of effects that have started and not yet finished.
 	running int
 }
@@ -105,8 +107,20 @@ func (board *boardState) selectionOf(row Row) Selection {
 		Row:        row,
 		Data:       func(header string) any { return loaded[header] },
 		boardIndex: board.index,
-		current:    func() (Row, bool) { return board.rowWithKey(row.Key()) },
+		latest: func() (Selection, bool) {
+			current, found := board.rowWithKey(row.Key())
+			if !found {
+				return Selection{}, false
+			}
+			return board.selectionOf(current), true
+		},
+		offerable: board.offerable,
 	}
+}
+
+// offerableActions are the actions of the board that take a kind of value.
+func offerableActions(spec Board) []Action {
+	return slices.DeleteFunc(slices.Clone(spec.Actions), func(action Action) bool { return action.Takes == "" })
 }
 
 // reportFailure shows a failure notice that later successes leave in place until a load or a

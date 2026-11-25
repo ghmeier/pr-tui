@@ -102,11 +102,21 @@ func onBranch(name, repository, branch string) Session {
 // start loads the pull request board with the column and the action, over the sessions.
 func (fixture boardFixture) start(t *testing.T, provider *fakeProvider) *plugin.Model {
 	t.Helper()
+	return fixture.startWith(t, provider)
+}
+
+// startWith is start with more plugins enabled after the others.
+func (fixture boardFixture) startWith(t *testing.T, provider *fakeProvider, others ...plugin.Plugin) *plugin.Model {
+	t.Helper()
 	registerFake(t, provider)
 	pullRequestProvider := &pullrequeststest.Provider{Source: fixture.source, Open: []pullrequests.PullRequest{fixture.signIn, fixture.tidy}}
-	text := fmt.Sprintf("plugins = [%q, %q]\n[pull_requests]\nprovider = %q\n[agent_sessions]\nprovider = \"fake\"\n",
-		pullrequests.BoardName, pluginName, pullrequeststest.Register(t, pullRequestProvider))
-	host, err := plugin.NewHost("config.toml", configtest.Load(t, text), plugin.Registered())
+	enabled := []string{fmt.Sprintf("%q", pullrequests.BoardName), fmt.Sprintf("%q", pluginName)}
+	for _, other := range others {
+		enabled = append(enabled, fmt.Sprintf("%q", other.Name()))
+	}
+	text := fmt.Sprintf("plugins = [%s]\n[pull_requests]\nprovider = %q\n[agent_sessions]\nprovider = \"fake\"\n",
+		strings.Join(enabled, ", "), pullrequeststest.Register(t, pullRequestProvider))
+	host, err := plugin.NewHost("config.toml", configtest.Load(t, text), append(plugin.Registered(), others...))
 	if err != nil {
 		t.Fatal(err)
 	}

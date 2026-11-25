@@ -51,6 +51,13 @@ func (reviews *pendingReviews) drafts(url string) []DraftComment {
 	return slices.Clone(reviews.entry(url).drafts)
 }
 
+// count is how many comments are pending, for a label that is drawn on every update.
+func (reviews *pendingReviews) count(url string) int {
+	reviews.mutex.Lock()
+	defer reviews.mutex.Unlock()
+	return len(reviews.entry(url).drafts)
+}
+
 func (reviews *pendingReviews) draftFor(url string, target CommentTarget) (DraftComment, bool) {
 	reviews.mutex.Lock()
 	defer reviews.mutex.Unlock()

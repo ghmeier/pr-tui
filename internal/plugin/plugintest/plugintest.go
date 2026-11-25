@@ -112,6 +112,12 @@ func Send(t *testing.T, model tea.Model, message tea.Msg) {
 	Settle(t, model, command)
 }
 
+// Mouse delivers one mouse event and settles what follows.
+func Mouse(t *testing.T, model tea.Model, button tea.MouseButton, action tea.MouseAction) {
+	t.Helper()
+	Send(t, model, tea.MouseMsg{Button: button, Action: action})
+}
+
 // Press presses the keys in order, settling the commands after each.
 func Press(t *testing.T, model tea.Model, keys ...string) {
 	t.Helper()

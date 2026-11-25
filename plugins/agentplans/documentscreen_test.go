@@ -1,6 +1,7 @@
 package agentplans
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -8,9 +9,12 @@ import (
 	"sync"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/ghmeier/pr-tui/internal/plugin"
 	"github.com/ghmeier/pr-tui/internal/plugin/plugintest"
 	"github.com/ghmeier/pr-tui/internal/shell"
+	"github.com/ghmeier/pr-tui/internal/ui"
 )
 
 const framedBody = "---\ntitle: Framed plan\nstatus: active\n---\n\n# Framed heading\n\nThe body text.\n"
@@ -151,6 +155,72 @@ func TestDocumentScreenScrollsThroughALongDocument(t *testing.T) {
 
 	if lineWith(model, "The very last paragraph") == "" {
 		t.Fatalf("screen:\n%s", strings.Join(screenLines(model), "\n"))
+	}
+}
+
+func longDocument() doc {
+	var body strings.Builder
+	for number := 1; number <= 100; number++ {
+		fmt.Fprintf(&body, "Paragraph %03d\n\n", number)
+	}
+	return doc{file: "plan/long.md", kind: "plan", title: "Long plan", updated: "2026-11-12", body: body.String()}
+}
+
+func TestDocumentScreenWheelDownScrollsByOneNotch(t *testing.T) {
+	model, _ := openedDocument(t, longDocument())
+	top := screenLines(model)
+
+	plugintest.Mouse(t, model, tea.MouseButtonWheelDown, tea.MouseActionPress)
+
+	if screenLines(model)[1] != top[1+ui.WheelNotchLines] {
+		t.Fatalf("wheel down did not move by a notch:\n%s", strings.Join(screenLines(model), "\n"))
+	}
+}
+
+func TestDocumentScreenWheelUpScrollsBackByOneNotch(t *testing.T) {
+	model, _ := openedDocument(t, longDocument())
+	top := screenLines(model)
+	plugintest.Mouse(t, model, tea.MouseButtonWheelDown, tea.MouseActionPress)
+
+	plugintest.Mouse(t, model, tea.MouseButtonWheelUp, tea.MouseActionPress)
+
+	if !reflect.DeepEqual(screenLines(model), top) {
+		t.Fatalf("wheel up did not return to the top:\n%s", strings.Join(screenLines(model), "\n"))
+	}
+}
+
+func TestDocumentScreenWheelUpAtTheTopStaysPut(t *testing.T) {
+	model, _ := openedDocument(t, longDocument())
+	top := screenLines(model)
+
+	plugintest.Mouse(t, model, tea.MouseButtonWheelUp, tea.MouseActionPress)
+
+	if !reflect.DeepEqual(screenLines(model), top) {
+		t.Fatalf("wheel up at the top moved the view:\n%s", strings.Join(screenLines(model), "\n"))
+	}
+}
+
+func TestDocumentScreenWheelDownAtTheEndStaysPut(t *testing.T) {
+	model, _ := openedDocument(t, longDocument())
+	plugintest.Press(t, model, "end")
+	bottom := screenLines(model)
+
+	plugintest.Mouse(t, model, tea.MouseButtonWheelDown, tea.MouseActionPress)
+
+	if !reflect.DeepEqual(screenLines(model), bottom) {
+		t.Fatalf("wheel down at the end moved the view:\n%s", strings.Join(screenLines(model), "\n"))
+	}
+}
+
+func TestDocumentScreenIgnoresMouseEventsThatAreNotWheelPresses(t *testing.T) {
+	model, _ := openedDocument(t, longDocument())
+	top := screenLines(model)
+
+	plugintest.Mouse(t, model, tea.MouseButtonLeft, tea.MouseActionPress)
+	plugintest.Mouse(t, model, tea.MouseButtonWheelDown, tea.MouseActionRelease)
+
+	if !reflect.DeepEqual(screenLines(model), top) {
+		t.Fatalf("the view moved:\n%s", strings.Join(screenLines(model), "\n"))
 	}
 }
 

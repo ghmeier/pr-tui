@@ -98,7 +98,7 @@ func TestDiffViewRightArrowChoosesTheNewSideAgainAfterTheOldSide(t *testing.T) {
 	editorWrites(t, "Looks good", "")
 	model := loadedBoardWith(t, provider)
 
-	press(t, model, append(pressToTheAddedLine(), "left", "right", "c", "a", "3", "y")...)
+	press(t, model, append(pressToTheAddedLine(), "left", "right", "c", chooseAddToReview, "a", "3", "y")...)
 
 	review := Review{Event: ReviewEventComment, Comments: []DraftComment{draftAt(addedLineTarget, "Looks good")}}
 	assertCalls(t, provider, reviewCall(provider.pullRequest(1), review))
@@ -109,7 +109,7 @@ func TestDiffViewTabDoesNotChangeTheSideOfAComment(t *testing.T) {
 	editorWrites(t, "Looks good", "")
 	model := loadedBoardWith(t, provider)
 
-	press(t, model, append(pressToTheAddedLine(), "tab", "c", "a", "3", "y")...)
+	press(t, model, append(pressToTheAddedLine(), "tab", "c", chooseAddToReview, "a", "3", "y")...)
 
 	review := Review{Event: ReviewEventComment, Comments: []DraftComment{draftAt(addedLineTarget, "Looks good")}}
 	assertCalls(t, provider, reviewCall(provider.pullRequest(1), review))
@@ -672,7 +672,7 @@ func TestDiffViewStartsSplitAndTogglesToUnified(t *testing.T) {
 
 // pressToTheAddedLine opens the first pull request's diff and moves to the added line "added".
 func pressToTheAddedLine() []string {
-	return []string{"enter", "down", "down", "down", "down", "down"}
+	return []string{"enter", "down", "down", "down", "down", "down", "down"}
 }
 
 func TestDiffViewShowsACommentThreadUnderItsLine(t *testing.T) {

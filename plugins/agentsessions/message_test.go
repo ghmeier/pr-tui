@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ghmeier/pr-tui/internal/plugin"
 	"github.com/ghmeier/pr-tui/internal/plugin/plugintest"
 )
 
@@ -16,7 +17,12 @@ func prefillFor(fixture boardFixture) string {
 		pullRequest.Repository.Owner, pullRequest.Repository.Name, pullRequest.Number, pullRequest.Title, pullRequest.URL, pullRequest.HeadBranch)
 }
 
-func TestMessageActionSaysSoWhenNoSessionMentionsThePullRequest(t *testing.T) {
+func helpLine(model *plugin.Model) string {
+	lines := screenLines(model)
+	return lines[len(lines)-1]
+}
+
+func TestMessageActionIsHiddenAndItsKeyDoesNothingWhenNoSessionMentionsThePullRequest(t *testing.T) {
 	fixture := newBoardFixture()
 	provider := &fakeProvider{sessions: []Session{fixture.mentioning("storefront-1", fixture.signIn)}}
 	model := fixture.start(t, provider)
@@ -24,11 +30,22 @@ func TestMessageActionSaysSoWhenNoSessionMentionsThePullRequest(t *testing.T) {
 
 	plugintest.Press(t, model, "down", "c")
 
-	if status := statusLine(model); !strings.Contains(status, "No live agent session mentions this pull request") {
-		t.Fatalf("status = %q", status)
+	if help := helpLine(model); strings.Contains(help, "message session") {
+		t.Fatalf("help = %q", help)
 	}
 	if len(editor.opened) != 0 || len(provider.sent) != 0 {
 		t.Fatalf("editor opened %d times, %d messages sent", len(editor.opened), len(provider.sent))
+	}
+}
+
+func TestMessageActionIsShownWhenASessionMentionsThePullRequest(t *testing.T) {
+	fixture := newBoardFixture()
+	model := fixture.start(t, &fakeProvider{sessions: []Session{fixture.mentioning("storefront-1", fixture.signIn)}})
+
+	help := helpLine(model)
+
+	if !strings.Contains(help, "c message session") {
+		t.Fatalf("help = %q", help)
 	}
 }
 

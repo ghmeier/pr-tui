@@ -93,20 +93,17 @@ type Selection struct {
 	// reads a copy made when the selection was built, so it is safe to call from any
 	// goroutine, including an Effect.Command.
 	Data func(columnHeader string) any
+	// Value is what a screen offered the action for, or nil when the action ran from its key.
+	Value any
 
 	boardIndex int
-	current    func() (Row, bool)
-}
-
-// Current is the board's version of this selection's row as it is now, found by the row's key
-// among all the rows the board has loaded. Row, in contrast, stays as it was when the selection
-// was built. The second result is false when the board no longer has the row. It reads the
-// board's rows, so call it only on the update loop, such as from a screen's Update or View.
-func (selection Selection) Current() (Row, bool) {
-	if selection.current == nil {
-		return nil, false
-	}
-	return selection.current()
+	// latest is the selection for the same row built from the board's rows and data as they are
+	// now, which differ from this selection's copy once more has loaded. It is false when the
+	// board no longer has the row.
+	latest func() (Selection, bool)
+	// offerable are the board's actions that take a kind of value. They never change after setup,
+	// so a selection shares them safely with any goroutine.
+	offerable []Action
 }
 
 // Run has the host carry out an effect for this selection's board, from a screen or a
@@ -129,10 +126,73 @@ func (selection Selection) RunAction(key string) tea.Cmd {
 	}
 }
 
-// Action is a key that does something to the selected row.
+// Latest is this selection rebuilt from the board's rows and data as they are now, found by the
+// row's key among all the rows the board has loaded, or this selection when the board no longer
+// has the row. Row and Data, in contrast, stay as they were when the selection was built. A screen
+// uses it to decide what to show from what has loaded since it opened. It reads the board, so
+// call it only on the update loop, such as from a screen's Update or View.
+func (selection Selection) Latest() Selection {
+	if selection.latest != nil {
+		if latest, found := selection.latest(); found {
+			return latest
+		}
+	}
+	return selection
+}
+
+// Offers lists the labels of the board's actions that take the kind of value and apply to the
+// row as the board has it now, in the order they were added. A screen with a value of that kind
+// shows them as choices. The row's data may have loaded since the screen opened, so Applies sees
+// the board's current data rather than this selection's copy, as RunOffer does. It runs the
+// actions' Applies functions, so call it only on the update loop.
+func (selection Selection) Offers(kind string) []string {
+	if selection.latest != nil {
+		latest, found := selection.latest()
+		if !found {
+			return nil
+		}
+		selection = latest
+	}
+	var labels []string
+	for _, action := range selection.offerable {
+		if action.Takes == kind && action.offeredFor(selection) {
+			labels = append(labels, action.Label)
+		}
+	}
+	return labels
+}
+
+// RunOffer has the host run the board's action with that label for the value, on the row as the
+// board has it now. The action reads the value from Selection.Value, and its effect is applied
+// like any other. When the board no longer has the row, or has no such action or the action no
+// longer applies, the board shows a notice saying so and nothing runs.
+func (selection Selection) RunOffer(label string, value any) tea.Cmd {
+	return func() tea.Msg {
+		return offerMessage{board: selection.boardIndex, rowKey: selection.Row.Key(), label: label, value: value}
+	}
+}
+
+// offeredFor is whether a screen may offer the action for the selection.
+func (action Action) offeredFor(selection Selection) bool {
+	return action.Applies == nil || action.Applies(selection)
+}
+
+// Action is something that can be done to the selected row, either with a key on the board or,
+// when it takes a kind of value, as an offer from a screen.
 type Action struct {
+	// Key is the key that runs the action. An action that takes a value has none.
 	Key string
-	// Label is shown in the help line. An empty label hides the action there.
+	// Takes, when set, is the kind of value the action works on, such as "comment". Such an
+	// action has no key: a screen offers it, by its label, for a value of that kind, and its Run
+	// reads the value from Selection.Value. It is not shown in the help line.
+	Takes string
+	// Applies, when set, says whether the action applies to the selection: a screen offers an
+	// action that takes a value only if it does, and a keyed action that does not apply is hidden
+	// from the help line and its key does nothing, as when LabelFor returns "". It runs on the
+	// update loop, so it must return quickly.
+	Applies func(selection Selection) bool
+	// Label is shown in the help line. An empty label hides the action there. An action that
+	// takes a value needs one, because it is what a screen offers.
 	Label string
 	// LabelFor, when set, replaces Label for the selected row. An empty label means the action
 	// does not apply to that row: it is hidden from the help line and its key does nothing. It
@@ -143,16 +203,20 @@ type Action struct {
 	Run func(selection Selection) Effect
 }
 
-// LabelOf is the action's label for the row, and whether the action applies to it. A nil row,
-// which an empty board has, applies only to an action without LabelFor.
-func (action Action) LabelOf(row Row) (label string, applies bool) {
+// LabelOf is the action's label for the selection's row, and whether the action applies to it.
+// A selection without a row, which an empty board has, applies only to an action with neither
+// LabelFor nor Applies.
+func (action Action) LabelOf(selection Selection) (label string, applies bool) {
+	if selection.Row == nil {
+		return action.Label, action.LabelFor == nil && action.Applies == nil
+	}
+	if !action.offeredFor(selection) {
+		return "", false
+	}
 	if action.LabelFor == nil {
 		return action.Label, true
 	}
-	if row == nil {
-		return "", false
-	}
-	label = action.LabelFor(row)
+	label = action.LabelFor(selection.Row)
 	return label, label != ""
 }
 
@@ -163,6 +227,8 @@ type Choice struct {
 	Options  []string
 	// Current is marked among the options, or empty.
 	Current string
+	// Cancel, when set, returns what esc does. Without it esc does nothing.
+	Cancel func() Effect
 	// Menu shows the options in a list above the board, or at the bottom of a screen, instead of
 	// in the status line. It suits a choice that can have more options than number keys: the list
 	// scrolls, typing narrows it to the options that contain the typed text, ignoring case, the
@@ -178,6 +244,11 @@ type Choice struct {
 type Effect struct {
 	// Notice is shown in the status line while Command runs.
 	Notice string
+	// Then, when set, is a command the host starts along with the effect. The message it returns
+	// reaches the open screens like any message the host does not recognise, so a screen can ask
+	// a question and get the work of the answer done by its own command. It is dropped when
+	// Choice or Edit is set, and with Confirm it starts only after the answer is yes.
+	Then tea.Cmd
 	// Choice, when set, is asked before anything else, and the host does nothing else with this
 	// effect. The effect that Pick returns for the chosen option is applied like any other, so
 	// it may ask a question of its own.

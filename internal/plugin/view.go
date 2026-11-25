@@ -60,9 +60,9 @@ func (m *Model) help() string {
 		return ""
 	}
 	var keysAndLabels []string
-	row, _ := m.current().selected()
+	selection, _ := m.current().selection()
 	for _, action := range m.current().spec.Actions {
-		if label, _ := action.LabelOf(row); label != "" {
+		if label, _ := action.LabelOf(selection); label != "" && action.Takes == "" {
 			keysAndLabels = append(keysAndLabels, action.Key, label)
 		}
 	}
