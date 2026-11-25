@@ -50,6 +50,10 @@ review_team = "engineering"        # optional
 [agent_plans]                      # read only when "agent_plans" is in plugins
 repositories = ["~/git/storefront", "~/git/billing"]   # required; checkouts that contain a .apl directory
 
+[agent_sessions]                   # read only when "agent_sessions" is in plugins; every key is optional
+provider = "claude"                # only "claude" is supported; default "claude"
+relay_model = "haiku"              # the model that relays a message to a session; default "haiku"
+
 [workflows]                        # read only when "workflows" is in plugins
 repositories = ["acme/storefront", "acme/billing"]   # required; owner/name
 ```
@@ -183,6 +187,26 @@ checkout. That needs apl 0.9.0 or later; the rest of the board works with older 
 `pull_requests` is on too, its board gets a `Plan` column with the title
 of the document linked to each pull request's branch with `apl link <document> --branch <name>`,
 and `+N` when more documents are linked.
+
+## Agent sessions
+
+The `agent_sessions` plugin finds the live Claude Code sessions (the ones `claude agents` lists)
+that are working on each pull request, and sends them a message. It is off until you add
+`"agent_sessions"` to `plugins`, it needs `claude` on your `PATH` and logged in, and it adds to the
+pull request board when `pull_requests` is on.
+
+The board gets a `Session` column with the name of the most recently active matching session, its status
+(`busy` or `blocked`) when it is not idle, and `+N` when more match. A session matches a pull request when it
+has mentioned the pull request's address (prs reads the last 2 MiB of the session's transcript under
+`~/.claude/projects`), or when it is on the pull request's head branch in a checkout of the same repository.
+A session in a worktree counts as a session of the main checkout.
+
+`c` writes a message about the selected pull request in your editor, opened on a few lines naming the pull
+request, its address, and its branch, and sends what you save to the session. With several matching
+sessions it asks which one first. Saving the text unchanged sends nothing. Claude Code has no command to
+send a message, so prs runs a one-shot `claude -p` that can only call `SendMessage`, on the model
+`relay_model`, which takes a few seconds. A session is addressed by its name, so a send fails when two
+live sessions share one; rename one with `/rename`.
 
 ## Workflows
 
