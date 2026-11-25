@@ -189,5 +189,10 @@ None. Columns, actions, `Edit`, `Choice`, and `Command` cover it.
   accepts "sent" ignoring case and trailing punctuation. Left alone: the provider recognises
   `github.com/.../pull/N` URLs in transcripts, a text heuristic like the agent plans board's;
   the repository in a URL is compared with exact case; the relay's `--name prs` is fixed.
+- 2026-11-25: The user wants a live session shown as an emoji in the State column instead of a
+  Session column. The host gains `Column.Within`: a column whose cell is drawn at the end of
+  another column's cell on the same board. The agent sessions column joins
+  `pullrequests.StateColumn` with 🤖 (my choice of emoji; cheap to change). Step 2 joins the
+  agent plans board's Status column the same way.
 - 2026-11-25: Auto mode blocked my own relay test from inside a Claude session, so the user
   runs it.
