@@ -4,7 +4,7 @@ status: active
 tags: [plugins, agent-sessions]
 created: 2026-11-25
 updated: 2026-11-25
-next_step: Check one real send from the app, mark #20 ready; then the agent plans board step from diff-review-keys.
+next_step: Step 3, the Session mark and message action on the agent plans board, from main.
 ---
 # Message Claude sessions from pull requests and plans
 
@@ -133,12 +133,12 @@ None. Columns, actions, `Edit`, `Choice`, and `Command` cover it.
 
 ## Steps
 
-1. **`agent-sessions-pull-requests`** from `main`. The plugin, the Claude provider (list,
+1. Done, #20. **`agent-sessions-pull-requests`** from `main`. The plugin, the Claude provider (list,
    transcript scan, relay send), the Session column and the message action on the pull request
    board, configuration, starter file, README. Provider tests replace `shell.Run` and use a
    temporary home with canned transcripts. Verify: tests, `--once` showing a live session on
    a pull request it mentions, and one real send to a session the user names.
-2. **`agent-sessions-diff-comments`** from step 1. On the diff screen `c` stays comment. After the
+2. Done, #21. **`agent-sessions-diff-comments`** from step 1. On the diff screen `c` stays comment. After the
    editor is saved, a numbered choice asks where the comment goes: `1` post it to the pull
    request now (`Provider.PostComment` with the line target), `2` add it to the pending review
    (today's behaviour), `3` send it to the agent session (only offered when a session matches).
@@ -159,7 +159,7 @@ None. Columns, actions, `Edit`, `Choice`, and `Command` cover it.
    the "comment" value. The agent sessions plugin adds an action with `Takes: "comment"` and
    label "send to agent session" that sends the body with the metadata, picking a session first
    when several match. Verify with host tests for offers and a plugin test for each option.
-3. **`agent-sessions-plans`** from step 2. The Session column and message action on the agent
+3. **`agent-sessions-plans`** from `main`. The Session column and message action on the agent
    plans board. Verify: tests and `--once` against `~/git/gazebo`.
 
 ## Risks
@@ -235,5 +235,7 @@ None. Columns, actions, `Edit`, `Choice`, and `Command` cover it.
 - 2026-11-25: Wheel scrolling on the description and document screens: `b976609` on #23. Next:
   selecting and replying to conversation comments (j/k select, c reply with a quote), branch
   `conversation-replies` from #23.
+- 2026-11-25: Conversation replies: #24, `0b0296f`, refactor `335f567`, 1111 tests. At the user's
+  request the stack #20 to #24 was merged top-down; `main` is at `47b01e3`.
 - 2026-11-25: Auto mode blocked my own relay test from inside a Claude session, so the user
   runs it.
