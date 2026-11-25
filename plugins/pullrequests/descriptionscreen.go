@@ -2,6 +2,8 @@ package pullrequests
 
 import (
 	"cmp"
+	"fmt"
+	"slices"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -17,6 +19,11 @@ type (
 		description Description
 		err         error
 	}
+	conversationLoadedMessage struct {
+		pullRequest PullRequest
+		entries     []ConversationEntry
+		err         error
+	}
 	descriptionSavedMessage struct {
 		pullRequest PullRequest
 		description Description
@@ -28,6 +35,13 @@ func (board *pullRequestBoard) loadDescription(pr PullRequest) tea.Cmd {
 	return func() tea.Msg {
 		description, err := board.provider.Description(pr)
 		return descriptionLoadedMessage{pullRequest: pr, description: description, err: err}
+	}
+}
+
+func (board *pullRequestBoard) loadConversation(pr PullRequest) tea.Cmd {
+	return func() tea.Msg {
+		entries, err := board.provider.Conversation(pr)
+		return conversationLoadedMessage{pullRequest: pr, entries: entries, err: err}
 	}
 }
 
@@ -62,7 +76,14 @@ type descriptionScreen struct {
 	// failedEdit is the text of an edit that could not be saved, which the next edit starts from
 	// so that it is not lost. It is empty when there is none.
 	failedEdit string
-	lines      []string
+	// descriptionLines and conversationLines are laid out one after the other in lines, so that the
+	// comments can arrive after the description without moving what is being read above them.
+	descriptionLines []string
+	lines            []string
+	// conversation is empty until it has loaded, and is kept while it loads again.
+	conversation        []ConversationEntry
+	conversationLoaded  bool
+	conversationFailure string
 	// renderedWidth is the width the lines were wrapped for.
 	renderedWidth int
 	loading       bool
@@ -77,7 +98,7 @@ func (board *pullRequestBoard) newDescriptionScreen(selection plugin.Selection) 
 }
 
 func (screen *descriptionScreen) Init() tea.Cmd {
-	return screen.board.loadDescription(screen.pullRequest)
+	return tea.Batch(screen.board.loadDescription(screen.pullRequest), screen.board.loadConversation(screen.pullRequest))
 }
 
 func (screen *descriptionScreen) rows() int {
@@ -90,11 +111,67 @@ func (screen *descriptionScreen) keepVisible() {
 
 func (screen *descriptionScreen) show(body string) {
 	screen.body = body
-	screen.lines = ui.RenderMarkdown(body, screen.width)
-	if len(screen.lines) == 0 {
-		screen.lines = []string{ui.DimStyle.Render("No description.")}
+	screen.descriptionLines = ui.RenderMarkdown(body, screen.width)
+	if len(screen.descriptionLines) == 0 {
+		screen.descriptionLines = []string{ui.DimStyle.Render("No description.")}
 	}
 	screen.renderedWidth = screen.width
+	screen.layOut()
+}
+
+func (screen *descriptionScreen) showConversation(entries []ConversationEntry, err error) {
+	screen.conversationFailure = ""
+	if err != nil {
+		screen.conversationFailure = ui.FirstLine(err)
+	} else {
+		screen.conversation, screen.conversationLoaded = entries, true
+	}
+	screen.layOut()
+}
+
+func (screen *descriptionScreen) layOut() {
+	screen.lines = append(slices.Clone(screen.descriptionLines), screen.renderConversation()...)
+}
+
+// renderConversation lists the comments under a heading that also says when there are none, when
+// they are still loading, or when they could not be loaded.
+func (screen *descriptionScreen) renderConversation() []string {
+	heading := ui.BoldStyle.Render("Comments")
+	switch {
+	case screen.conversationFailure != "":
+		return []string{"", heading, ui.DimStyle.Render("Comments failed to load: " + screen.conversationFailure)}
+	case !screen.conversationLoaded:
+		return []string{"", heading, ui.DimStyle.Render("Loading comments…")}
+	case len(screen.conversation) == 0:
+		return []string{"", heading, ui.DimStyle.Render("No comments")}
+	}
+	lines := []string{"", ui.BoldStyle.Render(fmt.Sprintf("Comments (%d)", len(screen.conversation)))}
+	for _, entry := range screen.conversation {
+		lines = append(lines, "", entry.header())
+		lines = append(lines, ui.RenderMarkdown(entry.Body, screen.width)...)
+	}
+	return lines
+}
+
+func (entry ConversationEntry) header() string {
+	details := " · " + ui.AgeText(entry.Created)
+	if label := entry.Review.label(); label != "" {
+		details += " · " + label
+	}
+	return ui.BoldStyle.Render(entry.Author) + ui.DimStyle.Render(details)
+}
+
+// label is how a review's state reads next to its author, or "" for a plain comment.
+func (state ReviewState) label() string {
+	switch state {
+	case ReviewStateApproved:
+		return "approved"
+	case ReviewStateChangesRequested:
+		return "requested changes"
+	case ReviewStateCommented:
+		return "reviewed"
+	}
+	return ""
 }
 
 // edit opens the title and the description in the editor laid out like a commit message, or
@@ -152,6 +229,11 @@ func (screen *descriptionScreen) update(message tea.Msg) (plugin.Screen, tea.Cmd
 		}
 		screen.title = message.description.Title
 		screen.show(message.description.Body)
+	case conversationLoadedMessage:
+		if message.pullRequest.URL != screen.pullRequest.URL {
+			return screen, nil
+		}
+		screen.showConversation(message.entries, message.err)
 	case descriptionSavedMessage:
 		if message.pullRequest.URL != screen.pullRequest.URL {
 			return screen, nil
@@ -165,7 +247,9 @@ func (screen *descriptionScreen) update(message tea.Msg) (plugin.Screen, tea.Cmd
 		screen.notice = "Description updated."
 		screen.title = message.description.Title
 		screen.show(message.description.Body)
-		return screen, screen.selection.Run(plugin.Effect{RefreshRow: screen.selection.Row})
+		return screen, tea.Batch(
+			screen.selection.Run(plugin.Effect{RefreshRow: screen.selection.Row}), screen.board.loadConversation(screen.pullRequest),
+		)
 	case tea.KeyMsg:
 		return screen.handleKey(message.String())
 	}
@@ -207,8 +291,13 @@ func (screen *descriptionScreen) handleKey(key string) (plugin.Screen, tea.Cmd) 
 // View adopts the size it is drawn at, and wraps the markdown again when the width changed.
 func (screen *descriptionScreen) View(width, height int) string {
 	screen.width, screen.height = width, height
-	if !screen.loading && screen.body != "" && screen.renderedWidth != width {
-		screen.show(screen.body)
+	if !screen.loading && screen.renderedWidth != width {
+		if screen.descriptionLines != nil {
+			screen.show(screen.body)
+		} else {
+			screen.renderedWidth = width
+			screen.layOut()
+		}
 	}
 	screen.keepVisible()
 	pr := screen.pullRequest

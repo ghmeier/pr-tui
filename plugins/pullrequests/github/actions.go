@@ -1,7 +1,9 @@
 package github
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
 	"os"
 	"sort"
 	"strings"
@@ -89,12 +91,30 @@ func sideText(side pullrequests.CommentSide) string {
 	return "RIGHT"
 }
 
+// decodeEach reads the values that "gh api --paginate --jq '.[]'" prints, one for each element of
+// each page, because the pages of a plain --paginate are several JSON arrays back to back.
+func decodeEach[Element any](output []byte) ([]Element, error) {
+	var elements []Element
+	decoder := json.NewDecoder(bytes.NewReader(output))
+	for {
+		var element Element
+		err := decoder.Decode(&element)
+		if err == io.EOF {
+			return elements, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		elements = append(elements, element)
+	}
+}
+
 func (github *provider) Comments(pr pullrequests.PullRequest) ([]pullrequests.ReviewComment, error) {
-	output, err := shell.Run("gh", "api", apiEndpoint(pr)+"/comments?per_page=100")
+	output, err := shell.Run("gh", "api", "--paginate", apiEndpoint(pr)+"/comments?per_page=100", "--jq", ".[]")
 	if err != nil {
 		return nil, err
 	}
-	var response []struct {
+	response, err := decodeEach[struct {
 		ID          int64
 		InReplyTo   int64 `json:"in_reply_to_id"`
 		Path        string
@@ -104,8 +124,8 @@ func (github *provider) Comments(pr pullrequests.PullRequest) ([]pullrequests.Re
 		User        struct{ Login string }
 		Body        string
 		CreatedAt   time.Time `json:"created_at"`
-	}
-	if err := json.Unmarshal(output, &response); err != nil {
+	}](output)
+	if err != nil {
 		return nil, err
 	}
 	var comments []pullrequests.ReviewComment

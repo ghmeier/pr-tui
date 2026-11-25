@@ -124,6 +124,27 @@ const (
 	ReviewEventComment
 )
 
+// ReviewState is the state a submitted review was left in.
+type ReviewState int
+
+const (
+	// ReviewStateNone marks a conversation entry that is a plain comment, not a review.
+	ReviewStateNone ReviewState = iota
+	ReviewStateApproved
+	ReviewStateChangesRequested
+	ReviewStateCommented
+)
+
+// ConversationEntry is a comment on the pull request as a whole, or the text of a submitted review.
+type ConversationEntry struct {
+	Author  string
+	IsBot   bool
+	Body    string
+	Created time.Time
+	// Review is the state of a submitted review, or ReviewStateNone for a plain comment.
+	Review ReviewState
+}
+
 // DraftComment is a line comment waiting in a pending review.
 type DraftComment struct {
 	Path string
