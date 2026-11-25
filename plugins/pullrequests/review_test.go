@@ -615,17 +615,17 @@ func TestPendingReviewsKeepABodyWrittenWhileASubmissionRan(t *testing.T) {
 
 // withOnePendingComment opens the diff and adds a pending comment on the added line, leaving the
 // diff open.
-func withOnePendingComment(t *testing.T) (*plugin.Model, *fakeProvider) {
+func withOnePendingComment(t *testing.T) *plugin.Model {
 	t.Helper()
 	provider := newFakeProvider()
 	editorWrites(t, "Draft")
 	model := loadedBoardWith(t, provider)
 	press(t, model, append(pressToTheAddedLine(), "c", chooseAddToReview)...)
-	return model, provider
+	return model
 }
 
 func TestReviewLabelNamesTheNumberOfPendingCommentsOnTheScreenAndOnTheBoard(t *testing.T) {
-	model, _ := withOnePendingComment(t)
+	model := withOnePendingComment(t)
 	plugintest.Resize(t, model, 300, 30)
 
 	onScreen := helpLine(model)
@@ -657,7 +657,7 @@ func TestReviewLabelHasNoCountWithoutPendingComments(t *testing.T) {
 func TestLeavingTheDiffWithPendingCommentsAsksFirst(t *testing.T) {
 	for _, key := range []string{"esc", "q"} {
 		t.Run(key, func(t *testing.T) {
-			model, _ := withOnePendingComment(t)
+			model := withOnePendingComment(t)
 
 			press(t, model, key)
 
@@ -676,7 +676,7 @@ func TestLeavingTheDiffWithSeveralPendingCommentsUsesThePlural(t *testing.T) {
 }
 
 func TestDecliningToLeaveTheDiffKeepsItOpenWithItsPendingComments(t *testing.T) {
-	model, _ := withOnePendingComment(t)
+	model := withOnePendingComment(t)
 
 	press(t, model, "esc", "n")
 
@@ -684,7 +684,7 @@ func TestDecliningToLeaveTheDiffKeepsItOpenWithItsPendingComments(t *testing.T) 
 }
 
 func TestAgreeingToLeaveTheDiffClosesItAndKeepsTheCommentsPending(t *testing.T) {
-	model, _ := withOnePendingComment(t)
+	model := withOnePendingComment(t)
 
 	press(t, model, "q", "y")
 
