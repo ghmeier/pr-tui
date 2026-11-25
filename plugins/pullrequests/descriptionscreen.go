@@ -249,6 +249,8 @@ func (screen *descriptionScreen) update(message tea.Msg) (plugin.Screen, tea.Cmd
 		return screen, tea.Batch(
 			screen.selection.Run(plugin.Effect{RefreshRow: screen.selection.Row}), screen.board.loadConversation(screen.pullRequest),
 		)
+	case tea.MouseMsg:
+		screen.offset += ui.WheelScroll(message)
 	case tea.KeyMsg:
 		return screen.handleKey(message.String())
 	}

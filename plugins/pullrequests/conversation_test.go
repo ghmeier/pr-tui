@@ -1,12 +1,16 @@
 package pullrequests
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/ghmeier/pr-tui/internal/plugin"
 	"github.com/ghmeier/pr-tui/internal/plugin/plugintest"
+	"github.com/ghmeier/pr-tui/internal/ui"
 )
 
 func fixtureConversation() []ConversationEntry {
@@ -143,6 +147,60 @@ func TestScrollingToTheEndReachesTheLastComment(t *testing.T) {
 
 	if strings.Contains(before, last) || !strings.Contains(view(model), last) {
 		t.Fatalf("before:\n%s\nafter:\n%s", before, view(model))
+	}
+}
+
+func longDescriptionBoard(t *testing.T) *plugin.Model {
+	t.Helper()
+	provider := newFakeProvider()
+	var body strings.Builder
+	for number := 1; number <= 60; number++ {
+		fmt.Fprintf(&body, "Paragraph %03d\n\n", number)
+	}
+	provider.description = body.String()
+	model := loadedBoardWith(t, provider)
+	press(t, model, "p")
+	return model
+}
+
+func wheel(t *testing.T, model *plugin.Model, button tea.MouseButton, action tea.MouseAction) {
+	t.Helper()
+	plugintest.Send(t, model, tea.MouseMsg{Button: button, Action: action})
+}
+
+func TestDescriptionScreenWheelScrollsByNotchesAndStopsAtBothEnds(t *testing.T) {
+	model := longDescriptionBoard(t)
+	top := strings.Split(view(model), "\n")
+
+	wheel(t, model, tea.MouseButtonWheelUp, tea.MouseActionPress)
+	if view(model) != strings.Join(top, "\n") {
+		t.Fatalf("wheel up at the top moved the view:\n%s", view(model))
+	}
+	wheel(t, model, tea.MouseButtonWheelDown, tea.MouseActionPress)
+	if strings.Split(view(model), "\n")[1] != top[1+ui.WheelNotchLines] {
+		t.Fatalf("wheel down did not move by a notch:\n%s", view(model))
+	}
+	wheel(t, model, tea.MouseButtonWheelUp, tea.MouseActionPress)
+	if view(model) != strings.Join(top, "\n") {
+		t.Fatalf("wheel up did not return to the top:\n%s", view(model))
+	}
+	press(t, model, "end")
+	bottom := view(model)
+	wheel(t, model, tea.MouseButtonWheelDown, tea.MouseActionPress)
+	if view(model) != bottom {
+		t.Fatalf("wheel down at the end moved the view:\n%s", view(model))
+	}
+}
+
+func TestDescriptionScreenIgnoresMouseEventsThatAreNotWheelPresses(t *testing.T) {
+	model := longDescriptionBoard(t)
+	top := view(model)
+
+	wheel(t, model, tea.MouseButtonLeft, tea.MouseActionPress)
+	wheel(t, model, tea.MouseButtonWheelDown, tea.MouseActionRelease)
+
+	if view(model) != top {
+		t.Fatalf("the view moved:\n%s", view(model))
 	}
 }
 
