@@ -110,8 +110,9 @@ first. The cell shows the first session's name and status, dimmed when busy, plu
 
 **Action `c` "message session"** on both boards. It reads the column's data from
 `selection.Data("Session")`. No match: notice "No live Claude session mentions this".
-One match: an `Edit` prefilled with a first line naming the row (`About pull request
-owner/name#123 (title):` or `About plan <title> (.apl/<file>):`) and a blank line. Several:
+One match: an `Edit` prefilled with the row's metadata and a blank line. For a pull request:
+`About pull request owner/name#123: <title>`, `URL: <url>`, `Branch: <head branch>`. For a
+plan: `About plan: <title>`, `File: .apl/<file>`, `Repository: <name>`, `Status: <status>`. Several:
 a `Choice` of session names first. Saving runs `Send` as the effect's `Command` with the
 notice "Sending to <name>…"; an empty text sends nothing.
 
@@ -139,6 +140,15 @@ None. Columns, actions, `Edit`, `Choice`, and `Command` cover it.
    a pull request it mentions, and one real send to a session the user names.
 2. **`agent-sessions-plans`** from step 1. The Session column and message action on the agent
    plans board. Verify: tests and `--once` against `~/git/gazebo`.
+
+3. **`agent-sessions-diff-lines`** from step 2. Message a session from the diff screen with the
+   file and line (or selected lines) under the cursor in the prefill. Screens run board
+   actions through `Selection.RunAction`, which carries only the row, so the host gains a way
+   for a screen to pass what it is showing with the action (for example
+   `Selection.RunActionWith(key, context any)` and `Selection.Context`), and
+   `plugins/pullrequests` exports a neutral `DiffPosition{Path, Line, Side, EndLine}` that the
+   agent sessions action reads. `c` is already comment on the diff screen, so this needs
+   another key there. Verify with host tests for the context and a plugin test for the prefill.
 
 ## Risks
 
@@ -171,5 +181,7 @@ None. Columns, actions, `Edit`, `Choice`, and `Command` cover it.
   one-sentence `--system-prompt`, and JSON output: the message arrived, from the name `prs`.
 - 2026-11-25: Strict relay baseline: 2.9 s end to end, about 6,600 input tokens (mostly the
   cache), 122 output tokens, $0.0008 per send on Haiku. The user approved the plan.
+- 2026-11-25: The user asked for metadata in the prefill. Step 1 got the pull request's number,
+  title, URL, and branch. File and line need the diff screen, added as step 3.
 - 2026-11-25: Auto mode blocked my own relay test from inside a Claude session, so the user
   runs it.
