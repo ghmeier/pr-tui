@@ -35,7 +35,7 @@ func pullRequestColumn(provider Provider) plugin.Column {
 }
 
 func pullRequestMessageAction(provider Provider) plugin.Action {
-	return messageAction(provider, "pull request", func(row plugin.Row) string {
+	return messageAction(provider, func(row plugin.Row) string {
 		return pullRequestPrefill(row.(pullrequests.Row).PullRequest)
 	})
 }

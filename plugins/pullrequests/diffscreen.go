@@ -795,7 +795,7 @@ func (screen *diffScreen) help() string {
 		keysAndLabels = append(keysAndLabels, "←/→", "side")
 	}
 	keysAndLabels = append(keysAndLabels, "s", layout, "p", "description", "o", "open", "v", screen.board.editor.Name)
-	keysAndLabels = append(keysAndLabels, screen.board.screenActionHelp(currentRow(screen.selection))...)
+	keysAndLabels = append(keysAndLabels, screen.board.screenActionHelp(screen.selection)...)
 	return position + ui.HelpLine(append(keysAndLabels, "esc", "back")...)
 }
 

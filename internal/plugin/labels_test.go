@@ -98,12 +98,48 @@ func TestSelectionRunActionDoesNothingForAnActionThatDoesNotApply(t *testing.T) 
 	}
 }
 
+// appliesBoard has an action on "y" that applies only to fruit, and records when it runs.
+func appliesBoard(ran *[]string) Board {
+	board := groceryBoard(newRowSource(groceries()...))
+	board.Actions = []Action{{
+		Key: "y", Label: "eat",
+		Applies: func(selection Selection) bool { return selection.Row.(fakeRow).group == "fruit" },
+		Run:     func(Selection) Effect { *ran = append(*ran, "y"); return Effect{} },
+	}}
+	return board
+}
+
+func TestAKeyedActionWhoseAppliesIsFalseIsHiddenAndItsKeyDoesNothing(t *testing.T) {
+	var ran []string
+	model := modelForBoard(t, appliesBoard(&ran))
+
+	plugintest.Press(t, model, "down")
+	hidden := helpLine(model)
+	plugintest.Press(t, model, "y")
+
+	if strings.Contains(hidden, "y eat") || len(ran) != 0 {
+		t.Fatalf("help = %q, ran = %v", hidden, ran)
+	}
+}
+
+func TestAKeyedActionWhoseAppliesIsTrueIsShownAndRuns(t *testing.T) {
+	var ran []string
+	model := modelForBoard(t, appliesBoard(&ran))
+
+	shown := helpLine(model)
+	plugintest.Press(t, model, "y")
+
+	if !strings.Contains(shown, "y eat") || len(ran) != 1 {
+		t.Fatalf("help = %q, ran = %v", shown, ran)
+	}
+}
+
 func TestLabelOfAppliesOnlyToActionsWithoutLabelForWhenThereIsNoRow(t *testing.T) {
 	fixed := Action{Label: "fixed"}
 	labelled := Action{LabelFor: func(Row) string { return "label" }}
 
-	fixedLabel, fixedApplies := fixed.LabelOf(nil)
-	_, labelledApplies := labelled.LabelOf(nil)
+	fixedLabel, fixedApplies := fixed.LabelOf(Selection{})
+	_, labelledApplies := labelled.LabelOf(Selection{})
 
 	if fixedLabel != "fixed" || !fixedApplies || labelledApplies {
 		t.Fatalf("fixed = %q, %v; labelled applies = %v", fixedLabel, fixedApplies, labelledApplies)

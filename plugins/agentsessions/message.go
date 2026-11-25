@@ -9,20 +9,17 @@ import (
 	"github.com/ghmeier/pr-tui/internal/plugin"
 )
 
-// messageAction writes a message in the editor and sends it to a session that works on the row.
-// The subject names what a row is, for the notice when no session works on it, and prefill is
-// the text the editor opens with.
-func messageAction(provider Provider, subject string, prefill func(row plugin.Row) string) plugin.Action {
+// messageAction writes a message in the editor and sends it to a session that works on the row,
+// and is only there for a row such a session was found for. The prefill is the text the editor
+// opens with.
+func messageAction(provider Provider, prefill func(row plugin.Row) string) plugin.Action {
 	return plugin.Action{
-		Key:   "c",
-		Label: "message session",
+		Key:     "c",
+		Label:   "message session",
+		Applies: hasSessions,
 		Run: func(selection plugin.Selection) plugin.Effect {
-			sessions := sessionsOf(selection)
-			if len(sessions) == 0 {
-				return plugin.Effect{Notice: "No live agent session mentions this " + subject}
-			}
 			opening := prefill(selection.Row)
-			return withSession(sessions, "Message which session?", func(session Session) plugin.Effect {
+			return withSession(sessionsOf(selection), "Message which session?", func(session Session) plugin.Effect {
 				return writeMessage(provider, selection, session, opening)
 			})
 		},

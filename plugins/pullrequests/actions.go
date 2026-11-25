@@ -96,22 +96,13 @@ func (board *pullRequestBoard) screenActions() []plugin.Action {
 	return offered
 }
 
-// currentRow is the board's latest version of the selection's row, so that a screen labels its
-// actions from the state an action has since changed. It falls back to the row the screen was
-// opened with once the board no longer has it.
-func currentRow(selection plugin.Selection) plugin.Row {
-	if row, found := selection.Current(); found {
-		return row
-	}
-	return selection.Row
-}
-
-// screenActionHelp lists the keys and labels of the screen actions that apply to the row, for a
-// screen's help line.
-func (board *pullRequestBoard) screenActionHelp(row plugin.Row) []string {
+// screenActionHelp lists the keys and labels of the screen actions that apply to the selection as
+// the board has it now, for a screen's help line.
+func (board *pullRequestBoard) screenActionHelp(selection plugin.Selection) []string {
+	selection = selection.Latest()
 	var keysAndLabels []string
 	for _, action := range board.screenActions() {
-		if label, _ := action.LabelOf(row); label != "" {
+		if label, _ := action.LabelOf(selection); label != "" {
 			keysAndLabels = append(keysAndLabels, action.Key, label)
 		}
 	}

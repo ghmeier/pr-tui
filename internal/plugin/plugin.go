@@ -138,6 +138,18 @@ func (selection Selection) RunAction(key string) tea.Cmd {
 	}
 }
 
+// Latest is this selection rebuilt from the board's rows and data as they are now, or this
+// selection when the board no longer has the row. A screen uses it to decide what to show from
+// what has loaded since the screen opened. It reads the board, so call it only on the update loop.
+func (selection Selection) Latest() Selection {
+	if selection.latest != nil {
+		if latest, found := selection.latest(); found {
+			return latest
+		}
+	}
+	return selection
+}
+
 // Offers lists the labels of the board's actions that take the kind of value and apply to the
 // row as the board has it now, in the order they were added. A screen with a value of that kind
 // shows them as choices. The row's data may have loaded since the screen opened, so Applies sees
@@ -184,8 +196,10 @@ type Action struct {
 	// action has no key: a screen offers it, by its label, for a value of that kind, and its Run
 	// reads the value from Selection.Value. It is not shown in the help line.
 	Takes string
-	// Applies, when set, says whether a screen offers the action for the selection. It runs on
-	// the update loop, so it must return quickly.
+	// Applies, when set, says whether the action applies to the selection: a screen offers an
+	// action that takes a value only if it does, and a keyed action that does not apply is hidden
+	// from the help line and its key does nothing, as when LabelFor returns "". It runs on the
+	// update loop, so it must return quickly.
 	Applies func(selection Selection) bool
 	// Label is shown in the help line. An empty label hides the action there. An action that
 	// takes a value needs one, because it is what a screen offers.
@@ -199,16 +213,20 @@ type Action struct {
 	Run func(selection Selection) Effect
 }
 
-// LabelOf is the action's label for the row, and whether the action applies to it. A nil row,
-// which an empty board has, applies only to an action without LabelFor.
-func (action Action) LabelOf(row Row) (label string, applies bool) {
+// LabelOf is the action's label for the selection's row, and whether the action applies to it.
+// A selection without a row, which an empty board has, applies only to an action with neither
+// LabelFor nor Applies.
+func (action Action) LabelOf(selection Selection) (label string, applies bool) {
+	if selection.Row == nil {
+		return action.Label, action.LabelFor == nil && action.Applies == nil
+	}
+	if action.Applies != nil && !action.Applies(selection) {
+		return "", false
+	}
 	if action.LabelFor == nil {
 		return action.Label, true
 	}
-	if row == nil {
-		return "", false
-	}
-	label = action.LabelFor(row)
+	label = action.LabelFor(selection.Row)
 	return label, label != ""
 }
 
