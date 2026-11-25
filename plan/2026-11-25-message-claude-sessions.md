@@ -4,7 +4,7 @@ status: active
 tags: [plugins, agent-sessions]
 created: 2026-11-25
 updated: 2026-11-25
-next_step: The user sends one real message from the step 1 branch with `c`; then open its pull request and start step 2.
+next_step: Step 2 is with the implementer on agent-sessions-diff-comments; the user still owes the real send for step 1.
 ---
 # Message Claude sessions from pull requests and plans
 
@@ -138,15 +138,12 @@ None. Columns, actions, `Edit`, `Choice`, and `Command` cover it.
    board, configuration, starter file, README. Provider tests replace `shell.Run` and use a
    temporary home with canned transcripts. Verify: tests, `--once` showing a live session on
    a pull request it mentions, and one real send to a session the user names.
-2. **`agent-sessions-plans`** from step 1. The Session column and message action on the agent
-   plans board. Verify: tests and `--once` against `~/git/gazebo`.
-
-3. **`agent-sessions-diff-comments`** from step 1. On the diff screen `c` stays comment. After the
+2. **`agent-sessions-diff-comments`** from step 1. On the diff screen `c` stays comment. After the
    editor is saved, a numbered choice asks where the comment goes: `1` post it to the pull
    request now (`Provider.PostComment` with the line target), `2` add it to the pending review
    (today's behaviour), `3` send it to the agent session (only offered when a session matches).
    A reply on a posted thread offers only post and send. The message carries the pull request
-   metadata plus the file, line (or line range), and side.
+   metadata plus the file, line, and side.
 
    The diff screen belongs to the pull request plugin and must not know about agent sessions,
    so the host gains actions that screens offer with a value instead of a key:
@@ -158,10 +155,12 @@ None. Columns, actions, `Edit`, `Choice`, and `Command` cover it.
      taking that kind, in the order they were added.
    - `Selection.RunOffer(label string, value any) tea.Cmd` and `Selection.Value any`, which
      the action's `Run` reads.
-   `plugins/pullrequests` exports `Comment{PullRequest, Path, Line, StartLine, Side, Body}` as
+   `plugins/pullrequests` exports `Comment{PullRequest, Target CommentTarget, Body}` as
    the "comment" value. The agent sessions plugin adds an action with `Takes: "comment"` and
    label "send to agent session" that sends the body with the metadata, picking a session first
    when several match. Verify with host tests for offers and a plugin test for each option.
+3. **`agent-sessions-plans`** from step 2. The Session column and message action on the agent
+   plans board. Verify: tests and `--once` against `~/git/gazebo`.
 
 ## Risks
 
@@ -214,5 +213,7 @@ None. Columns, actions, `Edit`, `Choice`, and `Command` cover it.
 - 2026-11-25: The user wants the diff screen's comment key kept, with a choice after saving:
   post to the pull request, add to the review, or send to the agent. Step 3 rewritten for that;
   it replaces the separate diff-screen key.
+- 2026-11-25: The user approved the comment choice and its host change. It becomes step 2 and the
+  agent plans board step 3. Comments have no line ranges, so the value carries one line.
 - 2026-11-25: Auto mode blocked my own relay test from inside a Claude session, so the user
   runs it.
