@@ -4,7 +4,7 @@ status: active
 tags: [plugins, agent-sessions]
 created: 2026-11-25
 updated: 2026-11-25
-next_step: Step 1 is with the implementer on agent-sessions-pull-requests; then the refactor pass and verification.
+next_step: Step 1 (6132e01) is in the refactor pass; then verify and one real send.
 ---
 # Message Claude sessions from pull requests and plans
 
