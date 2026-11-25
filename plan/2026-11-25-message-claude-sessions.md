@@ -225,5 +225,7 @@ None. Columns, actions, `Edit`, `Choice`, and `Command` cover it.
   "review" with "(N pending)"; esc or q on the diff screen asks while comments are pending.
 - 2026-11-25: Pull requests opened, stacked: #20 (step 1, draft until a real send is checked), #21
   (step 2), #22 (review label and leave confirmation). The user approved 2 and 3.
+- 2026-11-25: Whole-file comments added to #22 at the user's request. GitHub's REST review
+  `comments` array has no file option, so a file comment offers post and send only, like a reply.
 - 2026-11-25: Auto mode blocked my own relay test from inside a Claude session, so the user
   runs it.
