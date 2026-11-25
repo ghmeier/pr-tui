@@ -98,6 +98,10 @@ type Selection struct {
 
 	boardIndex int
 	current    func() (Row, bool)
+	// latest is the selection for the same row built from the board's rows and data as they are
+	// now, which differ from this selection's copy once more has loaded. It is false when the
+	// board no longer has the row.
+	latest func() (Selection, bool)
 	// offerable are the board's actions that take a kind of value. They never change after setup,
 	// so a selection shares them safely with any goroutine.
 	offerable []Action
@@ -135,9 +139,18 @@ func (selection Selection) RunAction(key string) tea.Cmd {
 }
 
 // Offers lists the labels of the board's actions that take the kind of value and apply to the
-// selection, in the order they were added. A screen with a value of that kind shows them as
-// choices. It runs the actions' Applies functions, so call it only on the update loop.
+// row as the board has it now, in the order they were added. A screen with a value of that kind
+// shows them as choices. The row's data may have loaded since the screen opened, so Applies sees
+// the board's current data rather than this selection's copy, as RunOffer does. It runs the
+// actions' Applies functions, so call it only on the update loop.
 func (selection Selection) Offers(kind string) []string {
+	if selection.latest != nil {
+		latest, found := selection.latest()
+		if !found {
+			return nil
+		}
+		selection = latest
+	}
 	var labels []string
 	for _, action := range selection.offerable {
 		if action.Takes == kind && action.offeredFor(selection) {
@@ -148,12 +161,12 @@ func (selection Selection) Offers(kind string) []string {
 }
 
 // RunOffer has the host run the board's action with that label for the value, on the row as the
-// board has it now, falling back to this selection's own row like RunAction does. The action
-// reads the value from Selection.Value, and its effect is applied like any other. A label the
-// board has no action for, or whose action does not apply, does nothing.
+// board has it now. The action reads the value from Selection.Value, and its effect is applied
+// like any other. When the board no longer has the row, or has no such action or the action no
+// longer applies, the board shows a notice saying so and nothing runs.
 func (selection Selection) RunOffer(label string, value any) tea.Cmd {
 	return func() tea.Msg {
-		return offerMessage{board: selection.boardIndex, rowKey: selection.Row.Key(), fallback: selection.Row, label: label, value: value}
+		return offerMessage{board: selection.boardIndex, rowKey: selection.Row.Key(), label: label, value: value}
 	}
 }
 
@@ -225,8 +238,8 @@ type Effect struct {
 	Notice string
 	// Then, when set, is a command the host starts along with the effect. The message it returns
 	// reaches the open screens like any message the host does not recognise, so a screen can ask
-	// a question and get the work of the answer done by its own command. It is ignored when Edit
-	// is set.
+	// a question and get the work of the answer done by its own command. It is dropped when
+	// Choice or Edit is set, and with Confirm it starts only after the answer is yes.
 	Then tea.Cmd
 	// Choice, when set, is asked before anything else, and the host does nothing else with this
 	// effect. The effect that Pick returns for the chosen option is applied like any other, so

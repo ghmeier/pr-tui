@@ -55,11 +55,10 @@ type (
 	}
 	// offerMessage asks the host to run a board's action that takes a value, for that value.
 	offerMessage struct {
-		board    int
-		rowKey   string
-		fallback Row
-		label    string
-		value    any
+		board  int
+		rowKey string
+		label  string
+		value  any
 	}
 	commandFinishedMessage struct {
 		board   int
@@ -137,6 +136,7 @@ func (host *Host) Model() *Model {
 		next := &boardState{
 			spec:            spec,
 			index:           index,
+			offerable:       offerableActions(spec),
 			data:            make([]map[string]any, len(spec.Columns)),
 			dataGenerations: make([]map[string]int, len(spec.Columns)),
 		}
@@ -403,7 +403,8 @@ func (m *Model) update(message tea.Msg) tea.Cmd {
 		board := m.boards[message.board]
 		row, found := board.rowWithKey(message.rowKey)
 		if !found {
-			row = message.fallback
+			board.notice = message.label + " no longer applies"
+			return nil
 		}
 		return m.runBoardOffer(message.board, board.selectionOf(row), message.label, message.value)
 	case loadedMessage:
@@ -606,7 +607,7 @@ func (m *Model) runBoardAction(index int, selection Selection, key string) tea.C
 }
 
 // runBoardOffer runs the board's action that takes a value and has the label, if it applies to
-// the selection.
+// the selection, and otherwise says that it no longer does.
 func (m *Model) runBoardOffer(index int, selection Selection, label string, value any) tea.Cmd {
 	selection.Value = value
 	for _, action := range selection.offerable {
@@ -614,6 +615,7 @@ func (m *Model) runBoardOffer(index int, selection Selection, label string, valu
 			return m.applyEffect(index, action.Run(selection))
 		}
 	}
+	m.boards[index].notice = label + " no longer applies"
 	return nil
 }
 

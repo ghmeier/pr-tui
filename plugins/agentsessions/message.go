@@ -47,6 +47,7 @@ func withSession(sessions matchedSessions, question string, next func(session Se
 	return plugin.Effect{Choice: &plugin.Choice{
 		Question: question,
 		Options:  options,
+		Cancel:   func() plugin.Effect { return plugin.Effect{Notice: "Nothing sent"} },
 		Pick: func(option string) plugin.Effect {
 			if index := slices.Index(options, option); index >= 0 {
 				return next(sessions[index])

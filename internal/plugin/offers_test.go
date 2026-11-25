@@ -254,3 +254,101 @@ func TestEffectThenDeliversItsMessageToTheOpenScreens(t *testing.T) {
 		t.Fatalf("the screen received %v, expected %v", screen.received, sent)
 	}
 }
+
+// modelWithOfferScreenOnStock is like modelWithOfferScreen on a board that also has a Stock
+// column, whose data the stock delivers once it is switched on, and the source the rows come from.
+func modelWithOfferScreenOnStock(t *testing.T, stock *switchableStock, label string, offered *offering) (*Model, *[]string, *rowSource) {
+	t.Helper()
+	var selection Selection
+	var offers []string
+	source := newRowSource(groceries()...)
+	board := boardOpeningScreen(&selection, offerScreen(&selection, &offers, label, "value"))
+	board.Load = source.load
+	board.Columns = append(board.Columns, stockColumn(stock.load))
+	board.Actions = append(board.Actions, offered.action())
+	model := modelForBoard(t, board)
+	plugintest.Press(t, model, "x")
+	return model, &offers, source
+}
+
+func hasStock(selection Selection) bool { return selection.Data("Stock") != nil }
+
+func TestOffersIncludesAnActionWhoseAppliesNeedsDataThatLoadedAfterTheScreenOpened(t *testing.T) {
+	stock := &switchableStock{key: groceries()[0].Key()}
+	needsStock := newOffering("needs stock")
+	needsStock.applies = hasStock
+	model, offers, _ := modelWithOfferScreenOnStock(t, stock, needsStock.label, needsStock)
+	plugintest.Press(t, model, "g")
+	offeredBeforeLoad := slices.Clone(*offers)
+	stock.switchTo(true)
+
+	plugintest.Settle(t, model, model.load(model.active))
+	plugintest.Press(t, model, "g")
+
+	if len(offeredBeforeLoad) != 0 {
+		t.Fatalf("offers before the data loaded = %v", offeredBeforeLoad)
+	}
+	if expected := []string{needsStock.label}; !slices.Equal(*offers, expected) {
+		t.Fatalf("offers = %v, expected %v", *offers, expected)
+	}
+}
+
+func TestOffersAreEmptyWhenTheBoardNoLongerHasTheRow(t *testing.T) {
+	stock := &switchableStock{}
+	offered := newOffering("offered")
+	model, offers, source := modelWithOfferScreenOnStock(t, stock, offered.label, offered)
+	source.set(groceries()[1:]...)
+
+	plugintest.Settle(t, model, model.load(model.active))
+	plugintest.Press(t, model, "g")
+
+	if len(*offers) != 0 {
+		t.Fatalf("offers = %v", *offers)
+	}
+}
+
+func TestRunOfferSaysTheActionNoLongerAppliesWhenAppliesTurnedFalseAfterItWasOffered(t *testing.T) {
+	stillApplies := true
+	offered := newOffering("offered")
+	offered.applies = func(Selection) bool { return stillApplies }
+	model, offers := modelWithOfferScreen(t, offered.label, "value", offered)
+	plugintest.Press(t, model, "g")
+	stillApplies = false
+
+	plugintest.Press(t, model, "o")
+
+	if expected := []string{offered.label}; !slices.Equal(*offers, expected) {
+		t.Fatalf("offers = %v, expected %v", *offers, expected)
+	}
+	if len(offered.ranWith) != 0 {
+		t.Fatalf("the action ran with %v", offered.ranWith)
+	}
+	if expected := offered.label + " no longer applies"; model.current().notice != expected {
+		t.Fatalf("notice = %q, expected %q", model.current().notice, expected)
+	}
+}
+
+func TestRunOfferSaysNothingWhenTheActionStillApplies(t *testing.T) {
+	offered := newOffering("offered")
+	model, _ := modelWithOfferScreen(t, offered.label, "value", offered)
+
+	plugintest.Press(t, model, "o")
+
+	if len(offered.ranWith) != 1 || model.current().notice != "" {
+		t.Fatalf("ran with %v, notice = %q", offered.ranWith, model.current().notice)
+	}
+}
+
+func TestRunOfferSaysTheActionNoLongerAppliesWhenTheBoardLostTheRow(t *testing.T) {
+	stock := &switchableStock{}
+	offered := newOffering("offered")
+	model, _, source := modelWithOfferScreenOnStock(t, stock, offered.label, offered)
+	source.set(groceries()[1:]...)
+
+	plugintest.Settle(t, model, model.load(model.active))
+	plugintest.Press(t, model, "o")
+
+	if len(offered.ranWith) != 0 || model.current().notice != offered.label+" no longer applies" {
+		t.Fatalf("ran with %v, notice = %q", offered.ranWith, model.current().notice)
+	}
+}

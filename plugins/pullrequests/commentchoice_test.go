@@ -16,6 +16,8 @@ type commentRecipient struct {
 	applies bool
 	// received is the comments the action was run with.
 	received []Comment
+	// effect is what the action returns, which is nothing unless a test sets it.
+	effect plugin.Effect
 }
 
 func newCommentRecipient() *commentRecipient {
@@ -33,7 +35,7 @@ func (recipient *commentRecipient) Setup(host *plugin.Host) error {
 		Applies: func(plugin.Selection) bool { return recipient.applies },
 		Run: func(selection plugin.Selection) plugin.Effect {
 			recipient.received = append(recipient.received, selection.Value.(Comment))
-			return plugin.Effect{}
+			return recipient.effect
 		},
 	})
 	return nil
@@ -125,15 +127,64 @@ func TestChoosingAnotherPluginsActionRunsItWithTheComment(t *testing.T) {
 	assertDoesNotShow(t, model, "pending")
 }
 
-func TestChoosingAnotherPluginsActionDoesNotKeepTheCommentForNextTime(t *testing.T) {
+func TestAnotherPluginsSuccessfulSendDropsTheCommentAndSaysSo(t *testing.T) {
+	recipient := newCommentRecipient()
+	recipient.effect = plugin.Effect{Command: func() error { return nil }}
 	session := editorWrites(t, "Looks good", "")
-	model := modelWithRecipient(t, newFakeProvider(), newCommentRecipient())
+	model := modelWithRecipient(t, newFakeProvider(), recipient)
 
-	press(t, model, append(pressToTheAddedLine(), "c", "3", "c")...)
+	press(t, model, append(pressToTheAddedLine(), "c", "3")...)
+	notice := view(model)
+	press(t, model, "c")
 
 	if len(session.opened) != 2 || session.opened[1] != "" {
 		t.Fatalf("the editor was opened with %q", session.opened)
 	}
+	if expected := "Sent with " + recipient.label + "."; !strings.Contains(notice, expected) {
+		t.Fatalf("view after sending:\n%s", notice)
+	}
+}
+
+func TestAnotherPluginsFailedSendKeepsTheCommentAndOffersAnotherTry(t *testing.T) {
+	recipient := newCommentRecipient()
+	recipient.effect = plugin.Effect{Command: func() error { return errorForTests }}
+	session := editorWrites(t, "Looks good", "")
+	model := modelWithRecipient(t, newFakeProvider(), recipient)
+
+	press(t, model, append(pressToTheAddedLine(), "c", "3")...)
+	notice := view(model)
+	press(t, model, "c")
+
+	if len(session.opened) != 2 || session.opened[1] != "Looks good" {
+		t.Fatalf("the editor was opened with %q", session.opened)
+	}
+	if !strings.Contains(notice, "Failed: "+errorForTests.Error()+" · press c to try again") {
+		t.Fatalf("view after failing:\n%s", notice)
+	}
+}
+
+func TestCancellingAChoiceTheOtherPluginsActionAsksKeepsTheComment(t *testing.T) {
+	recipient := newCommentRecipient()
+	recipient.effect = plugin.Effect{Choice: &plugin.Choice{Question: "Which one?", Options: []string{"first", "second"}}}
+	session := editorWrites(t, "Looks good", "")
+	model := modelWithRecipient(t, newFakeProvider(), recipient)
+
+	press(t, model, append(pressToTheAddedLine(), "c", "3", "esc", "c")...)
+
+	if len(session.opened) != 2 || session.opened[1] != "Looks good" {
+		t.Fatalf("the editor was opened with %q", session.opened)
+	}
+}
+
+func TestHandingTheCommentToAnotherPluginsActionIsShownWhileItAsks(t *testing.T) {
+	recipient := newCommentRecipient()
+	recipient.effect = plugin.Effect{Choice: &plugin.Choice{Question: "Which one?", Options: []string{"first", "second"}}}
+	editorWrites(t, "Looks good")
+	model := modelWithRecipient(t, newFakeProvider(), recipient)
+
+	press(t, model, append(pressToTheAddedLine(), "c", "3", "esc")...)
+
+	assertShows(t, model, "Handing to "+recipient.label+"…")
 }
 
 func TestCancellingTheChoiceKeepsTheTextForTheNextCommentOnTheLine(t *testing.T) {

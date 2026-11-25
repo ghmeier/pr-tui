@@ -19,6 +19,8 @@ import (
 // the label when it receives "o".
 type commentProbe struct {
 	comment pullrequests.Comment
+	// value is what is offered instead of the comment, when it is set.
+	value   any
 	label   string
 	offered []string
 }
@@ -47,7 +49,11 @@ func (screen *probeScreen) Update(message tea.Msg) (plugin.Screen, tea.Cmd) {
 		case "g":
 			screen.probe.offered = screen.selection.Offers(pullrequests.CommentKind)
 		case "o":
-			return screen, screen.selection.RunOffer(screen.probe.label, screen.probe.comment)
+			var value any = screen.probe.comment
+			if screen.probe.value != nil {
+				value = screen.probe.value
+			}
+			return screen, screen.selection.RunOffer(screen.probe.label, value)
 		case "esc":
 			return nil, nil
 		}
@@ -204,5 +210,39 @@ func TestOfferedCommentIsNotSentWhenNoSessionWorksOnThePullRequest(t *testing.T)
 
 	if len(provider.sent) != 0 {
 		t.Fatalf("sent = %+v", provider.sent)
+	}
+}
+
+func TestEscapingTheSessionChoiceSaysNothingWasSent(t *testing.T) {
+	fixture := newBoardFixture()
+	first := fixture.mentioning("storefront-1", fixture.signIn)
+	second := fixture.mentioning("storefront-2", fixture.signIn)
+	provider := &fakeProvider{sessions: []Session{first, second}}
+	probe := &commentProbe{label: "send to agent session", comment: fixture.commentOn(fixture.signIn, "Please rename this.")}
+	model := probedModel(t, fixture, provider, probe)
+
+	plugintest.Press(t, model, "o", "esc", "esc")
+
+	if len(provider.sent) != 0 {
+		t.Fatalf("sent = %+v", provider.sent)
+	}
+	if lines := strings.Join(screenLines(model), "\n"); !strings.Contains(lines, "Nothing sent") {
+		t.Fatalf("screen:\n%s", lines)
+	}
+}
+
+func TestOfferedValueThatIsNotACommentIsNotSentAndSaysSo(t *testing.T) {
+	fixture := newBoardFixture()
+	provider := &fakeProvider{sessions: []Session{fixture.mentioning("storefront-1", fixture.signIn)}}
+	probe := &commentProbe{label: "send to agent session", value: "not a comment"}
+	model := probedModel(t, fixture, provider, probe)
+
+	plugintest.Press(t, model, "o", "esc")
+
+	if len(provider.sent) != 0 {
+		t.Fatalf("sent = %+v", provider.sent)
+	}
+	if lines := strings.Join(screenLines(model), "\n"); !strings.Contains(lines, "this is not a comment") {
+		t.Fatalf("screen:\n%s", lines)
 	}
 }

@@ -48,7 +48,11 @@ func commentAction(provider Provider) plugin.Action {
 		Label:   "send to agent session",
 		Applies: hasSessions,
 		Run: func(selection plugin.Selection) plugin.Effect {
-			text := commentMessage(selection.Value.(pullrequests.Comment))
+			comment, isComment := selection.Value.(pullrequests.Comment)
+			if !isComment {
+				return plugin.Effect{Notice: "Nothing sent: this is not a comment"}
+			}
+			text := commentMessage(comment)
 			return withSession(sessionsOf(selection), "Send to which session?", func(session Session) plugin.Effect {
 				return sendMessage(provider, session, text)
 			})

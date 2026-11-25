@@ -125,6 +125,10 @@ type diffScreen struct {
 	// the review, such as one that failed to post or whose choice was cancelled, so that the next
 	// comment on the same line or thread starts from it.
 	keptComments map[CommentTarget]string
+	// awaitingOffer is the comment that was handed to another plugin's action and has not yet had
+	// its command finish. The text stays in keptComments until then, so that a send that fails or
+	// a choice that is cancelled does not lose it.
+	awaitingOffer *awaitedOffer
 	// seenSubmissions is how many reviews of this pull request had been submitted when the
 	// comments were last loaded.
 	seenSubmissions int
@@ -401,6 +405,8 @@ func (screen *diffScreen) comment() tea.Cmd {
 }
 
 func (screen *diffScreen) edit(text string, done func(text string) tea.Cmd) tea.Cmd {
+	// A new comment means the last hand-off was cancelled, since its command never ran.
+	screen.awaitingOffer = nil
 	return screen.selection.Run(plugin.Effect{Edit: &plugin.Edit{Text: text, Done: done}})
 }
 
@@ -466,14 +472,16 @@ func (screen *diffScreen) askWhereCommentGoes(target CommentTarget, body string)
 		Question: "Where should this comment go?",
 		Options:  options,
 		Pick: func(option string) plugin.Effect {
-			delete(screen.keptComments, target)
 			switch option {
 			case postCommentOption:
 				return plugin.Effect{Then: screen.postComment(target, body)}
 			case addToReviewOption:
+				delete(screen.keptComments, target)
 				screen.addToReview(target, body)
 				return plugin.Effect{}
 			}
+			screen.awaitingOffer = &awaitedOffer{target: target, option: option}
+			screen.notice = "Handing to " + option + "…"
 			comment := Comment{PullRequest: screen.pullRequest, Target: target, Body: body}
 			return plugin.Effect{Then: screen.selection.RunOffer(option, comment)}
 		},
@@ -482,6 +490,28 @@ func (screen *diffScreen) askWhereCommentGoes(target CommentTarget, body string)
 			return plugin.Effect{}
 		},
 	}})
+}
+
+// awaitedOffer names the comment and the offered action it was handed to.
+type awaitedOffer struct {
+	target CommentTarget
+	option string
+}
+
+// finishOffer drops the kept text of a comment handed to another plugin once that plugin's
+// command has succeeded, and keeps it for another try when the command failed.
+func (screen *diffScreen) finishOffer(commandErr error) {
+	offer := screen.awaitingOffer
+	if offer == nil {
+		return
+	}
+	screen.awaitingOffer = nil
+	if commandErr != nil {
+		screen.notice = "Failed: " + ui.FirstLine(commandErr) + " · press c to try again"
+		return
+	}
+	delete(screen.keptComments, offer.target)
+	screen.notice = "Sent with " + offer.option + "."
 }
 
 func (screen *diffScreen) postComment(target CommentTarget, body string) tea.Cmd {
@@ -635,6 +665,7 @@ func (screen *diffScreen) update(message tea.Msg) (plugin.Screen, tea.Cmd) {
 		screen.threads = groupThreads(message.comments)
 		screen.dataVersion++
 	case plugin.CommandFinished:
+		screen.finishOffer(message.Err)
 		return screen, screen.reloadCommentsAfterSubmission()
 	case tea.KeyMsg:
 		return screen.handleKey(message.String())
