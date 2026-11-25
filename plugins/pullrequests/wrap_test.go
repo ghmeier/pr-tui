@@ -14,13 +14,14 @@ const (
 	otherCode = "kilo_lima_mike_november_oscar_papa_quebec_romeo_sierra_tango"
 )
 
-// Indexes of the diff lines of wrapDiff, after the two file header lines and the hunk header.
+// Indexes of the diff lines of wrapDiff, after the file row, the two file header lines, and the
+// hunk header.
 const (
-	firstLineIndex   = 3
-	removedLineIndex = 4
-	addedLineIndex   = 5
-	lastLineIndex    = 6
-	pairRowIndex     = 4
+	firstLineIndex   = 4
+	removedLineIndex = 5
+	addedLineIndex   = 6
+	lastLineIndex    = 7
+	pairRowIndex     = 5
 )
 
 // wrapDiff has a short line, then a removed and an added line that are both too long for a

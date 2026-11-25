@@ -672,7 +672,7 @@ func TestDiffViewStartsSplitAndTogglesToUnified(t *testing.T) {
 
 // pressToTheAddedLine opens the first pull request's diff and moves to the added line "added".
 func pressToTheAddedLine() []string {
-	return []string{"enter", "down", "down", "down", "down", "down"}
+	return []string{"enter", "down", "down", "down", "down", "down", "down"}
 }
 
 func TestDiffViewShowsACommentThreadUnderItsLine(t *testing.T) {

@@ -82,12 +82,14 @@ const (
 	CommentSideOld
 )
 
-// CommentTarget is the diff line a review comment attaches to. The side is old for a line
-// that exists only in the old file, and new otherwise. A reply names the comment it answers.
+// CommentTarget is the diff line a review comment attaches to, or the whole file at Path. The
+// side is old for a line that exists only in the old file, and new otherwise. A reply names the
+// comment it answers. For a whole-file target, Line and Side are unused.
 type CommentTarget struct {
 	Path        string
 	Line        int
 	Side        CommentSide
+	WholeFile   bool
 	ReplyTo     int64
 	ReplyAuthor string
 }
@@ -103,6 +105,9 @@ type Comment struct {
 }
 
 func (target CommentTarget) label() string {
+	if target.WholeFile {
+		return target.Path + " (whole file)"
+	}
 	version := "new"
 	if target.Side == CommentSideOld {
 		version = "old"
@@ -134,14 +139,15 @@ type Review struct {
 	Comments []DraftComment
 }
 
-// ReviewComment is one comment on a line of a diff. A comment whose code has since changed
-// has no Line.
+// ReviewComment is one comment on a line of a diff, or on a whole file. A line comment whose
+// code has since changed has no Line. A whole-file comment has no line or side to use.
 type ReviewComment struct {
 	ID        int64
 	InReplyTo int64
 	Path      string
 	Line      int
 	Side      CommentSide
+	WholeFile bool
 	Author    string
 	Body      string
 	CreatedAt time.Time

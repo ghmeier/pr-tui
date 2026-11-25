@@ -20,7 +20,9 @@ const cannedComments = `[
   {"id": 11, "in_reply_to_id": 10, "path": "first.py", "line": 2, "side": "RIGHT",
    "user": {"login": "person"}, "body": "Because it was wrong.", "created_at": "2026-11-10T09:30:00Z"},
   {"id": 12, "in_reply_to_id": null, "path": "first.py", "line": null, "side": "LEFT",
-   "user": {"login": "reviewer"}, "body": "Outdated remark", "created_at": "2026-11-09T09:00:00Z"}
+   "user": {"login": "reviewer"}, "body": "Outdated remark", "created_at": "2026-11-09T09:00:00Z"},
+  {"id": 13, "in_reply_to_id": null, "path": "first.py", "line": null, "side": null, "subject_type": "file",
+   "user": {"login": "reviewer"}, "body": "Split this file", "created_at": "2026-11-08T09:00:00Z"}
 ]`
 
 func TestDiffReturnsTheTextOfGhPrDiff(t *testing.T) {
@@ -85,6 +87,8 @@ func TestCommentsReadAuthorSideAndThreading(t *testing.T) {
 			CreatedAt: time.Date(2026, 11, 10, 9, 30, 0, 0, time.UTC)},
 		{ID: 12, Path: "first.py", Line: 0, Side: pullrequests.CommentSideOld, Author: "reviewer", Body: "Outdated remark",
 			CreatedAt: time.Date(2026, 11, 9, 9, 0, 0, 0, time.UTC)},
+		{ID: 13, Path: "first.py", WholeFile: true, Author: "reviewer", Body: "Split this file",
+			CreatedAt: time.Date(2026, 11, 8, 9, 0, 0, 0, time.UTC)},
 	}
 	if err != nil || !reflect.DeepEqual(comments, expected) {
 		t.Fatalf("comments = %+v, err = %v, expected %+v", comments, err, expected)
@@ -117,6 +121,20 @@ func TestPostCommentOnTheOldSideSendsLeft(t *testing.T) {
 		t.Fatal(err)
 	}
 	stub.assertInputs(t, `{"body":"Why remove this?","commit_id":"`+pr.HeadCommit+`","line":2,"path":"first.py","side":"LEFT"}`)
+}
+
+func TestPostCommentOnAWholeFileSendsTheHeadCommitAndTheFileSubjectWithoutALine(t *testing.T) {
+	pr := fixturePullRequest(partners)
+	stub := stubShell(t, "")
+	target := pullrequests.CommentTarget{Path: "first.py", WholeFile: true}
+
+	err := providerFor(partners).PostComment(pr, target, "Split this file")
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	stub.assertCommands(t, []string{"gh", "api", "--method", "POST", "repos/" + partners.FullName() + "/pulls/7/comments"})
+	stub.assertInputs(t, `{"body":"Split this file","commit_id":"`+pr.HeadCommit+`","path":"first.py","subject_type":"file"}`)
 }
 
 func TestPostCommentAsAReplySendsOnlyTheBodyAndTheCommentItAnswers(t *testing.T) {

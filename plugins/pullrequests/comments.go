@@ -20,16 +20,20 @@ type threadKey struct {
 	line int
 }
 
-// groupThreads keys each thread by the diff line it sits on. The provider reports no line for a
-// comment whose code has since changed, so those outdated threads are left out.
+// groupThreads keys each thread by the diff line it sits on, and a whole-file thread by line 0
+// on the new side, which no diff line has but the file row looks up. The provider reports no
+// line for a line comment whose code has since changed, so those outdated threads are left out.
 func groupThreads(comments []ReviewComment) map[threadKey][]*commentThread {
 	threads := map[threadKey][]*commentThread{}
 	byRoot := map[int64]*commentThread{}
 	for _, comment := range comments {
-		if comment.InReplyTo == 0 && comment.Line > 0 {
+		if comment.InReplyTo == 0 && (comment.WholeFile || comment.Line > 0) {
 			thread := &commentThread{root: comment}
 			byRoot[comment.ID] = thread
 			key := threadKey{comment.Path, comment.Side, comment.Line}
+			if comment.WholeFile {
+				key = wholeFileThreadKey(comment.Path)
+			}
 			threads[key] = append(threads[key], thread)
 		}
 	}
@@ -39,6 +43,10 @@ func groupThreads(comments []ReviewComment) map[threadKey][]*commentThread {
 		}
 	}
 	return threads
+}
+
+func wholeFileThreadKey(path string) threadKey {
+	return threadKey{path, CommentSideNew, 0}
 }
 
 var commentSanitizer = strings.NewReplacer("\r", "", "\x1b", "", "\t", "    ")
@@ -84,12 +92,14 @@ func (draft DraftComment) renderUnder(heading string, width int) []string {
 func (thread commentThread) replyTarget() CommentTarget {
 	root := thread.root
 	return CommentTarget{
-		Path: root.Path, Line: root.Line, Side: root.Side, ReplyTo: root.ID, ReplyAuthor: root.Author,
+		Path: root.Path, Line: root.Line, Side: root.Side, WholeFile: root.WholeFile, ReplyTo: root.ID, ReplyAuthor: root.Author,
 	}
 }
 
 func (line diffLine) threadKeys(path string) []threadKey {
 	switch line.kind {
+	case fileLine:
+		return []threadKey{wholeFileThreadKey(path)}
 	case removedLine:
 		return []threadKey{{path, CommentSideOld, line.oldNumber}}
 	case addedLine:

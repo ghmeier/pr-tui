@@ -27,6 +27,8 @@ type lineKind int
 const (
 	metadataLine lineKind = iota
 	hunkLine
+	// fileLine is the row above a file's first line, where a comment on the whole file goes.
+	fileLine
 	contextLine
 	addedLine
 	removedLine
@@ -63,6 +65,8 @@ type diffFile struct {
 	numberWidth int
 }
 
+const wholeFileLabel = "whole file"
+
 var hunkHeaderPattern = regexp.MustCompile(`^@@ -(\d+)(?:,\d+)? \+(\d+)`)
 
 // splitSeparator sits between the two sides of a side-by-side row.
@@ -86,7 +90,7 @@ func parseDiff(text string) []diffFile {
 			if index := strings.LastIndex(line, " b/"); index >= 0 {
 				path = line[index+3:]
 			}
-			files = append(files, diffFile{path: path})
+			files = append(files, diffFile{path: path, lines: []diffLine{{text: wholeFileLabel, source: wholeFileLabel, kind: fileLine}}})
 			inHunk = false
 			continue
 		}
@@ -308,6 +312,8 @@ func (line diffLine) parts(width int) [][]ui.Segment {
 		return ui.WrapSegments([]ui.Segment{{Text: line.text, Style: ui.DimStyle}}, width)
 	case hunkLine:
 		return ui.WrapSegments([]ui.Segment{{Text: line.text, Style: ui.CyanStyle}}, width)
+	case fileLine:
+		return ui.WrapSegments([]ui.Segment{{Text: line.text, Style: ui.DimStyle}}, width)
 	}
 	code := line.code
 	if line.text == "" {
@@ -332,7 +338,7 @@ func (line diffLine) renderLines(width int) []string {
 			}
 		}
 		switch line.kind {
-		case metadataLine, hunkLine:
+		case metadataLine, hunkLine, fileLine:
 			rendered[offset] = ui.StyledText(part)
 			continue
 		case contextLine:

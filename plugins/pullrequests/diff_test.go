@@ -15,13 +15,13 @@ func TestHighlightingKeepsEveryCharacterOfTheDiffLine(t *testing.T) {
 	}
 
 	expected := []string{
-		"index 111..222 100644", "--- a/first.py", "+++ b/first.py", "@@ -1,3 +1,4 @@",
+		"whole file", "index 111..222 100644", "--- a/first.py", "+++ b/first.py", "@@ -1,3 +1,4 @@",
 		" unchanged", "-removed", "+added", "+added again",
 	}
 	if !reflect.DeepEqual(rendered, expected) {
 		t.Fatalf("rendered = %q", rendered)
 	}
-	if files[0].lines[4].code == nil {
+	if files[0].lines[5].code == nil {
 		t.Fatalf("a Python file should be tokenised for highlighting")
 	}
 }
@@ -86,7 +86,7 @@ func TestSplitViewPutsRemovedLineBesideItsReplacement(t *testing.T) {
 	file := parseDiff(fixtureDiff)[0]
 
 	rows := []string{}
-	for _, row := range file.splitRows[4:] {
+	for _, row := range file.splitRows[5:] {
 		rows = append(rows, strings.Join(strings.Fields(strings.Join(file.renderSplitRow(row, 60, " │ "), "\n")), " "))
 	}
 

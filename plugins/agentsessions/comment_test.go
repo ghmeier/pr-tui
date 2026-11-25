@@ -91,6 +91,22 @@ func TestCommentMessageNamesThePullRequestTheLineAndHasTheCommentLast(t *testing
 	}
 }
 
+func TestCommentMessageForAWholeFileCommentNamesTheFileAndNoLine(t *testing.T) {
+	fixture := newBoardFixture()
+	comment := fixture.commentOn(fixture.signIn, "This file should be split up.")
+	comment.Target = pullrequests.CommentTarget{Path: comment.Target.Path, WholeFile: true}
+
+	text := commentMessage(comment)
+
+	expected := prefillFor(fixture) + fmt.Sprintf("\nFile: %s (whole file)\n\n%s", comment.Target.Path, comment.Body)
+	if text != expected {
+		t.Fatalf("message = %q, expected %q", text, expected)
+	}
+	if strings.Contains(text, "line") && strings.Contains(text, "side)") {
+		t.Fatalf("a whole-file message should not name a line: %q", text)
+	}
+}
+
 func TestCommentMessageOnTheOldSideSaysSo(t *testing.T) {
 	fixture := newBoardFixture()
 	comment := fixture.commentOn(fixture.signIn, "Why remove this?")

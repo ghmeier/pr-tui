@@ -95,14 +95,15 @@ func (github *provider) Comments(pr pullrequests.PullRequest) ([]pullrequests.Re
 		return nil, err
 	}
 	var response []struct {
-		ID        int64
-		InReplyTo int64 `json:"in_reply_to_id"`
-		Path      string
-		Line      int
-		Side      string
-		User      struct{ Login string }
-		Body      string
-		CreatedAt time.Time `json:"created_at"`
+		ID          int64
+		InReplyTo   int64 `json:"in_reply_to_id"`
+		Path        string
+		Line        int
+		Side        string
+		SubjectType string `json:"subject_type"`
+		User        struct{ Login string }
+		Body        string
+		CreatedAt   time.Time `json:"created_at"`
 	}
 	if err := json.Unmarshal(output, &response); err != nil {
 		return nil, err
@@ -115,6 +116,7 @@ func (github *provider) Comments(pr pullrequests.PullRequest) ([]pullrequests.Re
 			Path:      comment.Path,
 			Line:      comment.Line,
 			Side:      sideFrom(comment.Side),
+			WholeFile: comment.SubjectType == "file",
 			Author:    comment.User.Login,
 			Body:      comment.Body,
 			CreatedAt: comment.CreatedAt,
@@ -126,6 +128,14 @@ func (github *provider) Comments(pr pullrequests.PullRequest) ([]pullrequests.Re
 func (github *provider) PostComment(pr pullrequests.PullRequest, target pullrequests.CommentTarget, body string) error {
 	if target.ReplyTo != 0 {
 		return sendJSON("POST", apiEndpoint(pr)+"/comments", map[string]any{"body": body, "in_reply_to": target.ReplyTo})
+	}
+	if target.WholeFile {
+		return sendJSON("POST", apiEndpoint(pr)+"/comments", map[string]any{
+			"body":         body,
+			"commit_id":    pr.HeadCommit,
+			"path":         target.Path,
+			"subject_type": "file",
+		})
 	}
 	return sendJSON("POST", apiEndpoint(pr)+"/comments", map[string]any{
 		"body":      body,

@@ -87,7 +87,7 @@ func TestCommentKeyOnAHeaderLineOpensNoEditorAndSaysWhy(t *testing.T) {
 	session := editorWrites(t, "Never used")
 	model := loadedBoard(t)
 
-	press(t, model, "enter", "c")
+	press(t, model, "enter", "down", "c")
 
 	assertShows(t, model, "Move to a code line to comment on it.")
 	if len(session.opened) != 0 {

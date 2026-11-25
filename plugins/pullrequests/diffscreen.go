@@ -385,6 +385,8 @@ func (screen *diffScreen) cursorCommentTarget() (CommentTarget, bool) {
 	}
 	file := screen.files[screen.fileCursor]
 	switch line := file.lines[index]; line.kind {
+	case fileLine:
+		return CommentTarget{Path: file.path, WholeFile: true}, true
 	case removedLine:
 		return CommentTarget{Path: file.path, Line: line.oldNumber, Side: CommentSideOld}, true
 	case addedLine, contextLine:
@@ -394,7 +396,8 @@ func (screen *diffScreen) cursorCommentTarget() (CommentTarget, bool) {
 }
 
 // comment writes in the editor. Editing a pending comment saves the change. A new comment on a
-// code line, or a reply on a posted thread, asks where the text goes once it is written.
+// code line or a whole file, or a reply on a posted thread, asks where the text goes once it is
+// written.
 func (screen *diffScreen) comment() tea.Cmd {
 	target, isCodeLine := screen.cursorCommentTarget()
 	switch {
@@ -456,18 +459,18 @@ const (
 )
 
 // askWhereCommentGoes asks what to do with a comment that was just written, and keeps its text
-// until it is sent or added to the review, so that cancelling does not lose it. A reply is
-// posted at once when no other plugin offers a place for it, because a review cannot carry
-// replies and posting is then the only choice.
+// until it is sent or added to the review, so that cancelling does not lose it. A reply or a
+// whole-file comment is posted at once when no other plugin offers a place for it, because a
+// review can carry neither and posting is then the only choice.
 func (screen *diffScreen) askWhereCommentGoes(target CommentTarget, body string) tea.Cmd {
-	isReply := target.ReplyTo != 0
+	canJoinReview := target.ReplyTo == 0 && !target.WholeFile
 	offered := screen.selection.Offers(CommentKind)
-	if isReply && len(offered) == 0 {
+	if !canJoinReview && len(offered) == 0 {
 		return screen.postComment(target, body)
 	}
 	screen.keptComments[target] = body
 	options := []string{postCommentOption}
-	if !isReply {
+	if canJoinReview {
 		options = append(options, addToReviewOption)
 	}
 	options = append(options, offered...)
