@@ -132,6 +132,32 @@ func TestCommentMessageForAReplyNamesWhoseCommentItAnswers(t *testing.T) {
 	}
 }
 
+func TestCommentMessageForAConversationCommentReplacesTheFileLine(t *testing.T) {
+	fixture := newBoardFixture()
+	comment := fixture.commentOn(fixture.signIn, "Thanks.")
+	comment.Target = pullrequests.CommentTarget{Conversation: true}
+
+	text := commentMessage(comment)
+
+	expected := prefillFor(fixture) + "\nComment on the conversation\n\n" + comment.Body
+	if text != expected || strings.Contains(text, "File:") {
+		t.Fatalf("message = %q, expected %q", text, expected)
+	}
+}
+
+func TestCommentMessageForAConversationReplyNamesTheAuthorItAnswers(t *testing.T) {
+	fixture := newBoardFixture()
+	comment := fixture.commentOn(fixture.signIn, "Thanks.")
+	comment.Target = pullrequests.CommentTarget{Conversation: true, ReplyAuthor: "reviewer"}
+
+	text := commentMessage(comment)
+
+	expected := prefillFor(fixture) + "\nComment on the conversation, in reply to " + comment.Target.ReplyAuthor + "\n\n" + comment.Body
+	if text != expected {
+		t.Fatalf("message = %q, expected %q", text, expected)
+	}
+}
+
 func TestCommentMessageForANewCommentSaysNothingAboutAReply(t *testing.T) {
 	fixture := newBoardFixture()
 
