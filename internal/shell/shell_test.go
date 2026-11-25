@@ -50,3 +50,23 @@ func TestRunInReportsFailuresLikeRun(t *testing.T) {
 		t.Fatalf("error = %v", failing)
 	}
 }
+
+func TestRunWithInputWritesTheTextToStandardInput(t *testing.T) {
+	output, err := RunWithInput("typed text", "cat")
+
+	if err != nil || string(output) != "typed text" {
+		t.Fatalf("output = %q, error = %v", output, err)
+	}
+}
+
+func TestRunWithInputReportsFailuresLikeRun(t *testing.T) {
+	_, notInstalled := RunWithInput("text", "prs-test-program-that-does-not-exist")
+	_, failing := RunWithInput("text", "sh", "-c", "echo went wrong >&2; exit 1")
+
+	if !errors.Is(notInstalled, exec.ErrNotFound) {
+		t.Fatalf("error = %v, expected it to wrap exec.ErrNotFound", notInstalled)
+	}
+	if failing == nil || failing.Error() != "went wrong" {
+		t.Fatalf("error = %v", failing)
+	}
+}

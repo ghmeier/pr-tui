@@ -114,6 +114,7 @@ type fakeProvider struct {
 	ciStateRequests   map[string]int
 	memberRequests    map[string]int
 	comments          []ReviewComment
+	conversation      []ConversationEntry
 	changedFiles      []string
 	description       string
 	diff              string
@@ -336,6 +337,15 @@ func (fake *fakeProvider) Comments(PullRequest) ([]ReviewComment, error) {
 		return nil, err
 	}
 	return fake.comments, nil
+}
+
+func (fake *fakeProvider) Conversation(PullRequest) ([]ConversationEntry, error) {
+	fake.mutex.Lock()
+	defer fake.mutex.Unlock()
+	if err := fake.failures["Conversation"]; err != nil {
+		return nil, err
+	}
+	return fake.conversation, nil
 }
 
 func (fake *fakeProvider) PostComment(pr PullRequest, target CommentTarget, body string) error {

@@ -73,7 +73,7 @@ func (m *Model) handleClick(x, y int) tea.Cmd {
 		return nil
 	}
 	cells := board.cells()
-	column, found := columnAt(columnWidths(board.spec.Columns, cells, clicked.width), x-clicked.x)
+	column, found := columnAt(columnWidths(board.drawnColumns(), cells, clicked.width), x-clicked.x)
 	if !found {
 		return nil
 	}

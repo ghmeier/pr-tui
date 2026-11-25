@@ -29,7 +29,7 @@ func (board *pullRequestBoard) actions() []plugin.Action {
 	}
 	return append(actions,
 		plugin.Action{Key: "m", Label: "merge", Run: board.chooseMerge},
-		plugin.Action{Key: "a", LabelFor: reviewLabel, Run: board.review},
+		plugin.Action{Key: "a", LabelFor: board.reviewLabel, Run: board.review},
 	)
 }
 
@@ -73,14 +73,13 @@ func (board *pullRequestBoard) reviewerOptions(row Row) []string {
 	return options
 }
 
-// reviewLabel says "comment" on the viewer's own pull request, where a comment review is the
-// only kind GitHub accepts.
-func reviewLabel(row plugin.Row) string {
-	pullRequestRow := row.(Row)
-	if pullRequestRow.PullRequest.Author == pullRequestRow.Viewer {
-		return "comment"
+// reviewLabel counts the comments waiting to be submitted, so that they are not forgotten.
+func (board *pullRequestBoard) reviewLabel(row plugin.Row) string {
+	pending := board.reviews.count(row.(Row).PullRequest.URL)
+	if pending == 0 {
+		return "review"
 	}
-	return "review"
+	return fmt.Sprintf("review (%d pending)", pending)
 }
 
 var screenActionKeys = []string{"d", "t", "m", "a"}
@@ -97,22 +96,13 @@ func (board *pullRequestBoard) screenActions() []plugin.Action {
 	return offered
 }
 
-// currentRow is the board's latest version of the selection's row, so that a screen labels its
-// actions from the state an action has since changed. It falls back to the row the screen was
-// opened with once the board no longer has it.
-func currentRow(selection plugin.Selection) plugin.Row {
-	if row, found := selection.Current(); found {
-		return row
-	}
-	return selection.Row
-}
-
-// screenActionHelp lists the keys and labels of the screen actions that apply to the row, for a
-// screen's help line.
-func (board *pullRequestBoard) screenActionHelp(row plugin.Row) []string {
+// screenActionHelp lists the keys and labels of the screen actions that apply to the selection as
+// the board has it now, for a screen's help line.
+func (board *pullRequestBoard) screenActionHelp(selection plugin.Selection) []string {
+	selection = selection.Latest()
 	var keysAndLabels []string
 	for _, action := range board.screenActions() {
-		if label, _ := action.LabelOf(row); label != "" {
+		if label, _ := action.LabelOf(selection); label != "" {
 			keysAndLabels = append(keysAndLabels, action.Key, label)
 		}
 	}

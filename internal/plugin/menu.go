@@ -39,13 +39,23 @@ func (m *Model) closeChoice() {
 	m.mode, m.choice, m.choiceTyped, m.choiceCursor = boardMode, nil, "", 0
 }
 
+// cancelChoice closes the pending choice and carries out what its Cancel says, if it has one.
+func (m *Model) cancelChoice() tea.Cmd {
+	choice, index := m.choice, m.pendingBoard
+	m.closeChoice()
+	if choice.Cancel == nil {
+		return nil
+	}
+	return m.applyEffect(index, choice.Cancel())
+}
+
 // handleMenuKey gives a key to the open menu. Printable characters are typed, so none of them
 // can double as a command.
 func (m *Model) handleMenuKey(key string) tea.Cmd {
 	matches := m.choice.matching(m.choiceTyped)
 	switch key {
 	case "esc":
-		m.closeChoice()
+		return m.cancelChoice()
 	case "up", "ctrl+p":
 		m.choiceCursor = max(m.choiceCursor-1, 0)
 	case "down", "ctrl+n":

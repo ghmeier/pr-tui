@@ -15,6 +15,8 @@ import (
 	"github.com/ghmeier/pr-tui/internal/plugin"
 	// Imported for their side effect of registering themselves.
 	_ "github.com/ghmeier/pr-tui/plugins/agentplans"
+	_ "github.com/ghmeier/pr-tui/plugins/agentsessions"
+	_ "github.com/ghmeier/pr-tui/plugins/agentsessions/claude"
 	_ "github.com/ghmeier/pr-tui/plugins/pullrequests"
 	_ "github.com/ghmeier/pr-tui/plugins/pullrequests/github"
 	_ "github.com/ghmeier/pr-tui/plugins/tickets"

@@ -237,10 +237,10 @@ func validate(raw rawFile) (*File, error) {
 // it is the one place that has to change when a section gains a key.
 const starterConfiguration = `# Configuration for prs, a board of open pull requests.
 
-# Which parts of the board to show: "pull_requests", and optionally "agent_plans" and
-# "workflows".
+# Which parts of the board to show: "pull_requests", and optionally "agent_plans",
+# "agent_sessions", and "workflows".
 plugins = ["pull_requests"]
-# plugins = ["pull_requests", "agent_plans", "workflows"]
+# plugins = ["pull_requests", "agent_plans", "agent_sessions", "workflows"]
 
 # How often the board refreshes itself, as a Go duration such as "90s" or "5m", at least "1s".
 refresh_interval = "3m"
@@ -280,6 +280,14 @@ repositories = ["your-organization/your-repository"]
 # Required. Local checkouts whose apl documents (plans, research, handoffs) are listed. Each
 # must contain a .apl directory, and no two may share a directory name.
 # repositories = ["~/git/your-repository"]
+
+# Only read when "agent_sessions" is in the plugins list above. Adds a 🤖 mark to the State column of
+# the pull request board, and the "c" key, which writes a message in your editor and sends it to the session.
+# [agent_sessions]
+# Where sessions come from. Only "claude" is supported today; it uses the login of claude.
+# provider = "claude"
+# Model that relays each message to a session. A small model keeps a send to a few seconds.
+# relay_model = "haiku"
 
 # Only read when "workflows" is in the plugins list above. Every section is drawn side by side
 # in one tab titled "Workflows".

@@ -1,7 +1,10 @@
 package github
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"io"
 	"os"
 	"sort"
 	"strings"
@@ -89,22 +92,41 @@ func sideText(side pullrequests.CommentSide) string {
 	return "RIGHT"
 }
 
-func (github *provider) Comments(pr pullrequests.PullRequest) ([]pullrequests.ReviewComment, error) {
-	output, err := shell.Run("gh", "api", apiEndpoint(pr)+"/comments?per_page=100")
+// listEach fetches every page of a list endpoint. It asks for --jq '.[]' because the pages of a
+// plain --paginate are several JSON arrays back to back, where this prints one value for each element.
+func listEach[Element any](endpoint string) ([]Element, error) {
+	output, err := shell.Run("gh", "api", "--paginate", endpoint, "--jq", ".[]")
 	if err != nil {
 		return nil, err
 	}
-	var response []struct {
-		ID        int64
-		InReplyTo int64 `json:"in_reply_to_id"`
-		Path      string
-		Line      int
-		Side      string
-		User      struct{ Login string }
-		Body      string
-		CreatedAt time.Time `json:"created_at"`
+	var elements []Element
+	decoder := json.NewDecoder(bytes.NewReader(output))
+	for {
+		var element Element
+		err := decoder.Decode(&element)
+		if err == io.EOF {
+			return elements, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		elements = append(elements, element)
 	}
-	if err := json.Unmarshal(output, &response); err != nil {
+}
+
+func (github *provider) Comments(pr pullrequests.PullRequest) ([]pullrequests.ReviewComment, error) {
+	response, err := listEach[struct {
+		ID          int64
+		InReplyTo   int64 `json:"in_reply_to_id"`
+		Path        string
+		Line        int
+		Side        string
+		SubjectType string `json:"subject_type"`
+		User        struct{ Login string }
+		Body        string
+		CreatedAt   time.Time `json:"created_at"`
+	}](apiEndpoint(pr) + "/comments?per_page=100")
+	if err != nil {
 		return nil, err
 	}
 	var comments []pullrequests.ReviewComment
@@ -115,6 +137,7 @@ func (github *provider) Comments(pr pullrequests.PullRequest) ([]pullrequests.Re
 			Path:      comment.Path,
 			Line:      comment.Line,
 			Side:      sideFrom(comment.Side),
+			WholeFile: comment.SubjectType == "file",
 			Author:    comment.User.Login,
 			Body:      comment.Body,
 			CreatedAt: comment.CreatedAt,
@@ -124,16 +147,20 @@ func (github *provider) Comments(pr pullrequests.PullRequest) ([]pullrequests.Re
 }
 
 func (github *provider) PostComment(pr pullrequests.PullRequest, target pullrequests.CommentTarget, body string) error {
+	if target.Conversation {
+		return sendJSON("POST", fmt.Sprintf("repos/%s/issues/%d/comments", pr.Repository.FullName(), pr.Number), map[string]string{"body": body})
+	}
 	if target.ReplyTo != 0 {
 		return sendJSON("POST", apiEndpoint(pr)+"/comments", map[string]any{"body": body, "in_reply_to": target.ReplyTo})
 	}
-	return sendJSON("POST", apiEndpoint(pr)+"/comments", map[string]any{
-		"body":      body,
-		"commit_id": pr.HeadCommit,
-		"path":      target.Path,
-		"line":      target.Line,
-		"side":      sideText(target.Side),
-	})
+	fields := map[string]any{"body": body, "commit_id": pr.HeadCommit, "path": target.Path}
+	if target.WholeFile {
+		fields["subject_type"] = "file"
+	} else {
+		fields["line"] = target.Line
+		fields["side"] = sideText(target.Side)
+	}
+	return sendJSON("POST", apiEndpoint(pr)+"/comments", fields)
 }
 
 func (github *provider) SetDraft(pr pullrequests.PullRequest, draft bool) error {

@@ -21,7 +21,9 @@ var (
 // Selection.Data.
 const (
 	linesHeader = "Lines"
-	stateHeader = "State"
+	// StateColumn is the header of the column of marks, which other plugins can add their own
+	// marks to by setting Column.Within to it.
+	StateColumn = "State"
 )
 
 // awaitsReviewFrom reports whether someone else's pull request has a review requested from
@@ -151,7 +153,7 @@ func (board *pullRequestBoard) columns() []plugin.Column {
 		{Header: linesHeader, Cell: func(_ plugin.Row, data any) []ui.Segment {
 			return lineCountCellSegments(data)
 		}, Load: board.loadLineCounts},
-		{Header: stateHeader, Cell: func(row plugin.Row, data any) []ui.Segment {
+		{Header: StateColumn, Cell: func(row plugin.Row, data any) []ui.Segment {
 			return ui.PlainSegments(row.(Row).stateMarks(board.reviewTeam, data))
 		}, Load: board.loadCIStates},
 		{Header: "Review requested", MaxWidth: 30, Cell: func(row plugin.Row, _ any) []ui.Segment {

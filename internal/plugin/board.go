@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"slices"
 	"time"
 
 	"github.com/ghmeier/pr-tui/internal/ui"
@@ -42,6 +43,8 @@ type boardState struct {
 	// failure is the text of the last notice that reported a failure. A success does not clear
 	// a notice that still says so, because the failure has not been read yet.
 	failure string
+	// offerable are the board's actions that take a kind of value. They never change after setup.
+	offerable []Action
 	// running counts the commands of effects that have started and not yet finished.
 	running int
 }
@@ -104,8 +107,20 @@ func (board *boardState) selectionOf(row Row) Selection {
 		Row:        row,
 		Data:       func(header string) any { return loaded[header] },
 		boardIndex: board.index,
-		current:    func() (Row, bool) { return board.rowWithKey(row.Key()) },
+		latest: func() (Selection, bool) {
+			current, found := board.rowWithKey(row.Key())
+			if !found {
+				return Selection{}, false
+			}
+			return board.selectionOf(current), true
+		},
+		offerable: board.offerable,
 	}
+}
+
+// offerableActions are the actions of the board that take a kind of value.
+func offerableActions(spec Board) []Action {
+	return slices.DeleteFunc(slices.Clone(spec.Actions), func(action Action) bool { return action.Takes == "" })
 }
 
 // reportFailure shows a failure notice that later successes leave in place until a load or a
@@ -150,17 +165,43 @@ func (board *boardState) rowWithKey(key string) (Row, bool) {
 	return nil, false
 }
 
+// drawnColumns are the columns that have a place in the table of their own, which leaves out the
+// ones drawn within another column.
+func (board *boardState) drawnColumns() []Column {
+	return slices.DeleteFunc(slices.Clone(board.spec.Columns), func(column Column) bool { return column.Within != "" })
+}
+
+func (board *boardState) cell(columnIndex int, row Row) []ui.Segment {
+	return board.spec.Columns[columnIndex].Cell(row, board.data[columnIndex][row.Key()])
+}
+
+// cells draws the visible rows, one cell for each of the drawn columns. The columns drawn within
+// a column add their cells after its own, in the order they were added, each after a space when
+// both sides have content.
 func (board *boardState) cells() [][][]ui.Segment {
 	cells := make([][][]ui.Segment, len(board.visible))
 	for rowIndex, row := range board.visible {
-		cells[rowIndex] = make([][]ui.Segment, len(board.spec.Columns))
 		for columnIndex, column := range board.spec.Columns {
-			cells[rowIndex][columnIndex] = column.Cell(row, board.data[columnIndex][row.Key()])
+			if column.Within != "" {
+				continue
+			}
+			cell := board.cell(columnIndex, row)
+			for joinedIndex, joined := range board.spec.Columns {
+				if joined.Within != column.Header {
+					continue
+				}
+				extra := board.cell(joinedIndex, row)
+				if len(cell) > 0 && len(extra) > 0 {
+					cell = append(cell[:len(cell):len(cell)], ui.Segment{Text: " "})
+				}
+				cell = append(cell[:len(cell):len(cell)], extra...)
+			}
+			cells[rowIndex] = append(cells[rowIndex], cell)
 		}
 	}
 	return cells
 }
 
 func (board *boardState) table(width, selected, offset, rowCount int) string {
-	return renderTable(board.spec.Columns, board.cells(), width, selected, offset, rowCount)
+	return renderTable(board.drawnColumns(), board.cells(), width, selected, offset, rowCount)
 }

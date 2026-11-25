@@ -21,19 +21,28 @@ func (err commandError) Unwrap() error { return err.cause }
 
 // Run runs an external command and returns its standard output. Tests replace it.
 var Run = func(arguments ...string) ([]byte, error) {
-	return run("", arguments)
+	return run("", "", arguments)
 }
 
 // RunIn is Run with the command's working directory set, for a program that acts on the
 // directory it is started in. Tests replace it.
 var RunIn = func(directory string, arguments ...string) ([]byte, error) {
-	return run(directory, arguments)
+	return run(directory, "", arguments)
 }
 
-func run(directory string, arguments []string) ([]byte, error) {
+// RunWithInput is Run with the text written to the command's standard input, for a program that
+// reads its prompt there. Tests replace it.
+var RunWithInput = func(input string, arguments ...string) ([]byte, error) {
+	return run("", input, arguments)
+}
+
+func run(directory, input string, arguments []string) ([]byte, error) {
 	var standardError bytes.Buffer
 	command := exec.Command(arguments[0], arguments[1:]...)
 	command.Dir = directory
+	if input != "" {
+		command.Stdin = strings.NewReader(input)
+	}
 	command.Stderr = &standardError
 	output, err := command.Output()
 	if err != nil {

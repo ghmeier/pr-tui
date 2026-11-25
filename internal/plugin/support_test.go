@@ -286,3 +286,13 @@ func (screen *fakeScreen) receivedKeys() []string {
 	}
 	return keys
 }
+
+// lineWith returns the screen line that contains the text, or "".
+func lineWith(model *Model, text string) string {
+	for _, line := range lines(model) {
+		if strings.Contains(line, text) {
+			return line
+		}
+	}
+	return ""
+}

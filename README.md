@@ -50,6 +50,10 @@ review_team = "engineering"        # optional
 [agent_plans]                      # read only when "agent_plans" is in plugins
 repositories = ["~/git/storefront", "~/git/billing"]   # required; checkouts that contain a .apl directory
 
+[agent_sessions]                   # read only when "agent_sessions" is in plugins; every key is optional
+provider = "claude"                # only "claude" is supported; default "claude"
+relay_model = "haiku"              # the model that relays a message to a session; default "haiku"
+
 [workflows]                        # read only when "workflows" is in plugins
 repositories = ["acme/storefront", "acme/billing"]   # required; owner/name
 ```
@@ -114,7 +118,7 @@ Board keys:
 | `d` | Mark a draft ready for review, or convert a ready pull request back to draft; the help line shows which |
 | `t` | Request review: opens a list of the review team and its members, which you narrow by typing and pick with enter. The team is left out once it is requested, and so are the author and anyone already requested. A draft is marked ready for review first. Hidden when nobody is left to ask |
 | `m` | Merge now (squash, after a confirmation), or enable or disable auto-merge (squash) |
-| `a` | Review (labelled comment on your own pull request): approve, request changes, or comment, written in your editor. It submits the pending comments you have collected in the diff view, after a confirmation. On your own pull request only a comment review is offered |
+| `a` | Review: approve, request changes, or comment, written in your editor. It submits the pending comments you have collected in the diff view, after a confirmation, and the help line shows how many are pending. On your own pull request only a comment review is offered |
 | `f` | Filter by repository and by people or bots: `j`/`k` move, `space` toggles, `1` to `9` toggle the first nine options, `b` switches people and bots |
 | `tab` / `shift+tab` | Switch tabs, when plugins add more than one |
 | `←` / `→` or `h` / `l` | Move between the boards that share a tab, such as the workflow sections |
@@ -138,12 +142,12 @@ Diff view keys:
 | `↑` / `↓`, mouse wheel | Move the line cursor by a line |
 | `pgup` / `pgdn` | Move the line cursor by a page |
 | `s` | Toggle split and unified layouts; a file that was added or deleted opens unified, and the key changes only that file |
-| `c` | Write a comment in your editor on the line under the cursor and add it to the pending review. On a posted thread it replies at once, and on a pending comment it edits it (saving nothing removes it) |
+| `c` | Write a comment in your editor on the line under the cursor, then choose where it goes: post it now, add it to the pending review, or, when the agent sessions plugin finds a session working on the pull request, send it to that session. Esc keeps the text for the next `c` on that line. Each file starts with a dim "whole file" row; `c` on it comments on the file as a whole, which is posted at once (or sent to a session) because a review cannot carry it, and comments already on the file show under that row. On a posted thread it replies, with the same choice minus the review (a reply is posted at once when nothing else is offered), and on a pending comment it edits it (saving nothing removes it) |
 | `d` | Mark a draft ready for review, or convert a ready pull request back to draft; the help line shows which |
 | `t` | Request review from the team or one of its members, as on the board; hidden when nobody is left to ask |
 | `m` | Merge now (squash, after a confirmation), or enable or disable auto-merge (squash) |
-| `a` | Review (labelled comment on your own pull request): approve, request changes, or comment, written in your editor. It submits the pending comments you have collected in the diff view, after a confirmation. On your own pull request only a comment review is offered |
-| `esc` | Back |
+| `a` | Review: approve, request changes, or comment, written in your editor. It submits the pending comments you have collected in the diff view, after a confirmation, and the help line shows how many are pending. On your own pull request only a comment review is offered |
+| `esc` / `q` | Back; asks first when comments are still pending, which stay pending if you go back |
 
 In the diff view, dragging the mouse over lines copies their code, without the markers and
 line numbers, from the side of a split row where the drag started. Clicking a line moves the
@@ -154,16 +158,20 @@ spans the whole screen.
 Pending comments are kept in memory, so they are lost when `prs` quits. They are posted together when
 you submit a review with `a`.
 
+The description view shows the description, then the pull request's conversation under a "Comments" heading: the comments on the pull request and the text of submitted reviews, oldest first, each headed by its author and age (and "approved", "requested changes", or "reviewed" for a review). The comments load in the background, so the description appears without waiting for them. Line comments are shown in the diff view instead.
+
 Description view keys:
 
 | Key | Action |
 | --- | --- |
+| `j` / `k` | Select the next or previous comment, and scroll to it; `k` from the first comment selects none. Scrolling with the arrow keys, the mouse wheel, `space`, `b`, `home`, or `end` does not change the selection |
 | `↑` / `↓`, `space` / `b` | Scroll by a line or a page |
-| `e` | Edit the title and the description in your editor: the title on the first line, a blank line, then the description. Saving changes either or both; an empty title is refused |
+| `c` | Write a comment on the conversation in your editor. With a comment selected it is a reply: the editor opens with `@author` and the start of that comment quoted, as the quote reply on github.com does. A conversation has no threads, so the reply is a new comment. Saving asks where it goes: post it to the pull request, or hand it to another plugin's action when one is offered. Escaping that question keeps the text for the next `c` on the same comment |
+| `e` | Edit the title and the description in your editor: the title on the first line, a blank line, then the description. Saving changes either or both; an empty title is refused. Comments are not part of what you edit |
 | `d` | Mark a draft ready for review, or convert a ready pull request back to draft; the help line shows which |
 | `t` | Request review from the team or one of its members, as on the board; hidden when nobody is left to ask |
 | `m` | Merge now (squash, after a confirmation), or enable or disable auto-merge (squash) |
-| `a` | Review (labelled comment on your own pull request): approve, request changes, or comment, written in your editor. It submits the pending comments you have collected in the diff view, after a confirmation. On your own pull request only a comment review is offered |
+| `a` | Review: approve, request changes, or comment, written in your editor. It submits the pending comments you have collected in the diff view, after a confirmation, and the help line shows how many are pending. On your own pull request only a comment review is offered |
 | `esc` | Back |
 
 ## Agent plans
@@ -183,6 +191,25 @@ checkout. That needs apl 0.9.0 or later; the rest of the board works with older 
 `pull_requests` is on too, its board gets a `Plan` column with the title
 of the document linked to each pull request's branch with `apl link <document> --branch <name>`,
 and `+N` when more documents are linked.
+
+## Agent sessions
+
+The `agent_sessions` plugin finds the live Claude Code sessions (the ones `claude agents` lists)
+that are working on each pull request, and sends them a message. It is off until you add
+`"agent_sessions"` to `plugins`, it needs `claude` on your `PATH` and logged in, and it adds to the
+pull request board when `pull_requests` is on.
+
+A pull request with one or more matching sessions gets a 🤖 at the end of its State column. A session matches a pull request when it
+has mentioned the pull request's address (prs reads the last 2 MiB of the session's transcript under
+`~/.claude/projects`), or when it is on the pull request's head branch in a checkout of the same repository.
+A session in a worktree counts as a session of the main checkout.
+
+`c` writes a message about the selected pull request in your editor, opened on a few lines naming the pull
+request, its address, and its branch, and sends what you save to the session. With several matching
+sessions it asks which one first. Saving the text unchanged sends nothing. Claude Code has no command to
+send a message, so prs runs a one-shot `claude -p` that can only call `SendMessage`, on the model
+`relay_model`, which takes a few seconds. A session is addressed by its name, so a send fails when two
+live sessions share one; rename one with `/rename`.
 
 ## Workflows
 
