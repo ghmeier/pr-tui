@@ -141,14 +141,27 @@ None. Columns, actions, `Edit`, `Choice`, and `Command` cover it.
 2. **`agent-sessions-plans`** from step 1. The Session column and message action on the agent
    plans board. Verify: tests and `--once` against `~/git/gazebo`.
 
-3. **`agent-sessions-diff-lines`** from step 2. Message a session from the diff screen with the
-   file and line (or selected lines) under the cursor in the prefill. Screens run board
-   actions through `Selection.RunAction`, which carries only the row, so the host gains a way
-   for a screen to pass what it is showing with the action (for example
-   `Selection.RunActionWith(key, context any)` and `Selection.Context`), and
-   `plugins/pullrequests` exports a neutral `DiffPosition{Path, Line, Side, EndLine}` that the
-   agent sessions action reads. `c` is already comment on the diff screen, so this needs
-   another key there. Verify with host tests for the context and a plugin test for the prefill.
+3. **`agent-sessions-diff-comments`** from step 1. On the diff screen `c` stays comment. After the
+   editor is saved, a numbered choice asks where the comment goes: `1` post it to the pull
+   request now (`Provider.PostComment` with the line target), `2` add it to the pending review
+   (today's behaviour), `3` send it to the agent session (only offered when a session matches).
+   A reply on a posted thread offers only post and send. The message carries the pull request
+   metadata plus the file, line (or line range), and side.
+
+   The diff screen belongs to the pull request plugin and must not know about agent sessions,
+   so the host gains actions that screens offer with a value instead of a key:
+   - `Action.Takes string`: the kind of value the action works on, such as "comment". Such an
+     action has no key on the board and is not in the help line.
+   - `Action.Applies func(selection Selection) bool`: optional; whether it is offered for this
+     selection, so the agent option appears only when the Session data has a match.
+   - `Selection.Offers(kind string) []string`: the labels of the board's applicable actions
+     taking that kind, in the order they were added.
+   - `Selection.RunOffer(label string, value any) tea.Cmd` and `Selection.Value any`, which
+     the action's `Run` reads.
+   `plugins/pullrequests` exports `Comment{PullRequest, Path, Line, StartLine, Side, Body}` as
+   the "comment" value. The agent sessions plugin adds an action with `Takes: "comment"` and
+   label "send to agent session" that sends the body with the metadata, picking a session first
+   when several match. Verify with host tests for offers and a plugin test for each option.
 
 ## Risks
 
@@ -198,5 +211,8 @@ None. Columns, actions, `Edit`, `Choice`, and `Command` cover it.
   `--once` shows 🤖 after the CI mark on the three matched pull requests. Validation runs after
   every plugin's columns are attached, so a column added by another plugin is checked. Left
   alone: a long joined mark can push the host column's own text past its `MaxWidth`.
+- 2026-11-25: The user wants the diff screen's comment key kept, with a choice after saving:
+  post to the pull request, add to the review, or send to the agent. Step 3 rewritten for that;
+  it replaces the separate diff-screen key.
 - 2026-11-25: Auto mode blocked my own relay test from inside a Claude session, so the user
   runs it.
