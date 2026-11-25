@@ -107,7 +107,7 @@ func (outbox *commentOutbox) finishOffer(commandErr error) {
 
 func (outbox *commentOutbox) postComment(target CommentTarget, body string) tea.Cmd {
 	delete(outbox.keptComments, target)
-	if target.ReplyAuthor != "" {
+	if target.ReplyTo != 0 || target.ReplyAuthor != "" {
 		outbox.notice = "Posting reply…"
 	} else {
 		outbox.notice = "Posting comment…"

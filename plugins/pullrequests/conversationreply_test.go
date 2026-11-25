@@ -9,9 +9,8 @@ import (
 
 	"github.com/ghmeier/pr-tui/internal/plugin"
 	"github.com/ghmeier/pr-tui/internal/plugin/plugintest"
+	"github.com/ghmeier/pr-tui/internal/ui"
 )
-
-const cursorMarker = "▌"
 
 func descriptionWithConversation(t *testing.T, provider *fakeProvider) *plugin.Model {
 	t.Helper()
@@ -25,7 +24,7 @@ func descriptionWithConversation(t *testing.T, provider *fakeProvider) *plugin.M
 func markedHeaders(model *plugin.Model) []string {
 	var marked []string
 	for _, line := range strings.Split(view(model), "\n") {
-		if strings.Contains(line, cursorMarker) {
+		if strings.Contains(line, ui.CursorMarker) {
 			marked = append(marked, line)
 		}
 	}
@@ -35,7 +34,7 @@ func markedHeaders(model *plugin.Model) []string {
 func assertOnlyMarked(t *testing.T, model *plugin.Model, entry ConversationEntry) {
 	t.Helper()
 	marked := markedHeaders(model)
-	if len(marked) != 1 || !strings.HasPrefix(marked[0], cursorMarker+" "+entry.Author) {
+	if len(marked) != 1 || !strings.HasPrefix(marked[0], ui.CursorMarker+" "+entry.Author) {
 		t.Fatalf("marked lines = %q, expected only the header of %s:\n%s", marked, entry.Author, view(model))
 	}
 }
@@ -47,7 +46,7 @@ func replyTargetFor(entry ConversationEntry) CommentTarget {
 func TestJSelectsTheFirstCommentAndMarksItsHeader(t *testing.T) {
 	provider := newFakeProvider()
 	model := descriptionWithConversation(t, provider)
-	assertDoesNotShow(t, model, cursorMarker)
+	assertDoesNotShow(t, model, ui.CursorMarker)
 
 	press(t, model, "j")
 
@@ -64,7 +63,7 @@ func TestJMovesToTheNextCommentAndKMovesBackUntilNothingIsSelected(t *testing.T)
 	assertOnlyMarked(t, model, provider.conversation[0])
 	press(t, model, "k", "k")
 
-	assertDoesNotShow(t, model, cursorMarker)
+	assertDoesNotShow(t, model, ui.CursorMarker)
 }
 
 func TestJStopsAtTheLastComment(t *testing.T) {
