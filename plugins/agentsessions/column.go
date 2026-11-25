@@ -21,8 +21,8 @@ const sessionMark = "🤖"
 
 // sessionColumn is the Session column of a board, drawn within the board's column named by
 // within. A cell stays empty until the fetch has delivered sessions, and for a row that no
-// session matches. matchersFor runs on the update
-// loop, so it only reads the rows, and returns a matcher for each row key the column applies to.
+// session matches. matchersFor runs on the update loop, so it only reads the rows, and returns
+// a matcher for each row key the column applies to.
 func sessionColumn(provider Provider, within string, matchersFor func(rows []plugin.Row) map[string]matcher) plugin.Column {
 	return plugin.Column{
 		Header: columnHeader,

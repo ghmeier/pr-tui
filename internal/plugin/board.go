@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"slices"
 	"time"
 
 	"github.com/ghmeier/pr-tui/internal/ui"
@@ -153,13 +154,11 @@ func (board *boardState) rowWithKey(key string) (Row, bool) {
 // drawnColumns are the columns that have a place in the table of their own, which leaves out the
 // ones drawn within another column.
 func (board *boardState) drawnColumns() []Column {
-	var drawn []Column
-	for _, column := range board.spec.Columns {
-		if column.Within == "" {
-			drawn = append(drawn, column)
-		}
-	}
-	return drawn
+	return slices.DeleteFunc(slices.Clone(board.spec.Columns), func(column Column) bool { return column.Within != "" })
+}
+
+func (board *boardState) cell(columnIndex int, row Row) []ui.Segment {
+	return board.spec.Columns[columnIndex].Cell(row, board.data[columnIndex][row.Key()])
 }
 
 // cells draws the visible rows, one cell for each of the drawn columns. The columns drawn within
@@ -172,12 +171,12 @@ func (board *boardState) cells() [][][]ui.Segment {
 			if column.Within != "" {
 				continue
 			}
-			cell := column.Cell(row, board.data[columnIndex][row.Key()])
+			cell := board.cell(columnIndex, row)
 			for joinedIndex, joined := range board.spec.Columns {
 				if joined.Within != column.Header {
 					continue
 				}
-				extra := joined.Cell(row, board.data[joinedIndex][row.Key()])
+				extra := board.cell(joinedIndex, row)
 				if len(cell) > 0 && len(extra) > 0 {
 					cell = append(cell[:len(cell):len(cell)], ui.Segment{Text: " "})
 				}

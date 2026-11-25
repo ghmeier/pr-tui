@@ -30,16 +30,6 @@ func markColumn(within, mark string, keys ...string) Column {
 	}
 }
 
-// lineWith returns the screen line that contains the text, or "".
-func lineWith(model *Model, text string) string {
-	for _, line := range lines(model) {
-		if strings.Contains(line, text) {
-			return line
-		}
-	}
-	return ""
-}
-
 func boardWithMarks(rows []Row, marks ...Column) Board {
 	board := groceryBoard(newRowSource(rows...))
 	board.Columns = append(board.Columns, marks...)
