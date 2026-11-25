@@ -84,20 +84,23 @@ const (
 
 // CommentTarget is the diff line a review comment attaches to, or the whole file at Path. The
 // side is old for a line that exists only in the old file, and new otherwise. A reply names the
-// comment it answers. For a whole-file target, Line and Side are unused.
+// comment it answers. For a whole-file target, Line and Side are unused. A conversation target is
+// a comment on the pull request as a whole, which uses none of Path, Line, Side, WholeFile, or
+// ReplyTo; a reply there names only the author it answers, because the conversation has no threads.
 type CommentTarget struct {
-	Path        string
-	Line        int
-	Side        CommentSide
-	WholeFile   bool
-	ReplyTo     int64
-	ReplyAuthor string
+	Path         string
+	Line         int
+	Side         CommentSide
+	WholeFile    bool
+	ReplyTo      int64
+	ReplyAuthor  string
+	Conversation bool
 }
 
-// CommentKind is the kind of value the diff screen offers a written comment as.
+// CommentKind is the kind of value the diff and description screens offer a written comment as.
 const CommentKind = "comment"
 
-// Comment is a comment written on the diff screen, offered to other plugins' actions.
+// Comment is a comment written on the diff or description screen, offered to other plugins' actions.
 type Comment struct {
 	PullRequest PullRequest
 	Target      CommentTarget
@@ -105,6 +108,9 @@ type Comment struct {
 }
 
 func (target CommentTarget) label() string {
+	if target.Conversation {
+		return "the conversation"
+	}
 	if target.WholeFile {
 		return target.Path + " (whole file)"
 	}

@@ -164,7 +164,9 @@ Description view keys:
 
 | Key | Action |
 | --- | --- |
+| `j` / `k` | Select the next or previous comment, and scroll to it; `k` from the first comment selects none. Scrolling with the arrow keys, the mouse wheel, `space`, `b`, `home`, or `end` does not change the selection |
 | `↑` / `↓`, `space` / `b` | Scroll by a line or a page |
+| `c` | Write a comment on the conversation in your editor. With a comment selected it is a reply: the editor opens with `@author` and the start of that comment quoted, as the quote reply on github.com does. A conversation has no threads, so the reply is a new comment. Saving asks where it goes: post it to the pull request, or hand it to another plugin's action when one is offered. Escaping that question keeps the text for the next `c` on the same comment |
 | `e` | Edit the title and the description in your editor: the title on the first line, a blank line, then the description. Saving changes either or both; an empty title is refused. Comments are not part of what you edit |
 | `d` | Mark a draft ready for review, or convert a ready pull request back to draft; the help line shows which |
 | `t` | Request review from the team or one of its members, as on the board; hidden when nobody is left to ask |

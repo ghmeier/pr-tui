@@ -70,8 +70,14 @@ func commentMessage(comment pullrequests.Comment) string {
 	return strings.TrimRight(pullRequestPrefill(comment.PullRequest), "\n") + "\n" + commentLines(comment.Target) + "\n\n" + comment.Body
 }
 
-// commentLines say which line of which file the comment is on, and which comment it answers.
+// commentLines say where the comment is, which is a line of a file or the conversation, and who it answers.
 func commentLines(target pullrequests.CommentTarget) string {
+	if target.Conversation {
+		if target.ReplyAuthor != "" {
+			return "Comment on the conversation, in reply to " + target.ReplyAuthor
+		}
+		return "Comment on the conversation"
+	}
 	lines := fmt.Sprintf("File: %s (whole file)", target.Path)
 	if !target.WholeFile {
 		side := "new"

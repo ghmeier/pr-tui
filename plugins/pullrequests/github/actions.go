@@ -3,6 +3,7 @@ package github
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"sort"
@@ -146,6 +147,9 @@ func (github *provider) Comments(pr pullrequests.PullRequest) ([]pullrequests.Re
 }
 
 func (github *provider) PostComment(pr pullrequests.PullRequest, target pullrequests.CommentTarget, body string) error {
+	if target.Conversation {
+		return sendJSON("POST", fmt.Sprintf("repos/%s/issues/%d/comments", pr.Repository.FullName(), pr.Number), map[string]string{"body": body})
+	}
 	if target.ReplyTo != 0 {
 		return sendJSON("POST", apiEndpoint(pr)+"/comments", map[string]any{"body": body, "in_reply_to": target.ReplyTo})
 	}

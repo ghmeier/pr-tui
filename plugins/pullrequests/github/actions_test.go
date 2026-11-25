@@ -150,6 +150,20 @@ func TestPostCommentAsAReplySendsOnlyTheBodyAndTheCommentItAnswers(t *testing.T)
 	stub.assertInputs(t, `{"body":"Thanks","in_reply_to":10}`)
 }
 
+func TestPostCommentOnTheConversationSendsOnlyTheBodyToTheIssueComments(t *testing.T) {
+	pr := fixturePullRequest(storefront)
+	stub := stubShell(t, "")
+	target := pullrequests.CommentTarget{Conversation: true, ReplyAuthor: "reviewer"}
+
+	err := providerFor(storefront).PostComment(pr, target, "@reviewer thanks")
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	stub.assertCommands(t, []string{"gh", "api", "--method", "POST", "repos/" + storefront.FullName() + "/issues/7/comments"})
+	stub.assertInputs(t, `{"body":"@reviewer thanks"}`)
+}
+
 func TestSetDraftFalseMarksThePullRequestReady(t *testing.T) {
 	pr := fixturePullRequest(storefront)
 	stub := stubShell(t, "")

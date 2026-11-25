@@ -163,30 +163,47 @@ func longDescriptionBoard(t *testing.T) *plugin.Model {
 	return model
 }
 
-func wheel(t *testing.T, model *plugin.Model, button tea.MouseButton, action tea.MouseAction) {
-	t.Helper()
-	plugintest.Send(t, model, tea.MouseMsg{Button: button, Action: action})
-}
-
-func TestDescriptionScreenWheelScrollsByNotchesAndStopsAtBothEnds(t *testing.T) {
+func TestDescriptionScreenWheelDownScrollsByOneNotch(t *testing.T) {
 	model := longDescriptionBoard(t)
 	top := strings.Split(view(model), "\n")
 
-	wheel(t, model, tea.MouseButtonWheelUp, tea.MouseActionPress)
-	if view(model) != strings.Join(top, "\n") {
-		t.Fatalf("wheel up at the top moved the view:\n%s", view(model))
-	}
-	wheel(t, model, tea.MouseButtonWheelDown, tea.MouseActionPress)
+	plugintest.Mouse(t, model, tea.MouseButtonWheelDown, tea.MouseActionPress)
+
 	if strings.Split(view(model), "\n")[1] != top[1+ui.WheelNotchLines] {
 		t.Fatalf("wheel down did not move by a notch:\n%s", view(model))
 	}
-	wheel(t, model, tea.MouseButtonWheelUp, tea.MouseActionPress)
-	if view(model) != strings.Join(top, "\n") {
+}
+
+func TestDescriptionScreenWheelUpScrollsBackByOneNotch(t *testing.T) {
+	model := longDescriptionBoard(t)
+	top := view(model)
+	plugintest.Mouse(t, model, tea.MouseButtonWheelDown, tea.MouseActionPress)
+
+	plugintest.Mouse(t, model, tea.MouseButtonWheelUp, tea.MouseActionPress)
+
+	if view(model) != top {
 		t.Fatalf("wheel up did not return to the top:\n%s", view(model))
 	}
+}
+
+func TestDescriptionScreenWheelUpAtTheTopStaysPut(t *testing.T) {
+	model := longDescriptionBoard(t)
+	top := view(model)
+
+	plugintest.Mouse(t, model, tea.MouseButtonWheelUp, tea.MouseActionPress)
+
+	if view(model) != top {
+		t.Fatalf("wheel up at the top moved the view:\n%s", view(model))
+	}
+}
+
+func TestDescriptionScreenWheelDownAtTheEndStaysPut(t *testing.T) {
+	model := longDescriptionBoard(t)
 	press(t, model, "end")
 	bottom := view(model)
-	wheel(t, model, tea.MouseButtonWheelDown, tea.MouseActionPress)
+
+	plugintest.Mouse(t, model, tea.MouseButtonWheelDown, tea.MouseActionPress)
+
 	if view(model) != bottom {
 		t.Fatalf("wheel down at the end moved the view:\n%s", view(model))
 	}
@@ -196,8 +213,8 @@ func TestDescriptionScreenIgnoresMouseEventsThatAreNotWheelPresses(t *testing.T)
 	model := longDescriptionBoard(t)
 	top := view(model)
 
-	wheel(t, model, tea.MouseButtonLeft, tea.MouseActionPress)
-	wheel(t, model, tea.MouseButtonWheelDown, tea.MouseActionRelease)
+	plugintest.Mouse(t, model, tea.MouseButtonLeft, tea.MouseActionPress)
+	plugintest.Mouse(t, model, tea.MouseButtonWheelDown, tea.MouseActionRelease)
 
 	if view(model) != top {
 		t.Fatalf("the view moved:\n%s", view(model))
