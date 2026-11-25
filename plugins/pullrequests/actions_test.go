@@ -140,7 +140,7 @@ func TestDraftKeyIsLabelledReadyOnADraftAndDraftOnAReadyPullRequest(t *testing.T
 	}
 }
 
-func TestReviewKeyIsLabelledCommentOnTheViewersOwnPullRequestAndReviewOnOthers(t *testing.T) {
+func TestReviewKeyIsLabelledReviewOnTheViewersOwnPullRequestAndOnOthers(t *testing.T) {
 	provider := newFakeProvider()
 	provider.pullRequests[0].Author = testViewer
 	model := loadedBoardWith(t, provider)
@@ -149,11 +149,10 @@ func TestReviewKeyIsLabelledCommentOnTheViewersOwnPullRequestAndReviewOnOthers(t
 	press(t, model, "down")
 	onOthers := helpLine(model)
 
-	if !strings.Contains(onOwn, "a comment") || strings.Contains(onOwn, "a review") {
-		t.Fatalf("help on the viewer's own pull request = %q", onOwn)
-	}
-	if !strings.Contains(onOthers, "a review") || strings.Contains(onOthers, "a comment") {
-		t.Fatalf("help on someone else's pull request = %q", onOthers)
+	for name, help := range map[string]string{"own": onOwn, "others": onOthers} {
+		if !strings.Contains(help, "a review") || strings.Contains(help, "a comment") {
+			t.Fatalf("help on %s pull request = %q", name, help)
+		}
 	}
 }
 

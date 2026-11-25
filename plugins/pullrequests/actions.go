@@ -29,7 +29,7 @@ func (board *pullRequestBoard) actions() []plugin.Action {
 	}
 	return append(actions,
 		plugin.Action{Key: "m", Label: "merge", Run: board.chooseMerge},
-		plugin.Action{Key: "a", LabelFor: reviewLabel, Run: board.review},
+		plugin.Action{Key: "a", LabelFor: board.reviewLabel, Run: board.review},
 	)
 }
 
@@ -73,14 +73,13 @@ func (board *pullRequestBoard) reviewerOptions(row Row) []string {
 	return options
 }
 
-// reviewLabel says "comment" on the viewer's own pull request, where a comment review is the
-// only kind GitHub accepts.
-func reviewLabel(row plugin.Row) string {
-	pullRequestRow := row.(Row)
-	if pullRequestRow.PullRequest.Author == pullRequestRow.Viewer {
-		return "comment"
+// reviewLabel counts the comments waiting to be submitted, so that they are not forgotten.
+func (board *pullRequestBoard) reviewLabel(row plugin.Row) string {
+	pending := board.reviews.count(row.(Row).PullRequest.URL)
+	if pending == 0 {
+		return "review"
 	}
-	return "review"
+	return fmt.Sprintf("review (%d pending)", pending)
 }
 
 var screenActionKeys = []string{"d", "t", "m", "a"}

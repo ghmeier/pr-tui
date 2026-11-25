@@ -118,7 +118,7 @@ Board keys:
 | `d` | Mark a draft ready for review, or convert a ready pull request back to draft; the help line shows which |
 | `t` | Request review: opens a list of the review team and its members, which you narrow by typing and pick with enter. The team is left out once it is requested, and so are the author and anyone already requested. A draft is marked ready for review first. Hidden when nobody is left to ask |
 | `m` | Merge now (squash, after a confirmation), or enable or disable auto-merge (squash) |
-| `a` | Review (labelled comment on your own pull request): approve, request changes, or comment, written in your editor. It submits the pending comments you have collected in the diff view, after a confirmation. On your own pull request only a comment review is offered |
+| `a` | Review: approve, request changes, or comment, written in your editor. It submits the pending comments you have collected in the diff view, after a confirmation, and the help line shows how many are pending. On your own pull request only a comment review is offered |
 | `f` | Filter by repository and by people or bots: `j`/`k` move, `space` toggles, `1` to `9` toggle the first nine options, `b` switches people and bots |
 | `tab` / `shift+tab` | Switch tabs, when plugins add more than one |
 | `←` / `→` or `h` / `l` | Move between the boards that share a tab, such as the workflow sections |
@@ -146,8 +146,8 @@ Diff view keys:
 | `d` | Mark a draft ready for review, or convert a ready pull request back to draft; the help line shows which |
 | `t` | Request review from the team or one of its members, as on the board; hidden when nobody is left to ask |
 | `m` | Merge now (squash, after a confirmation), or enable or disable auto-merge (squash) |
-| `a` | Review (labelled comment on your own pull request): approve, request changes, or comment, written in your editor. It submits the pending comments you have collected in the diff view, after a confirmation. On your own pull request only a comment review is offered |
-| `esc` | Back |
+| `a` | Review: approve, request changes, or comment, written in your editor. It submits the pending comments you have collected in the diff view, after a confirmation, and the help line shows how many are pending. On your own pull request only a comment review is offered |
+| `esc` / `q` | Back; asks first when comments are still pending, which stay pending if you go back |
 
 In the diff view, dragging the mouse over lines copies their code, without the markers and
 line numbers, from the side of a split row where the drag started. Clicking a line moves the
@@ -167,7 +167,7 @@ Description view keys:
 | `d` | Mark a draft ready for review, or convert a ready pull request back to draft; the help line shows which |
 | `t` | Request review from the team or one of its members, as on the board; hidden when nobody is left to ask |
 | `m` | Merge now (squash, after a confirmation), or enable or disable auto-merge (squash) |
-| `a` | Review (labelled comment on your own pull request): approve, request changes, or comment, written in your editor. It submits the pending comments you have collected in the diff view, after a confirmation. On your own pull request only a comment review is offered |
+| `a` | Review: approve, request changes, or comment, written in your editor. It submits the pending comments you have collected in the diff view, after a confirmation, and the help line shows how many are pending. On your own pull request only a comment review is offered |
 | `esc` | Back |
 
 ## Agent plans

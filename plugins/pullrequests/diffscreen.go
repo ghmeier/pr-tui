@@ -25,7 +25,10 @@ type (
 		comments []ReviewComment
 		err      error
 	}
-	commentPostedMessage struct {
+	// leaveConfirmedMessage is what the host's confirmation sends back, to the screen that asked,
+	// once the person agreed to leave with comments pending.
+	leaveConfirmedMessage struct{ screen *diffScreen }
+	commentPostedMessage  struct {
 		url    string
 		target CommentTarget
 		body   string
@@ -664,6 +667,10 @@ func (screen *diffScreen) update(message tea.Msg) (plugin.Screen, tea.Cmd) {
 		}
 		screen.threads = groupThreads(message.comments)
 		screen.dataVersion++
+	case leaveConfirmedMessage:
+		if message.screen == screen {
+			return nil, nil
+		}
 	case plugin.CommandFinished:
 		screen.finishOffer(message.Err)
 		return screen, screen.reloadCommentsAfterSubmission()
@@ -675,11 +682,27 @@ func (screen *diffScreen) update(message tea.Msg) (plugin.Screen, tea.Cmd) {
 	return screen, nil
 }
 
+// leave closes the screen at once, or asks first when comments would be left pending.
+func (screen *diffScreen) leave() (plugin.Screen, tea.Cmd) {
+	pending := screen.board.reviews.count(screen.pullRequest.URL)
+	if pending == 0 {
+		return nil, nil
+	}
+	noun := "comments are"
+	if pending == 1 {
+		noun = "comment is"
+	}
+	return screen, screen.selection.Run(plugin.Effect{
+		Confirm: fmt.Sprintf("%d pending %s not submitted. Go back anyway?", pending, noun),
+		Then:    func() tea.Msg { return leaveConfirmedMessage{screen: screen} },
+	})
+}
+
 func (screen *diffScreen) handleKey(key string) (plugin.Screen, tea.Cmd) {
 	screen.notice, screen.drag = "", nil
 	switch key {
 	case "esc", "q":
-		return nil, nil
+		return screen.leave()
 	case "k":
 		screen.fileCursor--
 		screen.diffCursor, screen.diffOffset = 0, 0
