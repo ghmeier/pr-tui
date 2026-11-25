@@ -230,5 +230,7 @@ None. Columns, actions, `Edit`, `Choice`, and `Command` cover it.
 - 2026-11-25: #22 also has whole-file comments (`013352c`), keyed actions hidden when `Applies` is
   false (`e62b006`), refactor `cffcc35`; 1060 tests. Next on the user's request: conversation
   comments and review text on the description screen, branch `conversation-comments` from #22.
+- 2026-11-25: Conversation on the description screen: #23, `bfe5db2`, refactor `64ea80b`, 1076 tests.
+  Real data on gazebo#21493 is three bot comments, two with HTML bodies (`<details>`, `<h2>`).
 - 2026-11-25: Auto mode blocked my own relay test from inside a Claude session, so the user
   runs it.
