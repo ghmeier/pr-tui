@@ -158,12 +158,16 @@ spans the whole screen.
 Pending comments are kept in memory, so they are lost when `prs` quits. They are posted together when
 you submit a review with `a`.
 
+The description view shows the description, then the pull request's conversation under a "Comments" heading: the comments on the pull request and the text of submitted reviews, oldest first, each headed by its author and age (and "approved", "requested changes", or "reviewed" for a review). The comments load in the background, so the description appears without waiting for them. Line comments are shown in the diff view instead.
+
 Description view keys:
 
 | Key | Action |
 | --- | --- |
+| `j` / `k` | Select the next or previous comment, and scroll to it; `k` from the first comment selects none. Scrolling with the arrow keys, the mouse wheel, `space`, `b`, `home`, or `end` does not change the selection |
 | `↑` / `↓`, `space` / `b` | Scroll by a line or a page |
-| `e` | Edit the title and the description in your editor: the title on the first line, a blank line, then the description. Saving changes either or both; an empty title is refused |
+| `c` | Write a comment on the conversation in your editor. With a comment selected it is a reply: the editor opens with `@author` and the start of that comment quoted, as the quote reply on github.com does. A conversation has no threads, so the reply is a new comment. Saving asks where it goes: post it to the pull request, or hand it to another plugin's action when one is offered. Escaping that question keeps the text for the next `c` on the same comment |
+| `e` | Edit the title and the description in your editor: the title on the first line, a blank line, then the description. Saving changes either or both; an empty title is refused. Comments are not part of what you edit |
 | `d` | Mark a draft ready for review, or convert a ready pull request back to draft; the help line shows which |
 | `t` | Request review from the team or one of its members, as on the board; hidden when nobody is left to ask |
 | `m` | Merge now (squash, after a confirmation), or enable or disable auto-merge (squash) |

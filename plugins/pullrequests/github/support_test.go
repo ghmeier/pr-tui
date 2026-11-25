@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -24,6 +25,8 @@ var errorFromGh = errors.New("gh failed")
 
 // stubbedGh is what the stubbed shell saw and what the test wants it to answer.
 type stubbedGh struct {
+	// mutex guards the recorded calls, because Conversation runs two commands at once.
+	mutex sync.Mutex
 	// commands are the arguments of every call, without the temporary file given to --input.
 	commands [][]string
 	// inputs are the contents of each temporary file given to --input, in call order.
@@ -45,14 +48,17 @@ func stubShellWith(t *testing.T, respond func(arguments []string) ([]byte, error
 	stub := &stubbedGh{respond: respond}
 	original := shell.Run
 	shell.Run = func(arguments ...string) ([]byte, error) {
+		stub.mutex.Lock()
 		if index := slices.Index(arguments, "--input"); index >= 0 {
 			input, _ := os.ReadFile(arguments[index+1])
 			stub.inputs = append(stub.inputs, string(input))
 			stub.inputPaths = append(stub.inputPaths, arguments[index+1])
 			stub.commands = append(stub.commands, arguments[:index])
+			stub.mutex.Unlock()
 			return stub.respond(arguments[:index])
 		}
 		stub.commands = append(stub.commands, arguments)
+		stub.mutex.Unlock()
 		return stub.respond(arguments)
 	}
 	t.Cleanup(func() { shell.Run = original })
@@ -63,6 +69,22 @@ func (stub *stubbedGh) assertCommands(t *testing.T, expected ...[]string) {
 	t.Helper()
 	if !reflect.DeepEqual(stub.commands, expected) {
 		t.Fatalf("commands = %v, expected %v", stub.commands, expected)
+	}
+}
+
+// assertCommandsInAnyOrder is for calls that run at the same time.
+func (stub *stubbedGh) assertCommandsInAnyOrder(t *testing.T, expected ...[]string) {
+	t.Helper()
+	remaining := slices.Clone(stub.commands)
+	for _, command := range expected {
+		index := slices.IndexFunc(remaining, func(seen []string) bool { return slices.Equal(seen, command) })
+		if index < 0 {
+			t.Fatalf("commands = %v, expected %v among them", stub.commands, command)
+		}
+		remaining = slices.Delete(remaining, index, index+1)
+	}
+	if len(remaining) > 0 {
+		t.Fatalf("unexpected commands %v", remaining)
 	}
 }
 
