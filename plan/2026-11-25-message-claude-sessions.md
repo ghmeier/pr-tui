@@ -4,7 +4,7 @@ status: active
 tags: [plugins, agent-sessions]
 created: 2026-11-25
 updated: 2026-11-25
-next_step: Get the user's approval, then dispatch step 1.
+next_step: Step 1 is with the implementer on agent-sessions-pull-requests; then the refactor pass and verification.
 ---
 # Message Claude sessions from pull requests and plans
 
@@ -169,5 +169,7 @@ None. Columns, actions, `Edit`, `Choice`, and `Command` cover it.
   because it ignores the `claude` login. `--name prs` labels the sender.
 - 2026-11-25: The user asked for the strictest relay. Tested with `--safe-mode`, `--effort low`, a
   one-sentence `--system-prompt`, and JSON output: the message arrived, from the name `prs`.
+- 2026-11-25: Strict relay baseline: 2.9 s end to end, about 6,600 input tokens (mostly the
+  cache), 122 output tokens, $0.0008 per send on Haiku. The user approved the plan.
 - 2026-11-25: Auto mode blocked my own relay test from inside a Claude session, so the user
   runs it.
