@@ -227,5 +227,8 @@ None. Columns, actions, `Edit`, `Choice`, and `Command` cover it.
   (step 2), #22 (review label and leave confirmation). The user approved 2 and 3.
 - 2026-11-25: Whole-file comments added to #22 at the user's request. GitHub's REST review
   `comments` array has no file option, so a file comment offers post and send only, like a reply.
+- 2026-11-25: #22 also has whole-file comments (`013352c`), keyed actions hidden when `Applies` is
+  false (`e62b006`), refactor `cffcc35`; 1060 tests. Next on the user's request: conversation
+  comments and review text on the description screen, branch `conversation-comments` from #22.
 - 2026-11-25: Auto mode blocked my own relay test from inside a Claude session, so the user
   runs it.
