@@ -41,7 +41,7 @@ func TestCommentOnACodeLineAddsAPendingCommentWithoutPosting(t *testing.T) {
 	editorWrites(t, "Looks good")
 	model := loadedBoardWith(t, provider)
 
-	press(t, model, append(pressToTheAddedLine(), "c", "2")...)
+	press(t, model, append(pressToTheAddedLine(), "c", chooseAddToReview)...)
 
 	assertCalls(t, provider)
 	assertShows(t, model, "Added to your review (1 pending) · a submits it", "┌ pending", "│ Looks good", "· 1 pending")
@@ -53,7 +53,7 @@ func TestPendingCommentIsSubmittedWithTheLineAndSideItWasWrittenOn(t *testing.T)
 	editorWrites(t, "Looks good", "Overall")
 	model := loadedBoardWith(t, provider)
 
-	press(t, model, append(pressToTheAddedLine(), "c", "2", "a", "3", "y")...)
+	press(t, model, append(pressToTheAddedLine(), "c", chooseAddToReview, "a", "3", "y")...)
 
 	review := Review{Event: ReviewEventComment, Body: "Overall", Comments: []DraftComment{draftAt(addedLineTarget, "Looks good")}}
 	assertCalls(t, provider, reviewCall(provider.pullRequest(1), review))
@@ -64,7 +64,7 @@ func TestLeftArrowMovesAPendingCommentToTheRemovedLine(t *testing.T) {
 	editorWrites(t, "Why remove this?", "")
 	model := loadedBoardWith(t, provider)
 
-	press(t, model, append(pressToTheAddedLine(), "left", "c", "2", "a", "3", "y")...)
+	press(t, model, append(pressToTheAddedLine(), "left", "c", chooseAddToReview, "a", "3", "y")...)
 
 	removedLineTarget := CommentTarget{Path: "first.py", Line: 2, Side: CommentSideOld}
 	review := Review{Event: ReviewEventComment, Comments: []DraftComment{draftAt(removedLineTarget, "Why remove this?")}}
@@ -98,7 +98,7 @@ func TestCommentKeyOnAPendingCommentEditsIt(t *testing.T) {
 	editorWrites(t, "First draft", "Second draft")
 	model := loadedBoard(t)
 
-	press(t, model, append(pressToTheAddedLine(), "c", "2", "down", "down", "down", "down", "down", "c")...)
+	press(t, model, append(pressToTheAddedLine(), "c", chooseAddToReview, "down", "down", "down", "down", "down", "c")...)
 
 	assertShows(t, model, "Pending comment updated.", "│ Second draft", "· 1 pending")
 	assertDoesNotShow(t, model, "First draft")
@@ -108,7 +108,7 @@ func TestCommentKeyOnTheLineOfAPendingCommentEditsItInsteadOfAddingAnother(t *te
 	session := editorWrites(t, "First draft", "Second draft")
 	model := loadedBoard(t)
 
-	press(t, model, append(pressToTheAddedLine(), "c", "2", "c")...)
+	press(t, model, append(pressToTheAddedLine(), "c", chooseAddToReview, "c")...)
 
 	if len(session.opened) != 2 || session.opened[1] != "First draft" {
 		t.Fatalf("the editor was opened with %q", session.opened)
@@ -120,7 +120,7 @@ func TestSavingAnEmptyTextOnAPendingCommentRemovesIt(t *testing.T) {
 	editorWrites(t, "First draft", "\n")
 	model := loadedBoard(t)
 
-	press(t, model, append(pressToTheAddedLine(), "c", "2", "down", "down", "down", "down", "down", "c")...)
+	press(t, model, append(pressToTheAddedLine(), "c", chooseAddToReview, "down", "down", "down", "down", "down", "c")...)
 
 	assertShows(t, model, "Pending comment removed.")
 	assertDoesNotShow(t, model, "First draft", "pending")
@@ -182,7 +182,7 @@ func TestPostedReplyIsNotOfferedAgain(t *testing.T) {
 func TestPendingCommentIsDrawnAfterThePostedThreadOnItsLineWithAPendingLabel(t *testing.T) {
 	editorWrites(t, "Draft text")
 	model := loadedBoard(t)
-	press(t, model, append(pressToTheAddedLine(), "c", "2")...)
+	press(t, model, append(pressToTheAddedLine(), "c", chooseAddToReview)...)
 	viewLines := strings.Split(view(model), "\n")
 
 	added := -1
@@ -209,9 +209,9 @@ func TestHeaderCountsThePendingCommentsOnlyWhenThereAreSome(t *testing.T) {
 	withoutAny := view(model)
 
 	press(t, model, pressToTheAddedLine()[1:]...)
-	press(t, model, "c", "2")
+	press(t, model, "c", chooseAddToReview)
 	withOne := view(model)
-	press(t, model, "down", "down", "down", "down", "down", "down", "down", "c", "2")
+	press(t, model, "down", "down", "down", "down", "down", "down", "down", "c", chooseAddToReview)
 
 	if strings.Contains(withoutAny, "pending") {
 		t.Fatalf("view:\n%s", withoutAny)
@@ -281,7 +281,7 @@ func TestCommentReviewWithPendingCommentsAndNoBodyIsAcceptedAndNamesTheirCount(t
 	model := loadedBoardWith(t, provider)
 	selected := provider.pullRequest(1)
 
-	press(t, model, append(pressToTheAddedLine(), "c", "2", "a", "3")...)
+	press(t, model, append(pressToTheAddedLine(), "c", chooseAddToReview, "a", "3")...)
 	asked := view(model)
 	press(t, model, "y")
 
@@ -313,7 +313,7 @@ func TestConfirmingSubmitsTheEventTheBodyAndAllDrafts(t *testing.T) {
 	model := loadedBoardWith(t, provider)
 	selected := provider.pullRequest(1)
 
-	press(t, model, append(pressToTheAddedLine(), "c", "2", "left", "c", "2", "a", "2", "y")...)
+	press(t, model, append(pressToTheAddedLine(), "c", chooseAddToReview, "left", "c", chooseAddToReview, "a", "2", "y")...)
 
 	removedLineTarget := CommentTarget{Path: "first.py", Line: 2, Side: CommentSideOld}
 	review := Review{
@@ -338,7 +338,7 @@ func TestDecliningTheReviewSubmitsNothingAndKeepsTheDraftsAndTheBody(t *testing.
 	provider := newFakeProvider()
 	session := editorWrites(t, "Draft", "My body", "")
 	model := loadedBoardWith(t, provider)
-	press(t, model, append(pressToTheAddedLine(), "c", "2", "a", "3", "n")...)
+	press(t, model, append(pressToTheAddedLine(), "c", chooseAddToReview, "a", "3", "n")...)
 
 	assertCalls(t, provider)
 	assertShows(t, model, "· 1 pending")
@@ -354,7 +354,7 @@ func TestSuccessfulSubmissionClearsTheDraftsAndTheBody(t *testing.T) {
 	session := editorWrites(t, "Draft", "My body", "")
 	model := loadedBoardWith(t, provider)
 
-	press(t, model, append(pressToTheAddedLine(), "c", "2", "a", "3", "y")...)
+	press(t, model, append(pressToTheAddedLine(), "c", chooseAddToReview, "a", "3", "y")...)
 	assertDoesNotShow(t, model, "pending")
 	press(t, model, "a", "3")
 
@@ -369,7 +369,7 @@ func TestFailedSubmissionKeepsTheDraftsAndTheBody(t *testing.T) {
 	session := editorWrites(t, "Draft", "My body", "")
 	model := loadedBoardWith(t, provider)
 
-	press(t, model, append(pressToTheAddedLine(), "c", "2", "a", "3", "y")...)
+	press(t, model, append(pressToTheAddedLine(), "c", chooseAddToReview, "a", "3", "y")...)
 	assertShows(t, model, "Failed: "+errorForTests.Error(), "· 1 pending")
 	press(t, model, "a", "3")
 
@@ -403,7 +403,7 @@ func TestDiffScreenShowsPostedReviewCommentsAsSoonAsTheSubmissionFinishes(t *tes
 	provider := newFakeProvider()
 	editorWrites(t, "Draft", "")
 	model := loadedBoardWith(t, provider)
-	press(t, model, append(pressToTheAddedLine(), "c", "2")...)
+	press(t, model, append(pressToTheAddedLine(), "c", chooseAddToReview)...)
 	provider.comments = append(provider.comments, ReviewComment{
 		ID: 20, Path: "first.py", Line: 3, Side: CommentSideNew, Author: "newcomer", Body: "Posted by the review",
 	})
@@ -520,7 +520,7 @@ func reopenedDiffAfterAPush(t *testing.T, newDiff string) (*plugin.Model, *edito
 	provider := newFakeProvider()
 	session := editorWrites(t, "Draft", "\n")
 	model := loadedBoardWith(t, provider)
-	press(t, model, append(pressToTheAddedLine(), "c", "2", "esc")...)
+	press(t, model, append(pressToTheAddedLine(), "c", chooseAddToReview, "esc")...)
 	provider.diff = newDiff
 	press(t, model, "enter")
 	return model, session

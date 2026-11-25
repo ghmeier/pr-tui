@@ -610,7 +610,7 @@ func (m *Model) runBoardAction(index int, selection Selection, key string) tea.C
 func (m *Model) runBoardOffer(index int, selection Selection, label string, value any) tea.Cmd {
 	selection.Value = value
 	for _, action := range selection.offerable {
-		if action.Label == label && (action.Applies == nil || action.Applies(selection)) {
+		if action.Label == label && action.offeredFor(selection) {
 			return m.applyEffect(index, action.Run(selection))
 		}
 	}

@@ -140,7 +140,7 @@ func (selection Selection) RunAction(key string) tea.Cmd {
 func (selection Selection) Offers(kind string) []string {
 	var labels []string
 	for _, action := range selection.offerable {
-		if action.Takes == kind && (action.Applies == nil || action.Applies(selection)) {
+		if action.Takes == kind && action.offeredFor(selection) {
 			labels = append(labels, action.Label)
 		}
 	}
@@ -155,6 +155,11 @@ func (selection Selection) RunOffer(label string, value any) tea.Cmd {
 	return func() tea.Msg {
 		return offerMessage{board: selection.boardIndex, rowKey: selection.Row.Key(), fallback: selection.Row, label: label, value: value}
 	}
+}
+
+// offeredFor is whether a screen may offer the action for the selection.
+func (action Action) offeredFor(selection Selection) bool {
+	return action.Applies == nil || action.Applies(selection)
 }
 
 // Action is something that can be done to the selected row, either with a key on the board or,

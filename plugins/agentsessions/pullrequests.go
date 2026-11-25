@@ -49,11 +49,7 @@ func commentAction(provider Provider) plugin.Action {
 		Applies: hasSessions,
 		Run: func(selection plugin.Selection) plugin.Effect {
 			text := commentMessage(selection.Value.(pullrequests.Comment))
-			sessions, _ := selection.Data(columnHeader).(matchedSessions)
-			if len(sessions) == 0 {
-				return plugin.Effect{Notice: "No live agent session mentions this pull request"}
-			}
-			return withSession(sessions, "Send to which session?", func(session Session) plugin.Effect {
+			return withSession(sessionsOf(selection), "Send to which session?", func(session Session) plugin.Effect {
 				return sendMessage(provider, session, text)
 			})
 		},
@@ -61,8 +57,7 @@ func commentAction(provider Provider) plugin.Action {
 }
 
 func hasSessions(selection plugin.Selection) bool {
-	sessions, _ := selection.Data(columnHeader).(matchedSessions)
-	return len(sessions) > 0
+	return len(sessionsOf(selection)) > 0
 }
 
 // commentMessage is the text sent for a comment: the pull request it is on, where in the diff it

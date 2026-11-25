@@ -98,7 +98,7 @@ func TestDiffViewRightArrowChoosesTheNewSideAgainAfterTheOldSide(t *testing.T) {
 	editorWrites(t, "Looks good", "")
 	model := loadedBoardWith(t, provider)
 
-	press(t, model, append(pressToTheAddedLine(), "left", "right", "c", "2", "a", "3", "y")...)
+	press(t, model, append(pressToTheAddedLine(), "left", "right", "c", chooseAddToReview, "a", "3", "y")...)
 
 	review := Review{Event: ReviewEventComment, Comments: []DraftComment{draftAt(addedLineTarget, "Looks good")}}
 	assertCalls(t, provider, reviewCall(provider.pullRequest(1), review))
@@ -109,7 +109,7 @@ func TestDiffViewTabDoesNotChangeTheSideOfAComment(t *testing.T) {
 	editorWrites(t, "Looks good", "")
 	model := loadedBoardWith(t, provider)
 
-	press(t, model, append(pressToTheAddedLine(), "tab", "c", "2", "a", "3", "y")...)
+	press(t, model, append(pressToTheAddedLine(), "tab", "c", chooseAddToReview, "a", "3", "y")...)
 
 	review := Review{Event: ReviewEventComment, Comments: []DraftComment{draftAt(addedLineTarget, "Looks good")}}
 	assertCalls(t, provider, reviewCall(provider.pullRequest(1), review))

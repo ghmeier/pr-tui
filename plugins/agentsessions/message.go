@@ -17,7 +17,7 @@ func messageAction(provider Provider, subject string, prefill func(row plugin.Ro
 		Key:   "c",
 		Label: "message session",
 		Run: func(selection plugin.Selection) plugin.Effect {
-			sessions, _ := selection.Data(columnHeader).(matchedSessions)
+			sessions := sessionsOf(selection)
 			if len(sessions) == 0 {
 				return plugin.Effect{Notice: "No live agent session mentions this " + subject}
 			}
@@ -27,6 +27,12 @@ func messageAction(provider Provider, subject string, prefill func(row plugin.Ro
 			})
 		},
 	}
+}
+
+// sessionsOf are the live sessions the column found for the selection's row.
+func sessionsOf(selection plugin.Selection) matchedSessions {
+	sessions, _ := selection.Data(columnHeader).(matchedSessions)
+	return sessions
 }
 
 // withSession carries on with the only session, or asks which of the sessions to use first.

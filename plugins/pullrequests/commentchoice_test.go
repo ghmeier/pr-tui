@@ -47,8 +47,11 @@ func modelWithRecipient(t *testing.T, provider *fakeProvider, recipient *comment
 const (
 	commentQuestion = "Where should this comment go?"
 	postOptionLine  = "1 " + postCommentOption
-	reviewOptionRow = "2 " + addToReviewOption
+	reviewOptionRow = chooseAddToReview + " " + addToReviewOption
 )
+
+// chooseAddToReview is the key of the second option of the question a new comment asks.
+const chooseAddToReview = "2"
 
 func TestNewCommentAsksWhereItGoesWithPostingAndTheReviewAsOptions(t *testing.T) {
 	provider := newFakeProvider()
@@ -100,7 +103,7 @@ func TestChoosingToAddToTheReviewKeepsTheNewCommentPendingWithoutPosting(t *test
 	editorWrites(t, "Looks good")
 	model := loadedBoardWith(t, provider)
 
-	press(t, model, append(pressToTheAddedLine(), "c", "2")...)
+	press(t, model, append(pressToTheAddedLine(), "c", chooseAddToReview)...)
 
 	assertCalls(t, provider)
 	assertShows(t, model, "Added to your review (1 pending) · a submits it", "│ Looks good")
@@ -156,7 +159,7 @@ func TestEditingAPendingCommentAsksNothing(t *testing.T) {
 	editorWrites(t, "First draft", "Second draft")
 	model := loadedBoard(t)
 
-	press(t, model, append(pressToTheAddedLine(), "c", "2", "c")...)
+	press(t, model, append(pressToTheAddedLine(), "c", chooseAddToReview, "c")...)
 
 	assertShows(t, model, "Pending comment updated.", "│ Second draft")
 	assertDoesNotShow(t, model, commentQuestion)
