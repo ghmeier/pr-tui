@@ -3,6 +3,7 @@ package pullrequests
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/x/ansi"
 
@@ -51,6 +52,11 @@ func wholeFileThreadKey(path string) threadKey {
 
 var commentSanitizer = strings.NewReplacer("\r", "", "\x1b", "", "\t", "    ")
 
+// authorHeading is an author in bold and how long ago they wrote, with any further details after.
+func authorHeading(author string, created time.Time, details ...string) string {
+	return ui.BoldStyle.Render(author) + ui.DimStyle.Render(strings.Join(append([]string{"", ui.AgeText(created)}, details...), " · "))
+}
+
 func (thread commentThread) render(width int) []string {
 	var lines []string
 	for index, comment := range append([]ReviewComment{thread.root}, thread.replies...) {
@@ -58,8 +64,7 @@ func (thread commentThread) render(width int) []string {
 		if index > 0 {
 			corner = "├ "
 		}
-		heading := ui.BoldStyle.Render(comment.Author) + ui.DimStyle.Render(" · "+ui.AgeText(comment.CreatedAt))
-		lines = append(lines, ui.YellowStyle.Render(corner)+heading)
+		lines = append(lines, ui.YellowStyle.Render(corner)+authorHeading(comment.Author, comment.CreatedAt))
 		body := commentSanitizer.Replace(strings.TrimSpace(comment.Body))
 		for _, text := range strings.Split(ansi.Wrap(body, max(width-2, 10), ""), "\n") {
 			lines = append(lines, ui.YellowStyle.Render("│ ")+text)

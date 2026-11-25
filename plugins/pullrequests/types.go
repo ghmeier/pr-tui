@@ -138,7 +138,6 @@ const (
 // ConversationEntry is a comment on the pull request as a whole, or the text of a submitted review.
 type ConversationEntry struct {
 	Author  string
-	IsBot   bool
 	Body    string
 	Created time.Time
 	// Review is the state of a submitted review, or ReviewStateNone for a plain comment.

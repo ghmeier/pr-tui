@@ -51,7 +51,7 @@ func TestDescriptionShowsBeforeTheCommentsHaveArrived(t *testing.T) {
 	}
 }
 
-func TestCommentsAreListedOldestFirstWithAuthorAgeAndReviewState(t *testing.T) {
+func TestCommentsShowAuthorAgeAndReviewStateInTheirHeadings(t *testing.T) {
 	provider := newFakeProvider()
 	entries := fixtureConversation()
 	provider.conversation = entries

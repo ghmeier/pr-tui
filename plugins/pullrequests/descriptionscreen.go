@@ -76,8 +76,8 @@ type descriptionScreen struct {
 	// failedEdit is the text of an edit that could not be saved, which the next edit starts from
 	// so that it is not lost. It is empty when there is none.
 	failedEdit string
-	// descriptionLines and conversationLines are laid out one after the other in lines, so that the
-	// comments can arrive after the description without moving what is being read above them.
+	// descriptionLines is nil until the description has loaded. The conversation is laid out after
+	// it in lines, so that the comments can arrive without moving what is being read above them.
 	descriptionLines []string
 	lines            []string
 	// conversation is empty until it has loaded, and is kept while it loads again.
@@ -154,11 +154,10 @@ func (screen *descriptionScreen) renderConversation() []string {
 }
 
 func (entry ConversationEntry) header() string {
-	details := " · " + ui.AgeText(entry.Created)
 	if label := entry.Review.label(); label != "" {
-		details += " · " + label
+		return authorHeading(entry.Author, entry.Created, label)
 	}
-	return ui.BoldStyle.Render(entry.Author) + ui.DimStyle.Render(details)
+	return authorHeading(entry.Author, entry.Created)
 }
 
 // label is how a review's state reads next to its author, or "" for a plain comment.

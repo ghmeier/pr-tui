@@ -9,17 +9,17 @@ import (
 )
 
 const (
-	cannedIssueComments = `{"user": {"login": "person", "type": "User"}, "body": "Ready for another look.", "created_at": "2026-11-10T12:00:00Z"}
-{"user": {"login": "dependabot[bot]", "type": "Bot"}, "body": "Bumped.", "created_at": "2026-11-10T08:00:00Z"}`
+	cannedIssueComments = `{"user": {"login": "person"}, "body": "Ready for another look.", "created_at": "2026-11-10T12:00:00Z"}
+{"user": {"login": "dependabot[bot]"}, "body": "Bumped.", "created_at": "2026-11-10T08:00:00Z"}`
 
 	// Only some of these reviews have text that was submitted: the empty approval, the dismissed
 	// review, and the pending one are not part of the conversation.
-	cannedReviews = `{"user": {"login": "reviewer", "type": "User"}, "body": "Please rename this.", "state": "CHANGES_REQUESTED", "submitted_at": "2026-11-10T09:00:00Z"}
-{"user": {"login": "reviewer", "type": "User"}, "body": "", "state": "APPROVED", "submitted_at": "2026-11-10T10:00:00Z"}
-{"user": {"login": "reviewer", "type": "User"}, "body": "Looks good now.", "state": "APPROVED", "submitted_at": "2026-11-10T11:00:00Z"}
-{"user": {"login": "reviewer", "type": "User"}, "body": "Dismissed text", "state": "DISMISSED", "submitted_at": "2026-11-10T11:30:00Z"}
-{"user": {"login": "reviewer", "type": "User"}, "body": "Just a note", "state": "COMMENTED", "submitted_at": "2026-11-10T07:00:00Z"}
-{"user": {"login": "reviewer", "type": "User"}, "body": "Unsent", "state": "PENDING", "submitted_at": null}`
+	cannedReviews = `{"user": {"login": "reviewer"}, "body": "Please rename this.", "state": "CHANGES_REQUESTED", "submitted_at": "2026-11-10T09:00:00Z"}
+{"user": {"login": "reviewer"}, "body": "", "state": "APPROVED", "submitted_at": "2026-11-10T10:00:00Z"}
+{"user": {"login": "reviewer"}, "body": "Looks good now.", "state": "APPROVED", "submitted_at": "2026-11-10T11:00:00Z"}
+{"user": {"login": "reviewer"}, "body": "Dismissed text", "state": "DISMISSED", "submitted_at": "2026-11-10T11:30:00Z"}
+{"user": {"login": "reviewer"}, "body": "Just a note", "state": "COMMENTED", "submitted_at": "2026-11-10T07:00:00Z"}
+{"user": {"login": "reviewer"}, "body": "Unsent", "state": "PENDING", "submitted_at": null}`
 )
 
 // stubConversation answers the comments endpoint and the reviews endpoint with their own text.
@@ -55,7 +55,7 @@ func TestConversationListsCommentsAndReviewTextOldestFirst(t *testing.T) {
 
 	expected := []pullrequests.ConversationEntry{
 		{Author: "reviewer", Body: "Just a note", Created: at(7), Review: pullrequests.ReviewStateCommented},
-		{Author: "dependabot[bot]", IsBot: true, Body: "Bumped.", Created: at(8)},
+		{Author: "dependabot[bot]", Body: "Bumped.", Created: at(8)},
 		{Author: "reviewer", Body: "Please rename this.", Created: at(9), Review: pullrequests.ReviewStateChangesRequested},
 		{Author: "reviewer", Body: "Looks good now.", Created: at(11), Review: pullrequests.ReviewStateApproved},
 		{Author: "person", Body: "Ready for another look.", Created: at(12)},
