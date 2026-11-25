@@ -215,5 +215,8 @@ None. Columns, actions, `Edit`, `Choice`, and `Command` cover it.
   it replaces the separate diff-screen key.
 - 2026-11-25: The user approved the comment choice and its host change. It becomes step 2 and the
   agent plans board step 3. Comments have no line ranges, so the value carries one line.
+- 2026-11-25: Step 2 on `agent-sessions-diff-comments`: `0439a73`, refactor `dccbc3c`, 1021 tests. The
+  host also gained `Effect.Then` (a screen's own command started with an effect, so posting from
+  the choice reaches the diff screen) and `Choice.Cancel` (esc keeps the comment's text).
 - 2026-11-25: Auto mode blocked my own relay test from inside a Claude session, so the user
   runs it.
