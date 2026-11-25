@@ -97,7 +97,6 @@ type Selection struct {
 	Value any
 
 	boardIndex int
-	current    func() (Row, bool)
 	// latest is the selection for the same row built from the board's rows and data as they are
 	// now, which differ from this selection's copy once more has loaded. It is false when the
 	// board no longer has the row.
@@ -105,17 +104,6 @@ type Selection struct {
 	// offerable are the board's actions that take a kind of value. They never change after setup,
 	// so a selection shares them safely with any goroutine.
 	offerable []Action
-}
-
-// Current is the board's version of this selection's row as it is now, found by the row's key
-// among all the rows the board has loaded. Row, in contrast, stays as it was when the selection
-// was built. The second result is false when the board no longer has the row. It reads the
-// board's rows, so call it only on the update loop, such as from a screen's Update or View.
-func (selection Selection) Current() (Row, bool) {
-	if selection.current == nil {
-		return nil, false
-	}
-	return selection.current()
 }
 
 // Run has the host carry out an effect for this selection's board, from a screen or a
@@ -138,9 +126,11 @@ func (selection Selection) RunAction(key string) tea.Cmd {
 	}
 }
 
-// Latest is this selection rebuilt from the board's rows and data as they are now, or this
-// selection when the board no longer has the row. A screen uses it to decide what to show from
-// what has loaded since the screen opened. It reads the board, so call it only on the update loop.
+// Latest is this selection rebuilt from the board's rows and data as they are now, found by the
+// row's key among all the rows the board has loaded, or this selection when the board no longer
+// has the row. Row and Data, in contrast, stay as they were when the selection was built. A screen
+// uses it to decide what to show from what has loaded since it opened. It reads the board, so
+// call it only on the update loop, such as from a screen's Update or View.
 func (selection Selection) Latest() Selection {
 	if selection.latest != nil {
 		if latest, found := selection.latest(); found {
@@ -220,7 +210,7 @@ func (action Action) LabelOf(selection Selection) (label string, applies bool) {
 	if selection.Row == nil {
 		return action.Label, action.LabelFor == nil && action.Applies == nil
 	}
-	if action.Applies != nil && !action.Applies(selection) {
+	if !action.offeredFor(selection) {
 		return "", false
 	}
 	if action.LabelFor == nil {

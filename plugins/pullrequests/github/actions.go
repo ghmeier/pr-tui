@@ -129,21 +129,14 @@ func (github *provider) PostComment(pr pullrequests.PullRequest, target pullrequ
 	if target.ReplyTo != 0 {
 		return sendJSON("POST", apiEndpoint(pr)+"/comments", map[string]any{"body": body, "in_reply_to": target.ReplyTo})
 	}
+	fields := map[string]any{"body": body, "commit_id": pr.HeadCommit, "path": target.Path}
 	if target.WholeFile {
-		return sendJSON("POST", apiEndpoint(pr)+"/comments", map[string]any{
-			"body":         body,
-			"commit_id":    pr.HeadCommit,
-			"path":         target.Path,
-			"subject_type": "file",
-		})
+		fields["subject_type"] = "file"
+	} else {
+		fields["line"] = target.Line
+		fields["side"] = sideText(target.Side)
 	}
-	return sendJSON("POST", apiEndpoint(pr)+"/comments", map[string]any{
-		"body":      body,
-		"commit_id": pr.HeadCommit,
-		"path":      target.Path,
-		"line":      target.Line,
-		"side":      sideText(target.Side),
-	})
+	return sendJSON("POST", apiEndpoint(pr)+"/comments", fields)
 }
 
 func (github *provider) SetDraft(pr pullrequests.PullRequest, draft bool) error {

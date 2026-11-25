@@ -134,15 +134,17 @@ func TestAKeyedActionWhoseAppliesIsTrueIsShownAndRuns(t *testing.T) {
 	}
 }
 
-func TestLabelOfAppliesOnlyToActionsWithoutLabelForWhenThereIsNoRow(t *testing.T) {
+func TestLabelOfAppliesOnlyToActionsWithoutLabelForOrAppliesWhenThereIsNoRow(t *testing.T) {
 	fixed := Action{Label: "fixed"}
 	labelled := Action{LabelFor: func(Row) string { return "label" }}
+	conditional := Action{Label: "conditional", Applies: func(Selection) bool { return true }}
 
 	fixedLabel, fixedApplies := fixed.LabelOf(Selection{})
 	_, labelledApplies := labelled.LabelOf(Selection{})
+	_, conditionalApplies := conditional.LabelOf(Selection{})
 
-	if fixedLabel != "fixed" || !fixedApplies || labelledApplies {
-		t.Fatalf("fixed = %q, %v; labelled applies = %v", fixedLabel, fixedApplies, labelledApplies)
+	if fixedLabel != "fixed" || !fixedApplies || labelledApplies || conditionalApplies {
+		t.Fatalf("fixed = %q, %v; labelled applies = %v; conditional applies = %v", fixedLabel, fixedApplies, labelledApplies, conditionalApplies)
 	}
 }
 
@@ -159,7 +161,7 @@ func boardCapturingSelection(source *rowSource, reload *reloader, captured *Sele
 	return board
 }
 
-func TestSelectionCurrentReturnsTheReloadedRowAfterARowRefresh(t *testing.T) {
+func TestSelectionLatestReturnsTheReloadedRowAfterARowRefresh(t *testing.T) {
 	rows := groceries()
 	renamed := fruit(rows[0].Key(), "green apple")
 	reload := &reloader{current: map[string]Row{renamed.key: renamed}}
@@ -167,25 +169,25 @@ func TestSelectionCurrentReturnsTheReloadedRowAfterARowRefresh(t *testing.T) {
 	model := modelForBoard(t, boardCapturingSelection(newRowSource(rows...), reload, &captured))
 
 	plugintest.Press(t, model, "z")
-	current, found := captured.Current()
+	latest := captured.Latest()
 
-	if !found || current.(fakeRow).name != renamed.name {
-		t.Fatalf("current = %v, %v, expected %v", current, found, renamed)
+	if latest.Row.(fakeRow).name != renamed.name {
+		t.Fatalf("latest row = %v, expected %v", latest.Row, renamed)
 	}
 	if captured.Row.(fakeRow).name != rows[0].(fakeRow).name {
 		t.Fatalf("the selection's own row changed to %v", captured.Row)
 	}
 }
 
-func TestSelectionCurrentReportsFalseOnceTheRowIsGone(t *testing.T) {
+func TestSelectionLatestKeepsItsOwnRowOnceTheRowIsGone(t *testing.T) {
 	reload := &reloader{current: map[string]Row{}}
 	var captured Selection
 	model := modelForBoard(t, boardCapturingSelection(newRowSource(groceries()...), reload, &captured))
 
 	plugintest.Press(t, model, "z")
-	_, found := captured.Current()
+	latest := captured.Latest()
 
-	if found {
-		t.Fatalf("the row was removed but Current still found it")
+	if latest.Row != captured.Row {
+		t.Fatalf("latest row = %v, expected the selection's own %v", latest.Row, captured.Row)
 	}
 }
