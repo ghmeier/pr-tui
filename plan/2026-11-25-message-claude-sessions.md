@@ -82,8 +82,9 @@ The provider registers itself with the plugin the way the GitHub providers do.
 `~/.claude`. `Send` runs:
 
 ```
-claude -p --model <relay_model> --no-session-persistence \
-  --tools SendMessage --allowed-tools SendMessage <prompt>
+claude -p --model <relay_model> --no-session-persistence --name prs \
+  --strict-mcp-config --disable-slash-commands \
+  --tools=SendMessage,ListAgents --allowed-tools=SendMessage,ListAgents  < prompt
 ```
 
 The prompt goes on standard input, because `--tools` and `--allowed-tools` take a list and
@@ -144,5 +145,11 @@ None. Columns, actions, `Edit`, `Choice`, and `Command` cover it.
 - 2026-11-25: The user chose the `claude -p` relay over the local socket, transcript
   references over branch-only matching, and a column plus action over a separate board.
 - 2026-11-25: Key `c` for "message session" is my choice; cheap to change.
+- 2026-11-25: Relay test by the user: a message from a default-mode relay reached an
+  auto-mode session directly, so no permission-mode setting is needed. SendMessage does not
+  accept a session id as an address; it takes the session's name. `--tools` limits only
+  built-in tools: the relay's model tried a Slack MCP tool, so the relay passes
+  `--strict-mcp-config` (no MCP servers) and `--disable-slash-commands`. `--bare` is not used
+  because it ignores the `claude` login. `--name prs` labels the sender.
 - 2026-11-25: Auto mode blocked my own relay test from inside a Claude session, so the user
   runs it.
