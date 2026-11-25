@@ -4,7 +4,7 @@ status: active
 tags: [plugins, agent-sessions]
 created: 2026-11-25
 updated: 2026-11-25
-next_step: Get the user's approval and the result of the relay test, then dispatch step 1.
+next_step: Get the user's approval, then dispatch step 1.
 ---
 # Message Claude sessions from pull requests and plans
 
@@ -84,11 +84,11 @@ The provider registers itself with the plugin the way the GitHub providers do.
 ```
 claude -p --model <relay_model> --no-session-persistence --name prs \
   --strict-mcp-config --disable-slash-commands \
-  --tools=SendMessage,ListAgents --allowed-tools=SendMessage,ListAgents  < prompt
+  --tools=SendMessage --allowed-tools=SendMessage  < prompt
 ```
 
 The prompt goes on standard input, because `--tools` and `--allowed-tools` take a list and
-swallow a trailing prompt argument. It names the session id and the message between markers,
+swallow a trailing prompt argument. It names the session by its name and gives the message between markers,
 and asks for the word `sent` back; any other output is the error.
 
 **Column "Session"** on the pull request board (when `host.Enabled(pullrequests.BoardName)`)
@@ -134,6 +134,10 @@ None. Columns, actions, `Edit`, `Choice`, and `Command` cover it.
   cross-session messages for approval. The relay runs in the default mode; the user's
   sessions run in auto mode. The relay test before step 1 shows whether messages arrive
   directly; if not, add `relay_permission_mode` to the table.
+- Addressing is by name, because ListAgents' references are not derived from session ids.
+  When two live sessions share a name, `Send` fails with "Two Claude sessions are named <name>;
+  rename one with /rename" without running the relay. A background session that `claude
+  agents --json` lists may not be reachable; SendMessage's error is shown as the failure.
 - Each send costs a few seconds and a small model call. Accepted by the user.
 - Transcript format and location are undocumented. Only the provider knows them, and a
   missing transcript leaves a session listed with no references rather than failing the load.
