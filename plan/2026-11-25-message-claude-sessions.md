@@ -82,14 +82,26 @@ The provider registers itself with the plugin the way the GitHub providers do.
 `~/.claude`. `Send` runs:
 
 ```
-claude -p --model <relay_model> --no-session-persistence --name prs \
-  --strict-mcp-config --disable-slash-commands \
-  --tools=SendMessage --allowed-tools=SendMessage  < prompt
+claude -p --safe-mode --model <relay_model> --effort low --no-session-persistence --name prs \
+  --strict-mcp-config --tools=SendMessage --allowed-tools=SendMessage \
+  --output-format json --system-prompt <relay instructions>  < prompt
 ```
 
-The prompt goes on standard input, because `--tools` and `--allowed-tools` take a list and
-swallow a trailing prompt argument. It names the session by its name and gives the message between markers,
-and asks for the word `sent` back; any other output is the error.
+The system prompt replaces Claude Code's default one, so a send costs little input:
+
+```
+You relay one message. Call SendMessage once, with to set to the Recipient and message set to
+everything after Message:, unchanged. Then reply with only the word sent, or the error
+SendMessage returned.
+```
+
+Standard input carries `Recipient: <name>`, a line `Message:`, and the text. It goes on
+standard input because `--tools` and `--allowed-tools` take a list and swallow a trailing
+prompt argument. `Send` parses the JSON result: it succeeds when `is_error` is false and
+`result` is `sent`, and otherwise fails with `result` as the error. Parsing JSON keeps
+warnings such as Claude Code's Code Mode notice from reading as failures. `--safe-mode` drops
+CLAUDE.md, skills, plugins, hooks, MCP servers, and agents but keeps the `claude` login,
+which `--bare` does not.
 
 **Column "Session"** on the pull request board (when `host.Enabled(pullrequests.BoardName)`)
 and on the agent plans board (when `host.Enabled(agentplans.BoardName)`). One fetch per load
@@ -155,5 +167,7 @@ None. Columns, actions, `Edit`, `Choice`, and `Command` cover it.
   built-in tools: the relay's model tried a Slack MCP tool, so the relay passes
   `--strict-mcp-config` (no MCP servers) and `--disable-slash-commands`. `--bare` is not used
   because it ignores the `claude` login. `--name prs` labels the sender.
+- 2026-11-25: The user asked for the strictest relay. Tested with `--safe-mode`, `--effort low`, a
+  one-sentence `--system-prompt`, and JSON output: the message arrived, from the name `prs`.
 - 2026-11-25: Auto mode blocked my own relay test from inside a Claude session, so the user
   runs it.
