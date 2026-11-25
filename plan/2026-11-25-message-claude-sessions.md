@@ -86,8 +86,9 @@ claude -p --model <relay_model> --no-session-persistence \
   --tools SendMessage --allowed-tools SendMessage <prompt>
 ```
 
-The prompt names the session id and the message between markers, and asks for the word
-`sent` back; any other output is the error.
+The prompt goes on standard input, because `--tools` and `--allowed-tools` take a list and
+swallow a trailing prompt argument. It names the session id and the message between markers,
+and asks for the word `sent` back; any other output is the error.
 
 **Column "Session"** on the pull request board (when `host.Enabled(pullrequests.BoardName)`)
 and on the agent plans board (when `host.Enabled(agentplans.BoardName)`). One fetch per load
