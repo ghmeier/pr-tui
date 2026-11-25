@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/ghmeier/pr-tui/internal/shell"
 	"github.com/ghmeier/pr-tui/plugins/agentsessions"
@@ -156,7 +157,7 @@ func (relay provider) Send(session agentsessions.Session, message string) error 
 		return fmt.Errorf("the relay printed something unexpected: %s", firstLine(output))
 	}
 	result := strings.TrimSpace(outcome.Result)
-	if outcome.IsError || result != "sent" {
+	if outcome.IsError || !strings.EqualFold(strings.TrimRightFunc(result, unicode.IsPunct), "sent") {
 		if result == "" {
 			return errors.New("the relay did not say the message was sent")
 		}

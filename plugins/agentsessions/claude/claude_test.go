@@ -175,11 +175,23 @@ func TestSendUsesTheConfiguredRelayModel(t *testing.T) {
 func TestSendFailsWithTheResultTextWhenTheRelayDoesNotReportSent(t *testing.T) {
 	fake := installFakeClaude(t)
 	fake.agents = []map[string]any{listed("id-1", recipient.Name, "/launch", "idle")}
-	fake.relayOutput = `{"is_error":false,"result":"No session named storefront-1"}`
+	fake.relayOutput = `{"is_error":false,"result":"not sent: no agent named storefront-1"}`
 
 	err := provider{relayModel: "haiku"}.Send(recipient, "hello")
 
-	if err == nil || err.Error() != "No session named storefront-1" {
+	if err == nil || err.Error() != "not sent: no agent named storefront-1" {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestSendAcceptsASentResultIgnoringCaseAndTrailingPunctuation(t *testing.T) {
+	fake := installFakeClaude(t)
+	fake.agents = []map[string]any{listed("id-1", recipient.Name, "/launch", "idle")}
+	fake.relayOutput = `{"is_error":false,"result":" Sent.\n"}`
+
+	err := provider{relayModel: "haiku"}.Send(recipient, "hello")
+
+	if err != nil {
 		t.Fatalf("error = %v", err)
 	}
 }

@@ -1,6 +1,7 @@
 package agentsessions
 
 import (
+	"slices"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -18,7 +19,7 @@ func messageAction(provider Provider, subject string, prefill func(row plugin.Ro
 		Run: func(selection plugin.Selection) plugin.Effect {
 			sessions, _ := selection.Data(columnHeader).(matchedSessions)
 			if len(sessions) == 0 {
-				return plugin.Effect{Notice: "No live Claude session mentions this " + subject}
+				return plugin.Effect{Notice: "No live agent session mentions this " + subject}
 			}
 			opening := prefill(selection.Row)
 			if len(sessions) == 1 {
@@ -32,10 +33,8 @@ func messageAction(provider Provider, subject string, prefill func(row plugin.Ro
 				Question: "Message which session?",
 				Options:  options,
 				Pick: func(option string) plugin.Effect {
-					for index, candidate := range options {
-						if candidate == option {
-							return writeMessage(provider, selection, sessions[index], opening)
-						}
+					if index := slices.Index(options, option); index >= 0 {
+						return writeMessage(provider, selection, sessions[index], opening)
 					}
 					return plugin.Effect{}
 				},

@@ -24,7 +24,7 @@ func TestMessageActionSaysSoWhenNoSessionMentionsThePullRequest(t *testing.T) {
 
 	plugintest.Press(t, model, "down", "c")
 
-	if status := statusLine(model); !strings.Contains(status, "No live Claude session mentions this pull request") {
+	if status := statusLine(model); !strings.Contains(status, "No live agent session mentions this pull request") {
 		t.Fatalf("status = %q", status)
 	}
 	if len(editor.opened) != 0 || len(provider.sent) != 0 {

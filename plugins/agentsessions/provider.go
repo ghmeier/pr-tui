@@ -2,6 +2,7 @@ package agentsessions
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 )
@@ -36,12 +37,7 @@ func RegisterProvider(name string, factory ProviderFactory) {
 }
 
 func providerNames() []string {
-	names := make([]string, 0, len(providerFactories))
-	for name := range providerFactories {
-		names = append(names, name)
-	}
-	slices.Sort(names)
-	return names
+	return slices.Sorted(maps.Keys(providerFactories))
 }
 
 func newProvider(name string, settings ProviderSettings) (Provider, error) {
