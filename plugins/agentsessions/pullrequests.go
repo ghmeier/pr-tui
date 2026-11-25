@@ -35,7 +35,7 @@ func pullRequestColumn(provider Provider) plugin.Column {
 }
 
 func pullRequestMessageAction(provider Provider) plugin.Action {
-	return messageAction(provider, "pull request", func(row plugin.Row) string {
+	return messageAction(provider, func(row plugin.Row) string {
 		return pullRequestPrefill(row.(pullrequests.Row).PullRequest)
 	})
 }
@@ -70,13 +70,22 @@ func commentMessage(comment pullrequests.Comment) string {
 	return strings.TrimRight(pullRequestPrefill(comment.PullRequest), "\n") + "\n" + commentLines(comment.Target) + "\n\n" + comment.Body
 }
 
-// commentLines say which line of which file the comment is on, and which comment it answers.
+// commentLines say where the comment is, which is a line of a file or the conversation, and who it answers.
 func commentLines(target pullrequests.CommentTarget) string {
-	side := "new"
-	if target.Side == pullrequests.CommentSideOld {
-		side = "old"
+	if target.Conversation {
+		if target.ReplyAuthor != "" {
+			return "Comment on the conversation, in reply to " + target.ReplyAuthor
+		}
+		return "Comment on the conversation"
 	}
-	lines := fmt.Sprintf("File: %s, line %d (%s side)", target.Path, target.Line, side)
+	lines := fmt.Sprintf("File: %s (whole file)", target.Path)
+	if !target.WholeFile {
+		side := "new"
+		if target.Side == pullrequests.CommentSideOld {
+			side = "old"
+		}
+		lines = fmt.Sprintf("File: %s, line %d (%s side)", target.Path, target.Line, side)
+	}
 	if target.ReplyTo != 0 {
 		lines += fmt.Sprintf("\nIn reply to %s's comment", target.ReplyAuthor)
 	}

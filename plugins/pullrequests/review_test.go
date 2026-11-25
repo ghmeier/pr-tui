@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ghmeier/pr-tui/internal/plugin"
+	"github.com/ghmeier/pr-tui/internal/plugin/plugintest"
 )
 
 // addedLineTarget is the comment target of the added line that pressToTheAddedLine moves to.
@@ -86,7 +87,7 @@ func TestCommentKeyOnAHeaderLineOpensNoEditorAndSaysWhy(t *testing.T) {
 	session := editorWrites(t, "Never used")
 	model := loadedBoard(t)
 
-	press(t, model, "enter", "c")
+	press(t, model, "enter", "down", "c")
 
 	assertShows(t, model, "Move to a code line to comment on it.")
 	if len(session.opened) != 0 {
@@ -520,7 +521,7 @@ func reopenedDiffAfterAPush(t *testing.T, newDiff string) (*plugin.Model, *edito
 	provider := newFakeProvider()
 	session := editorWrites(t, "Draft", "\n")
 	model := loadedBoardWith(t, provider)
-	press(t, model, append(pressToTheAddedLine(), "c", chooseAddToReview, "esc")...)
+	press(t, model, append(pressToTheAddedLine(), "c", chooseAddToReview, "esc", "y")...)
 	provider.diff = newDiff
 	press(t, model, "enter")
 	return model, session
@@ -609,5 +610,98 @@ func TestPendingReviewsKeepABodyWrittenWhileASubmissionRan(t *testing.T) {
 
 	if reviews.body(url) != "Written meanwhile" {
 		t.Fatalf("body = %q", reviews.body(url))
+	}
+}
+
+// withOnePendingComment opens the diff and adds a pending comment on the added line, leaving the
+// diff open.
+func withOnePendingComment(t *testing.T) *plugin.Model {
+	t.Helper()
+	provider := newFakeProvider()
+	editorWrites(t, "Draft")
+	model := loadedBoardWith(t, provider)
+	press(t, model, append(pressToTheAddedLine(), "c", chooseAddToReview)...)
+	return model
+}
+
+func TestReviewLabelNamesTheNumberOfPendingCommentsOnTheScreenAndOnTheBoard(t *testing.T) {
+	model := withOnePendingComment(t)
+	plugintest.Resize(t, model, 300, 30)
+
+	onScreen := helpLine(model)
+	press(t, model, "esc", "y")
+	onBoard := helpLine(model)
+
+	for name, help := range map[string]string{"screen": onScreen, "board": onBoard} {
+		if !strings.Contains(help, "a review (1 pending)") {
+			t.Fatalf("help on the %s = %q", name, help)
+		}
+	}
+}
+
+func TestReviewLabelHasNoCountWithoutPendingComments(t *testing.T) {
+	model := loadedBoard(t)
+	plugintest.Resize(t, model, 300, 30)
+
+	onBoard := helpLine(model)
+	press(t, model, "enter")
+	onScreen := helpLine(model)
+
+	for name, help := range map[string]string{"screen": onScreen, "board": onBoard} {
+		if !strings.Contains(help, "a review") || strings.Contains(help, "pending") {
+			t.Fatalf("help on the %s = %q", name, help)
+		}
+	}
+}
+
+func TestLeavingTheDiffWithPendingCommentsAsksFirst(t *testing.T) {
+	for _, key := range []string{"esc", "q"} {
+		t.Run(key, func(t *testing.T) {
+			model := withOnePendingComment(t)
+
+			press(t, model, key)
+
+			assertShows(t, model, "1 pending comment is not submitted. Go back anyway?")
+		})
+	}
+}
+
+func TestLeavingTheDiffWithSeveralPendingCommentsUsesThePlural(t *testing.T) {
+	provider := newFakeProvider()
+	editorWrites(t, "Draft")
+	model := loadedBoardWith(t, provider)
+	press(t, model, append(pressToTheAddedLine(), "c", chooseAddToReview, "left", "c", chooseAddToReview, "esc")...)
+
+	assertShows(t, model, "2 pending comments are not submitted. Go back anyway?")
+}
+
+func TestDecliningToLeaveTheDiffKeepsItOpenWithItsPendingComments(t *testing.T) {
+	model := withOnePendingComment(t)
+
+	press(t, model, "esc", "n")
+
+	assertShows(t, model, "file 1 of 2", "· 1 pending")
+}
+
+func TestAgreeingToLeaveTheDiffClosesItAndKeepsTheCommentsPending(t *testing.T) {
+	model := withOnePendingComment(t)
+
+	press(t, model, "q", "y")
+
+	assertShows(t, model, "Repo", "a review (1 pending)")
+	assertDoesNotShow(t, model, "file 1 of 2")
+}
+
+func TestLeavingTheDiffWithoutPendingCommentsClosesItAtOnce(t *testing.T) {
+	for _, key := range []string{"esc", "q"} {
+		t.Run(key, func(t *testing.T) {
+			model := loadedBoard(t)
+			press(t, model, "enter")
+
+			press(t, model, key)
+
+			assertShows(t, model, "Repo")
+			assertDoesNotShow(t, model, "file 1 of 2", "Go back anyway")
+		})
 	}
 }

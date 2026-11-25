@@ -97,7 +97,6 @@ type Selection struct {
 	Value any
 
 	boardIndex int
-	current    func() (Row, bool)
 	// latest is the selection for the same row built from the board's rows and data as they are
 	// now, which differ from this selection's copy once more has loaded. It is false when the
 	// board no longer has the row.
@@ -105,17 +104,6 @@ type Selection struct {
 	// offerable are the board's actions that take a kind of value. They never change after setup,
 	// so a selection shares them safely with any goroutine.
 	offerable []Action
-}
-
-// Current is the board's version of this selection's row as it is now, found by the row's key
-// among all the rows the board has loaded. Row, in contrast, stays as it was when the selection
-// was built. The second result is false when the board no longer has the row. It reads the
-// board's rows, so call it only on the update loop, such as from a screen's Update or View.
-func (selection Selection) Current() (Row, bool) {
-	if selection.current == nil {
-		return nil, false
-	}
-	return selection.current()
 }
 
 // Run has the host carry out an effect for this selection's board, from a screen or a
@@ -136,6 +124,20 @@ func (selection Selection) RunAction(key string) tea.Cmd {
 	return func() tea.Msg {
 		return actionMessage{board: selection.boardIndex, rowKey: selection.Row.Key(), fallback: selection.Row, key: key}
 	}
+}
+
+// Latest is this selection rebuilt from the board's rows and data as they are now, found by the
+// row's key among all the rows the board has loaded, or this selection when the board no longer
+// has the row. Row and Data, in contrast, stay as they were when the selection was built. A screen
+// uses it to decide what to show from what has loaded since it opened. It reads the board, so
+// call it only on the update loop, such as from a screen's Update or View.
+func (selection Selection) Latest() Selection {
+	if selection.latest != nil {
+		if latest, found := selection.latest(); found {
+			return latest
+		}
+	}
+	return selection
 }
 
 // Offers lists the labels of the board's actions that take the kind of value and apply to the
@@ -184,8 +186,10 @@ type Action struct {
 	// action has no key: a screen offers it, by its label, for a value of that kind, and its Run
 	// reads the value from Selection.Value. It is not shown in the help line.
 	Takes string
-	// Applies, when set, says whether a screen offers the action for the selection. It runs on
-	// the update loop, so it must return quickly.
+	// Applies, when set, says whether the action applies to the selection: a screen offers an
+	// action that takes a value only if it does, and a keyed action that does not apply is hidden
+	// from the help line and its key does nothing, as when LabelFor returns "". It runs on the
+	// update loop, so it must return quickly.
 	Applies func(selection Selection) bool
 	// Label is shown in the help line. An empty label hides the action there. An action that
 	// takes a value needs one, because it is what a screen offers.
@@ -199,16 +203,20 @@ type Action struct {
 	Run func(selection Selection) Effect
 }
 
-// LabelOf is the action's label for the row, and whether the action applies to it. A nil row,
-// which an empty board has, applies only to an action without LabelFor.
-func (action Action) LabelOf(row Row) (label string, applies bool) {
+// LabelOf is the action's label for the selection's row, and whether the action applies to it.
+// A selection without a row, which an empty board has, applies only to an action with neither
+// LabelFor nor Applies.
+func (action Action) LabelOf(selection Selection) (label string, applies bool) {
+	if selection.Row == nil {
+		return action.Label, action.LabelFor == nil && action.Applies == nil
+	}
+	if !action.offeredFor(selection) {
+		return "", false
+	}
 	if action.LabelFor == nil {
 		return action.Label, true
 	}
-	if row == nil {
-		return "", false
-	}
-	label = action.LabelFor(row)
+	label = action.LabelFor(selection.Row)
 	return label, label != ""
 }
 

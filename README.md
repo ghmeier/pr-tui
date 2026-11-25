@@ -118,7 +118,7 @@ Board keys:
 | `d` | Mark a draft ready for review, or convert a ready pull request back to draft; the help line shows which |
 | `t` | Request review: opens a list of the review team and its members, which you narrow by typing and pick with enter. The team is left out once it is requested, and so are the author and anyone already requested. A draft is marked ready for review first. Hidden when nobody is left to ask |
 | `m` | Merge now (squash, after a confirmation), or enable or disable auto-merge (squash) |
-| `a` | Review (labelled comment on your own pull request): approve, request changes, or comment, written in your editor. It submits the pending comments you have collected in the diff view, after a confirmation. On your own pull request only a comment review is offered |
+| `a` | Review: approve, request changes, or comment, written in your editor. It submits the pending comments you have collected in the diff view, after a confirmation, and the help line shows how many are pending. On your own pull request only a comment review is offered |
 | `f` | Filter by repository and by people or bots: `j`/`k` move, `space` toggles, `1` to `9` toggle the first nine options, `b` switches people and bots |
 | `tab` / `shift+tab` | Switch tabs, when plugins add more than one |
 | `←` / `→` or `h` / `l` | Move between the boards that share a tab, such as the workflow sections |
@@ -142,12 +142,12 @@ Diff view keys:
 | `↑` / `↓`, mouse wheel | Move the line cursor by a line |
 | `pgup` / `pgdn` | Move the line cursor by a page |
 | `s` | Toggle split and unified layouts; a file that was added or deleted opens unified, and the key changes only that file |
-| `c` | Write a comment in your editor on the line under the cursor, then choose where it goes: post it now, add it to the pending review, or, when the agent sessions plugin finds a session working on the pull request, send it to that session. Esc keeps the text for the next `c` on that line. On a posted thread it replies, with the same choice minus the review (a reply is posted at once when nothing else is offered), and on a pending comment it edits it (saving nothing removes it) |
+| `c` | Write a comment in your editor on the line under the cursor, then choose where it goes: post it now, add it to the pending review, or, when the agent sessions plugin finds a session working on the pull request, send it to that session. Esc keeps the text for the next `c` on that line. Each file starts with a dim "whole file" row; `c` on it comments on the file as a whole, which is posted at once (or sent to a session) because a review cannot carry it, and comments already on the file show under that row. On a posted thread it replies, with the same choice minus the review (a reply is posted at once when nothing else is offered), and on a pending comment it edits it (saving nothing removes it) |
 | `d` | Mark a draft ready for review, or convert a ready pull request back to draft; the help line shows which |
 | `t` | Request review from the team or one of its members, as on the board; hidden when nobody is left to ask |
 | `m` | Merge now (squash, after a confirmation), or enable or disable auto-merge (squash) |
-| `a` | Review (labelled comment on your own pull request): approve, request changes, or comment, written in your editor. It submits the pending comments you have collected in the diff view, after a confirmation. On your own pull request only a comment review is offered |
-| `esc` | Back |
+| `a` | Review: approve, request changes, or comment, written in your editor. It submits the pending comments you have collected in the diff view, after a confirmation, and the help line shows how many are pending. On your own pull request only a comment review is offered |
+| `esc` / `q` | Back; asks first when comments are still pending, which stay pending if you go back |
 
 In the diff view, dragging the mouse over lines copies their code, without the markers and
 line numbers, from the side of a split row where the drag started. Clicking a line moves the
@@ -158,16 +158,20 @@ spans the whole screen.
 Pending comments are kept in memory, so they are lost when `prs` quits. They are posted together when
 you submit a review with `a`.
 
+The description view shows the description, then the pull request's conversation under a "Comments" heading: the comments on the pull request and the text of submitted reviews, oldest first, each headed by its author and age (and "approved", "requested changes", or "reviewed" for a review). The comments load in the background, so the description appears without waiting for them. Line comments are shown in the diff view instead.
+
 Description view keys:
 
 | Key | Action |
 | --- | --- |
+| `j` / `k` | Select the next or previous comment, and scroll to it; `k` from the first comment selects none. Scrolling with the arrow keys, the mouse wheel, `space`, `b`, `home`, or `end` does not change the selection |
 | `↑` / `↓`, `space` / `b` | Scroll by a line or a page |
-| `e` | Edit the title and the description in your editor: the title on the first line, a blank line, then the description. Saving changes either or both; an empty title is refused |
+| `c` | Write a comment on the conversation in your editor. With a comment selected it is a reply: the editor opens with `@author` and the start of that comment quoted, as the quote reply on github.com does. A conversation has no threads, so the reply is a new comment. Saving asks where it goes: post it to the pull request, or hand it to another plugin's action when one is offered. Escaping that question keeps the text for the next `c` on the same comment |
+| `e` | Edit the title and the description in your editor: the title on the first line, a blank line, then the description. Saving changes either or both; an empty title is refused. Comments are not part of what you edit |
 | `d` | Mark a draft ready for review, or convert a ready pull request back to draft; the help line shows which |
 | `t` | Request review from the team or one of its members, as on the board; hidden when nobody is left to ask |
 | `m` | Merge now (squash, after a confirmation), or enable or disable auto-merge (squash) |
-| `a` | Review (labelled comment on your own pull request): approve, request changes, or comment, written in your editor. It submits the pending comments you have collected in the diff view, after a confirmation. On your own pull request only a comment review is offered |
+| `a` | Review: approve, request changes, or comment, written in your editor. It submits the pending comments you have collected in the diff view, after a confirmation, and the help line shows how many are pending. On your own pull request only a comment review is offered |
 | `esc` | Back |
 
 ## Agent plans

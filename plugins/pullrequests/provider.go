@@ -26,6 +26,9 @@ type Provider interface {
 	Description(pullRequest PullRequest) (Description, error)
 	SaveDescription(pullRequest PullRequest, description Description) error
 	Comments(pullRequest PullRequest) ([]ReviewComment, error)
+	// Conversation is the comments on the pull request as a whole and the text of its submitted
+	// reviews, oldest first. Reviews without text are left out.
+	Conversation(pullRequest PullRequest) ([]ConversationEntry, error)
 	PostComment(pullRequest PullRequest, target CommentTarget, body string) error
 	SetDraft(pullRequest PullRequest, draft bool) error
 	SetAutoMerge(pullRequest PullRequest, enabled bool) error

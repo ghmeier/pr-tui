@@ -474,10 +474,12 @@ same `Effect` an action uses. The effect applies to the board the selection came
 another tab is in view when it arrives.
 
 A screen that shows keys for the board's actions should label them from the board's latest
-copy of the row, because an action it ran may have changed it. `selection.Current()` returns
-that copy, found by the row's key, and reports false once the board no longer has the row. It
-reads the board's rows, so call it only on the update loop, such as in `Update` or `View`.
-`Action.LabelOf(row)` gives the label and whether the action applies to that row.
+copy of the selection, because an action it ran may have changed the row. `selection.Latest()`
+returns that copy, found by the row's key, or the selection itself once the board no longer has
+the row. It reads the board's rows, so call it only on the update loop, such as in `Update` or
+`View`. `Action.LabelOf(selection)` gives the label and whether the action applies to that
+selection: an action whose `Applies` says no, or whose `LabelFor` returns an empty label, is
+hidden from the help line and its key does nothing.
 
 A screen can also offer a board's actions for a value it holds, such as a comment the person
 just wrote, without knowing which plugin supplies them. An action with `Takes` set to a kind

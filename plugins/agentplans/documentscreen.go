@@ -85,6 +85,8 @@ func (screen *documentScreen) update(message tea.Msg) (plugin.Screen, tea.Cmd) {
 			return screen, nil
 		}
 		screen.show(withoutFrontMatter(message.body))
+	case tea.MouseMsg:
+		screen.offset += ui.WheelScroll(message)
 	case tea.KeyMsg:
 		return screen.handleKey(message.String())
 	}
