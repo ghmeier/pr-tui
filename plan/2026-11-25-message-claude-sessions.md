@@ -4,7 +4,7 @@ status: active
 tags: [plugins, agent-sessions]
 created: 2026-11-25
 updated: 2026-11-25
-next_step: Step 2 is with the implementer on agent-sessions-diff-comments; the user still owes the real send for step 1.
+next_step: Check one real send from the app, mark #20 ready; then the agent plans board step from diff-review-keys.
 ---
 # Message Claude sessions from pull requests and plans
 
@@ -221,5 +221,9 @@ None. Columns, actions, `Edit`, `Choice`, and `Command` cover it.
 - 2026-11-25: Code review of step 2 found offers checked against stale data and comments lost on the
   offer path; fixed in `4649817` (1031 tests). The user also asked for `c comment` and `a review`
   everywhere (the label always "review"; `a` kept on the screens for consistency), the pending count on the review label, and a confirmation before leaving the
-  diff screen with pending comments: branch `diff-review-keys` from step 2.- 2026-11-25: Auto mode blocked my own relay test from inside a Claude session, so the user
+  diff screen with pending comments: branch `diff-review-keys` from step 2.- 2026-11-25: `diff-review-keys`: `46f9c7a`, refactor `1cd7862`, 1042 tests. Review label always
+  "review" with "(N pending)"; esc or q on the diff screen asks while comments are pending.
+- 2026-11-25: Pull requests opened, stacked: #20 (step 1, draft until a real send is checked), #21
+  (step 2), #22 (review label and leave confirmation). The user approved 2 and 3.
+- 2026-11-25: Auto mode blocked my own relay test from inside a Claude session, so the user
   runs it.
