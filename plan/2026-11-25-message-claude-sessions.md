@@ -194,5 +194,9 @@ None. Columns, actions, `Edit`, `Choice`, and `Command` cover it.
   another column's cell on the same board. The agent sessions column joins
   `pullrequests.StateColumn` with 🤖 (my choice of emoji; cheap to change). Step 2 joins the
   agent plans board's Status column the same way.
+- 2026-11-25: `Column.Within` and the 🤖 mark: `7c1e6cf`, refactor `447e8bd`. Verified: 984 tests,
+  `--once` shows 🤖 after the CI mark on the three matched pull requests. Validation runs after
+  every plugin's columns are attached, so a column added by another plugin is checked. Left
+  alone: a long joined mark can push the host column's own text past its `MaxWidth`.
 - 2026-11-25: Auto mode blocked my own relay test from inside a Claude session, so the user
   runs it.
