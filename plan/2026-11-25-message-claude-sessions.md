@@ -4,7 +4,7 @@ status: active
 tags: [plugins, agent-sessions]
 created: 2026-11-25
 updated: 2026-11-25
-next_step: Step 1 (6132e01) is in the refactor pass; then verify and one real send.
+next_step: The user sends one real message from the step 1 branch with `c`; then open its pull request and start step 2.
 ---
 # Message Claude sessions from pull requests and plans
 
@@ -183,5 +183,11 @@ None. Columns, actions, `Edit`, `Choice`, and `Command` cover it.
   cache), 122 output tokens, $0.0008 per send on Haiku. The user approved the plan.
 - 2026-11-25: The user asked for metadata in the prefill. Step 1 got the pull request's number,
   title, URL, and branch. File and line need the diff screen, added as step 3.
+- 2026-11-25: Step 1 on `agent-sessions-pull-requests`: `6132e01`, refactor `142203f`. Verified: vet,
+  gofmt, 976 tests, and `--once` against the real repositories shows gazebo-30 on #21493 and
+  #21488 and gazebo-56 on #21489. `Sessions()` takes about 0.2 s for five sessions. The relay
+  accepts "sent" ignoring case and trailing punctuation. Left alone: the provider recognises
+  `github.com/.../pull/N` URLs in transcripts, a text heuristic like the agent plans board's;
+  the repository in a URL is compared with exact case; the relay's `--name prs` is fixed.
 - 2026-11-25: Auto mode blocked my own relay test from inside a Claude session, so the user
   runs it.
