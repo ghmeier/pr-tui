@@ -219,9 +219,7 @@ None. Columns, actions, `Edit`, `Choice`, and `Command` cover it.
   host also gained `Effect.Then` (a screen's own command started with an effect, so posting from
   the choice reaches the diff screen) and `Choice.Cancel` (esc keeps the comment's text).
 - 2026-11-25: Code review of step 2 found offers checked against stale data and comments lost on the
-  offer path; fixed in `4649817` (1031 tests). The user also asked for `c comment` / `r review` on
-  the screens, the pending count on the review label, and a confirmation before leaving the
-  diff screen with pending comments: branch `diff-review-keys` from step 2. The board keeps `a`
-  for review because `r` is refresh there.
-- 2026-11-25: Auto mode blocked my own relay test from inside a Claude session, so the user
+  offer path; fixed in `4649817` (1031 tests). The user also asked for `c comment` and `a review`
+  everywhere (the label always "review"; `a` kept on the screens for consistency), the pending count on the review label, and a confirmation before leaving the
+  diff screen with pending comments: branch `diff-review-keys` from step 2.- 2026-11-25: Auto mode blocked my own relay test from inside a Claude session, so the user
   runs it.
