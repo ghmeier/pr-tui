@@ -149,6 +149,16 @@ func validateBoard(board Board, owner string) error {
 		if column.Flexible {
 			flexible++
 		}
+		if column.Within == "" {
+			continue
+		}
+		hostColumn := slices.IndexFunc(board.Columns, func(other Column) bool { return other.Header == column.Within })
+		if hostColumn < 0 {
+			return fmt.Errorf("board %q has column %q within column %q, which the board does not have", board.Name, column.Header, column.Within)
+		}
+		if board.Columns[hostColumn].Within != "" {
+			return fmt.Errorf("board %q has column %q within column %q, which is itself within column %q", board.Name, column.Header, column.Within, board.Columns[hostColumn].Within)
+		}
 	}
 	if flexible > 1 {
 		return fmt.Errorf("board %q has %d flexible columns; at most one may be flexible", board.Name, flexible)

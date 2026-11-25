@@ -74,6 +74,11 @@ type Column struct {
 	// refreshes. Load itself runs on the update loop and must return quickly without
 	// blocking; the work belongs in the fetches it returns.
 	Load func(rows []Row) []Fetch
+	// Within, when set, is the header of another column on the same board. This column is then
+	// not drawn as a column of its own: its cell is drawn at the end of that column's cell, after
+	// a space, and it loads and delivers data like any other column, so Selection.Data still
+	// finds it by its own Header.
+	Within string
 }
 
 // Fetch is one background lookup of column data. A fetch that fails leaves its cells unloaded.

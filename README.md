@@ -195,8 +195,7 @@ that are working on each pull request, and sends them a message. It is off until
 `"agent_sessions"` to `plugins`, it needs `claude` on your `PATH` and logged in, and it adds to the
 pull request board when `pull_requests` is on.
 
-The board gets a `Session` column with the name of the most recently active matching session, its status
-(`busy` or `blocked`) when it is not idle, and `+N` when more match. A session matches a pull request when it
+A pull request with one or more matching sessions gets a 🤖 at the end of its State column. A session matches a pull request when it
 has mentioned the pull request's address (prs reads the last 2 MiB of the session's transcript under
 `~/.claude/projects`), or when it is on the pull request's head branch in a checkout of the same repository.
 A session in a worktree counts as a session of the main checkout.

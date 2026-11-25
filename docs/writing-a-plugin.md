@@ -287,7 +287,10 @@ the key across refreshes, so a key that changes on every load makes the cursor j
 
 Each column has a `Header` and a `Cell` function that draws one row as styled segments. At
 most one column may be `Flexible`; it shrinks when the terminal is narrow. A column's
-`MaxWidth` caps how wide it is drawn, and longer cells end in `…`. The facet adds a
+`MaxWidth` caps how wide it is drawn, and longer cells end in `…`. A column with `Within` set to
+another column's header has no place of its own: its cell is drawn at the end of that column's
+cell, so a plugin can add a mark to a column it does not own, and its data is still read by its own
+header. The facet adds a
 choice to the filter menu (`f`): its `Value` function says which option a row has, and with no
 `Selected` set, every option starts selected. A facet with `OptionsFromRows` also gets an option
 for every other value its loaded rows have, so a plugin need not know the values in advance.

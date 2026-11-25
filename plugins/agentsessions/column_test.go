@@ -6,31 +6,31 @@ import (
 	"time"
 )
 
-func TestSessionColumnNamesTheSessionThatHasMentionedThePullRequest(t *testing.T) {
+func TestSessionColumnMarksThePullRequestThatASessionHasMentionedThePullRequest(t *testing.T) {
 	fixture := newBoardFixture()
 	session := fixture.mentioning("storefront-1", fixture.signIn)
 
 	model := fixture.start(t, &fakeProvider{sessions: []Session{session}})
 
-	if header := lineWith(model, "Review requested"); !strings.Contains(header, columnHeader) {
-		t.Fatalf("header = %q", header)
+	if header := lineWith(model, "Review requested"); strings.Contains(header, columnHeader) {
+		t.Fatalf("header = %q, expected no column of its own", header)
 	}
-	if line := lineWith(model, fixture.signIn.Title); !strings.Contains(line, session.Name) {
-		t.Fatalf("line = %q, expected the session %q", line, session.Name)
+	if line := lineWith(model, fixture.signIn.Title); !strings.Contains(line, sessionMark) {
+		t.Fatalf("line = %q, expected the mark", line)
 	}
-	if line := lineWith(model, fixture.tidy.Title); strings.Contains(line, session.Name) {
-		t.Fatalf("line = %q, expected no session for the other pull request", line)
+	if line := lineWith(model, fixture.tidy.Title); strings.Contains(line, sessionMark) {
+		t.Fatalf("line = %q, expected no mark for the other pull request", line)
 	}
 }
 
-func TestSessionColumnNamesTheSessionOnThePullRequestsBranchInTheSameRepository(t *testing.T) {
+func TestSessionColumnMarksThePullRequestOnWhoseBranchASessionWorksInTheSameRepository(t *testing.T) {
 	fixture := newBoardFixture()
 	session := onBranch("storefront-2", fixture.source.Name, fixture.signIn.HeadBranch)
 
 	model := fixture.start(t, &fakeProvider{sessions: []Session{session}})
 
-	if line := lineWith(model, fixture.signIn.Title); !strings.Contains(line, session.Name) {
-		t.Fatalf("line = %q, expected the session %q", line, session.Name)
+	if line := lineWith(model, fixture.signIn.Title); !strings.Contains(line, sessionMark) {
+		t.Fatalf("line = %q, expected the mark", line)
 	}
 }
 
@@ -40,7 +40,7 @@ func TestSessionColumnIgnoresASessionOnTheSameBranchInAnotherRepository(t *testi
 
 	model := fixture.start(t, &fakeProvider{sessions: []Session{session}})
 
-	if line := lineWith(model, fixture.signIn.Title); line == "" || strings.Contains(line, session.Name) {
+	if line := lineWith(model, fixture.signIn.Title); line == "" || strings.Contains(line, sessionMark) {
 		t.Fatalf("line = %q, expected the pull request without the session", line)
 	}
 }
@@ -52,28 +52,12 @@ func TestSessionColumnIgnoresASessionWithoutABranchWhoseRepositoryIsUnknown(t *t
 
 	model := fixture.start(t, &fakeProvider{sessions: []Session{session}})
 
-	if line := lineWith(model, fixture.signIn.Title); strings.Contains(line, session.Name) {
+	if line := lineWith(model, fixture.signIn.Title); strings.Contains(line, sessionMark) {
 		t.Fatalf("line = %q", line)
 	}
 }
 
-func TestSessionColumnShowsTheStatusOfASessionThatIsNotIdle(t *testing.T) {
-	fixture := newBoardFixture()
-	busy := fixture.mentioning("storefront-1", fixture.signIn)
-	busy.Status = StatusBusy
-	idle := fixture.mentioning("storefront-2", fixture.tidy)
-
-	model := fixture.start(t, &fakeProvider{sessions: []Session{busy, idle}})
-
-	if line := lineWith(model, fixture.signIn.Title); !strings.Contains(line, busy.Name+" busy") {
-		t.Fatalf("line = %q", line)
-	}
-	if line := lineWith(model, fixture.tidy.Title); !strings.Contains(line, idle.Name) || strings.Contains(line, idle.Name+" idle") {
-		t.Fatalf("line = %q, expected the name without a status", line)
-	}
-}
-
-func TestSessionColumnShowsTheMostRecentlyActiveSessionFirstAndCountsTheOthers(t *testing.T) {
+func TestSessionColumnShowsTheMarkOnceHoweverManySessionsMatch(t *testing.T) {
 	fixture := newBoardFixture()
 	older := fixture.mentioning("storefront-1", fixture.signIn)
 	newer := fixture.mentioning("storefront-2", fixture.signIn)
@@ -82,7 +66,7 @@ func TestSessionColumnShowsTheMostRecentlyActiveSessionFirstAndCountsTheOthers(t
 	model := fixture.start(t, &fakeProvider{sessions: []Session{older, newer}})
 
 	line := lineWith(model, fixture.signIn.Title)
-	if !strings.Contains(line, newer.Name+" +1") || strings.Contains(line, older.Name) {
-		t.Fatalf("line = %q, expected %q followed by +1", line, newer.Name)
+	if strings.Count(line, sessionMark) != 1 || strings.Contains(line, older.Name) || strings.Contains(line, newer.Name) {
+		t.Fatalf("line = %q, expected one mark and no session names", line)
 	}
 }

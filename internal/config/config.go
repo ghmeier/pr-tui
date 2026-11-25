@@ -281,8 +281,8 @@ repositories = ["your-organization/your-repository"]
 # must contain a .apl directory, and no two may share a directory name.
 # repositories = ["~/git/your-repository"]
 
-# Only read when "agent_sessions" is in the plugins list above. Adds a Session column to the pull
-# request board, and the "c" key, which writes a message in your editor and sends it to the session.
+# Only read when "agent_sessions" is in the plugins list above. Adds a 🤖 mark to the State column of
+# the pull request board, and the "c" key, which writes a message in your editor and sends it to the session.
 # [agent_sessions]
 # Where sessions come from. Only "claude" is supported today; it uses the login of claude.
 # provider = "claude"

@@ -150,17 +150,45 @@ func (board *boardState) rowWithKey(key string) (Row, bool) {
 	return nil, false
 }
 
+// drawnColumns are the columns that have a place in the table of their own, which leaves out the
+// ones drawn within another column.
+func (board *boardState) drawnColumns() []Column {
+	var drawn []Column
+	for _, column := range board.spec.Columns {
+		if column.Within == "" {
+			drawn = append(drawn, column)
+		}
+	}
+	return drawn
+}
+
+// cells draws the visible rows, one cell for each of the drawn columns. The columns drawn within
+// a column add their cells after its own, in the order they were added, each after a space when
+// both sides have content.
 func (board *boardState) cells() [][][]ui.Segment {
 	cells := make([][][]ui.Segment, len(board.visible))
 	for rowIndex, row := range board.visible {
-		cells[rowIndex] = make([][]ui.Segment, len(board.spec.Columns))
 		for columnIndex, column := range board.spec.Columns {
-			cells[rowIndex][columnIndex] = column.Cell(row, board.data[columnIndex][row.Key()])
+			if column.Within != "" {
+				continue
+			}
+			cell := column.Cell(row, board.data[columnIndex][row.Key()])
+			for joinedIndex, joined := range board.spec.Columns {
+				if joined.Within != column.Header {
+					continue
+				}
+				extra := joined.Cell(row, board.data[joinedIndex][row.Key()])
+				if len(cell) > 0 && len(extra) > 0 {
+					cell = append(cell[:len(cell):len(cell)], ui.Segment{Text: " "})
+				}
+				cell = append(cell[:len(cell):len(cell)], extra...)
+			}
+			cells[rowIndex] = append(cells[rowIndex], cell)
 		}
 	}
 	return cells
 }
 
 func (board *boardState) table(width, selected, offset, rowCount int) string {
-	return renderTable(board.spec.Columns, board.cells(), width, selected, offset, rowCount)
+	return renderTable(board.drawnColumns(), board.cells(), width, selected, offset, rowCount)
 }

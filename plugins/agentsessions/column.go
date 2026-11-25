@@ -1,7 +1,6 @@
 package agentsessions
 
 import (
-	"fmt"
 	"slices"
 
 	"github.com/ghmeier/pr-tui/internal/plugin"
@@ -17,26 +16,23 @@ type matcher func(session Session) bool
 // matchedSessions are the sessions that work on one row, most recently active first.
 type matchedSessions []Session
 
-// sessionColumn is the Session column of a board. A cell stays empty until the fetch has
-// delivered sessions, and for a row that no session matches. matchersFor runs on the update
+// sessionMark is what a row shows when at least one session works on it.
+const sessionMark = "🤖"
+
+// sessionColumn is the Session column of a board, drawn within the board's column named by
+// within. A cell stays empty until the fetch has delivered sessions, and for a row that no
+// session matches. matchersFor runs on the update
 // loop, so it only reads the rows, and returns a matcher for each row key the column applies to.
-func sessionColumn(provider Provider, matchersFor func(rows []plugin.Row) map[string]matcher) plugin.Column {
+func sessionColumn(provider Provider, within string, matchersFor func(rows []plugin.Row) map[string]matcher) plugin.Column {
 	return plugin.Column{
-		Header:   columnHeader,
-		MaxWidth: 24,
+		Header: columnHeader,
+		Within: within,
 		Cell: func(_ plugin.Row, data any) []ui.Segment {
 			sessions, loaded := data.(matchedSessions)
 			if !loaded || len(sessions) == 0 {
 				return nil
 			}
-			segments := ui.PlainSegments(sessions[0].Name)
-			if label := statusLabel(sessions[0]); label != "" {
-				segments = append(segments, ui.Segment{Text: " " + label, Style: ui.DimStyle})
-			}
-			if rest := len(sessions) - 1; rest > 0 {
-				segments = append(segments, ui.Segment{Text: fmt.Sprintf(" +%d", rest), Style: ui.DimStyle})
-			}
-			return segments
+			return ui.PlainSegments(sessionMark)
 		},
 		Load: func(rows []plugin.Row) []plugin.Fetch {
 			matchers := matchersFor(rows)

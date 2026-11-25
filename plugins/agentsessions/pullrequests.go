@@ -21,7 +21,7 @@ func worksOnPullRequest(session Session, pullRequest pullrequests.PullRequest) b
 }
 
 func pullRequestColumn(provider Provider) plugin.Column {
-	return sessionColumn(provider, func(rows []plugin.Row) map[string]matcher {
+	return sessionColumn(provider, pullrequests.StateColumn, func(rows []plugin.Row) map[string]matcher {
 		matchers := map[string]matcher{}
 		for _, row := range rows {
 			if pullRequestRow, isPullRequest := row.(pullrequests.Row); isPullRequest {
