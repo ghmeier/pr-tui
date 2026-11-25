@@ -62,7 +62,7 @@ func (m *Model) help() string {
 	var keysAndLabels []string
 	row, _ := m.current().selected()
 	for _, action := range m.current().spec.Actions {
-		if label, _ := action.LabelOf(row); label != "" {
+		if label, _ := action.LabelOf(row); label != "" && action.Takes == "" {
 			keysAndLabels = append(keysAndLabels, action.Key, label)
 		}
 	}

@@ -35,6 +35,7 @@ func (*agentSessionsPlugin) Setup(host *plugin.Host) error {
 	if host.Enabled(pullrequests.BoardName) {
 		host.AddColumn(pullrequests.BoardName, pullRequestColumn(provider))
 		host.AddAction(pullrequests.BoardName, pullRequestMessageAction(provider))
+		host.AddAction(pullrequests.BoardName, commentAction(provider))
 	}
 	return nil
 }

@@ -121,9 +121,10 @@ type diffScreen struct {
 	// drag is the rows selected with the mouse, or nil. It is dropped when the rows are laid out
 	// again and on the next key, because it names rows.
 	drag *dragSelection
-	// failedReplies holds the text of each reply that could not be posted, by the id of the
-	// comment it answers, so that the next reply to that thread starts from it.
-	failedReplies map[int64]string
+	// keptComments holds the text of each comment that was written but neither sent nor added to
+	// the review, such as one that failed to post or whose choice was cancelled, so that the next
+	// comment on the same line or thread starts from it.
+	keptComments map[CommentTarget]string
 	// seenSubmissions is how many reviews of this pull request had been submitted when the
 	// comments were last loaded.
 	seenSubmissions int
@@ -134,7 +135,7 @@ func (board *pullRequestBoard) newDiffScreen(selection plugin.Selection) *diffSc
 	screen := &diffScreen{
 		board: board, pullRequest: pr, selection: selection, lineCount: selection.Data(linesHeader),
 		splitDiff: true, width: 120, height: 30, seenSubmissions: board.reviews.submissions(pr.URL),
-		failedReplies: map[int64]string{},
+		keptComments: map[CommentTarget]string{},
 	}
 	if files, cached := board.diffs.lookup(pr); cached {
 		screen.files, screen.refreshing = files, true
@@ -385,9 +386,8 @@ func (screen *diffScreen) cursorCommentTarget() (CommentTarget, bool) {
 	return CommentTarget{}, false
 }
 
-// comment writes in the editor. On a code line or a pending comment it keeps the text in the
-// pending review; on a posted thread it is a reply, which is posted at once because a review
-// cannot carry replies.
+// comment writes in the editor. Editing a pending comment saves the change. A new comment on a
+// code line, or a reply on a posted thread, asks where the text goes once it is written.
 func (screen *diffScreen) comment() tea.Cmd {
 	target, isCodeLine := screen.cursorCommentTarget()
 	switch {
@@ -407,35 +407,96 @@ func (screen *diffScreen) edit(text string, done func(text string) tea.Cmd) tea.
 func (screen *diffScreen) writePendingComment(target CommentTarget) tea.Cmd {
 	url := screen.pullRequest.URL
 	existing, isPending := screen.board.reviews.draftFor(url, target)
-	return screen.edit(existing.Body, func(text string) tea.Cmd {
+	opening := existing.Body
+	if !isPending {
+		opening = screen.keptComments[target]
+	}
+	return screen.edit(opening, func(text string) tea.Cmd {
 		switch {
 		case text == "" && isPending:
 			screen.board.reviews.remove(url, target)
 			screen.notice = "Pending comment removed."
 		case text == "":
+			delete(screen.keptComments, target)
 			screen.notice = "Comment discarded."
+		case isPending:
+			screen.board.reviews.save(url, DraftComment{Path: target.Path, Line: target.Line, Side: target.Side, Body: text})
+			screen.notice = "Pending comment updated."
 		default:
-			pending := screen.board.reviews.save(url, DraftComment{Path: target.Path, Line: target.Line, Side: target.Side, Body: text})
-			if isPending {
-				screen.notice = "Pending comment updated."
-			} else {
-				screen.notice = fmt.Sprintf("Added to your review (%d pending) · a submits it", pending)
-			}
+			return screen.askWhereCommentGoes(target, text)
 		}
 		return nil
 	})
 }
 
 func (screen *diffScreen) reply(target CommentTarget) tea.Cmd {
-	return screen.edit(screen.failedReplies[target.ReplyTo], func(text string) tea.Cmd {
-		delete(screen.failedReplies, target.ReplyTo)
+	return screen.edit(screen.keptComments[target], func(text string) tea.Cmd {
 		if text == "" {
+			delete(screen.keptComments, target)
 			screen.notice = "Comment discarded."
 			return nil
 		}
-		screen.notice = "Posting reply…"
-		return screen.board.sendComment(screen.pullRequest, target, text)
+		return screen.askWhereCommentGoes(target, text)
 	})
+}
+
+const (
+	postCommentOption  = "post to pull request"
+	addToReviewOption  = "add to review"
+	commentKeptMessage = "Comment kept; c to write it again."
+)
+
+// askWhereCommentGoes asks what to do with a comment that was just written, and keeps its text
+// until it is sent or added to the review, so that cancelling does not lose it. A reply is
+// posted at once when no other plugin offers a place for it, because a review cannot carry
+// replies and posting is then the only choice.
+func (screen *diffScreen) askWhereCommentGoes(target CommentTarget, body string) tea.Cmd {
+	isReply := target.ReplyTo != 0
+	offered := screen.selection.Offers(CommentKind)
+	if isReply && len(offered) == 0 {
+		return screen.postComment(target, body)
+	}
+	screen.keptComments[target] = body
+	options := []string{postCommentOption}
+	if !isReply {
+		options = append(options, addToReviewOption)
+	}
+	options = append(options, offered...)
+	return screen.selection.Run(plugin.Effect{Choice: &plugin.Choice{
+		Question: "Where should this comment go?",
+		Options:  options,
+		Pick: func(option string) plugin.Effect {
+			delete(screen.keptComments, target)
+			switch option {
+			case postCommentOption:
+				return plugin.Effect{Then: screen.postComment(target, body)}
+			case addToReviewOption:
+				screen.addToReview(target, body)
+				return plugin.Effect{}
+			}
+			comment := Comment{PullRequest: screen.pullRequest, Target: target, Body: body}
+			return plugin.Effect{Then: screen.selection.RunOffer(option, comment)}
+		},
+		Cancel: func() plugin.Effect {
+			screen.notice = commentKeptMessage
+			return plugin.Effect{}
+		},
+	}})
+}
+
+func (screen *diffScreen) postComment(target CommentTarget, body string) tea.Cmd {
+	delete(screen.keptComments, target)
+	if target.ReplyTo != 0 {
+		screen.notice = "Posting reply…"
+	} else {
+		screen.notice = "Posting comment…"
+	}
+	return screen.board.sendComment(screen.pullRequest, target, body)
+}
+
+func (screen *diffScreen) addToReview(target CommentTarget, body string) {
+	pending := screen.board.reviews.save(screen.pullRequest.URL, DraftComment{Path: target.Path, Line: target.Line, Side: target.Side, Body: body})
+	screen.notice = fmt.Sprintf("Added to your review (%d pending) · a submits it", pending)
 }
 
 func (screen *diffScreen) cursorIsOnNewSide(index int) bool {
@@ -556,11 +617,11 @@ func (screen *diffScreen) update(message tea.Msg) (plugin.Screen, tea.Cmd) {
 			return screen, nil
 		}
 		if message.err != nil {
-			screen.failedReplies[message.target.ReplyTo] = message.body
+			screen.keptComments[message.target] = message.body
 			screen.notice = "Failed: " + ui.FirstLine(message.err) + " · press c to try again"
 			return screen, nil
 		}
-		delete(screen.failedReplies, message.target.ReplyTo)
+		delete(screen.keptComments, message.target)
 		screen.notice = "Comment posted on " + message.target.label() + "."
 		return screen, screen.board.loadComments(screen.pullRequest)
 	case commentsLoadedMessage:

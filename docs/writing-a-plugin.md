@@ -479,6 +479,18 @@ that copy, found by the row's key, and reports false once the board no longer ha
 reads the board's rows, so call it only on the update loop, such as in `Update` or `View`.
 `Action.LabelOf(row)` gives the label and whether the action applies to that row.
 
+A screen can also offer a board's actions for a value it holds, such as a comment the person
+just wrote, without knowing which plugin supplies them. An action with `Takes` set to a kind
+of value, such as `"comment"`, has no key and is not in the help line. It needs a `Label`, and
+its optional `Applies(selection)` says whether it fits the row. The screen calls
+`selection.Offers(kind)` to list the labels of the actions that take the kind and apply, shows
+them as the options of a `Choice`, and calls `selection.RunOffer(label, value)` for the one
+picked. The action reads the value from `selection.Value` in `Run`, and its effect is applied
+like any other. The kind and the value's type are agreed between the plugin that owns the screen
+and the plugins that add actions, so the owning plugin exports them. A `Choice` can set
+`Cancel` to say what esc does, and an `Effect` can set `Then` to start a command whose message
+the screen receives, which is how a choice made on a screen can hand work back to the screen.
+
 `plugins/pullrequests/descriptionscreen.go` is the smaller of the two real screens (the other
 is the diff view). It loads the description in `Init`, ignores `descriptionLoadedMessage`
 values for other pull requests in `Update`, and uses `selection.Run` to show a failed save as a

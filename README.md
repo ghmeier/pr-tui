@@ -142,7 +142,7 @@ Diff view keys:
 | `↑` / `↓`, mouse wheel | Move the line cursor by a line |
 | `pgup` / `pgdn` | Move the line cursor by a page |
 | `s` | Toggle split and unified layouts; a file that was added or deleted opens unified, and the key changes only that file |
-| `c` | Write a comment in your editor on the line under the cursor and add it to the pending review. On a posted thread it replies at once, and on a pending comment it edits it (saving nothing removes it) |
+| `c` | Write a comment in your editor on the line under the cursor, then choose where it goes: post it now, add it to the pending review, or, when the agent sessions plugin finds a session working on the pull request, send it to that session. Esc keeps the text for the next `c` on that line. On a posted thread it replies, with the same choice minus the review (a reply is posted at once when nothing else is offered), and on a pending comment it edits it (saving nothing removes it) |
 | `d` | Mark a draft ready for review, or convert a ready pull request back to draft; the help line shows which |
 | `t` | Request review from the team or one of its members, as on the board; hidden when nobody is left to ask |
 | `m` | Merge now (squash, after a confirmation), or enable or disable auto-merge (squash) |

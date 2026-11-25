@@ -22,24 +22,39 @@ func messageAction(provider Provider, subject string, prefill func(row plugin.Ro
 				return plugin.Effect{Notice: "No live agent session mentions this " + subject}
 			}
 			opening := prefill(selection.Row)
-			if len(sessions) == 1 {
-				return writeMessage(provider, selection, sessions[0], opening)
-			}
-			options := make([]string, len(sessions))
-			for index, session := range sessions {
-				options[index] = sessionOption(session)
-			}
-			return plugin.Effect{Choice: &plugin.Choice{
-				Question: "Message which session?",
-				Options:  options,
-				Pick: func(option string) plugin.Effect {
-					if index := slices.Index(options, option); index >= 0 {
-						return writeMessage(provider, selection, sessions[index], opening)
-					}
-					return plugin.Effect{}
-				},
-			}}
+			return withSession(sessions, "Message which session?", func(session Session) plugin.Effect {
+				return writeMessage(provider, selection, session, opening)
+			})
 		},
+	}
+}
+
+// withSession carries on with the only session, or asks which of the sessions to use first.
+func withSession(sessions matchedSessions, question string, next func(session Session) plugin.Effect) plugin.Effect {
+	if len(sessions) == 1 {
+		return next(sessions[0])
+	}
+	options := make([]string, len(sessions))
+	for index, session := range sessions {
+		options[index] = sessionOption(session)
+	}
+	return plugin.Effect{Choice: &plugin.Choice{
+		Question: question,
+		Options:  options,
+		Pick: func(option string) plugin.Effect {
+			if index := slices.Index(options, option); index >= 0 {
+				return next(sessions[index])
+			}
+			return plugin.Effect{}
+		},
+	}}
+}
+
+// sendMessage sends the text to the session in the background.
+func sendMessage(provider Provider, session Session, text string) plugin.Effect {
+	return plugin.Effect{
+		Notice:  "Sending to " + session.Name + "…",
+		Command: func() error { return provider.Send(session, text) },
 	}
 }
 
@@ -59,10 +74,7 @@ func writeMessage(provider Provider, selection plugin.Selection, session Session
 			if text == "" || text == strings.TrimSpace(opening) {
 				return selection.Run(plugin.Effect{Notice: "Nothing sent"})
 			}
-			return selection.Run(plugin.Effect{
-				Notice:  "Sending to " + session.Name + "…",
-				Command: func() error { return provider.Send(session, text) },
-			})
+			return selection.Run(sendMessage(provider, session, text))
 		},
 	}}
 }

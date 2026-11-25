@@ -92,6 +92,16 @@ type CommentTarget struct {
 	ReplyAuthor string
 }
 
+// CommentKind is the kind of value the diff screen offers a written comment as.
+const CommentKind = "comment"
+
+// Comment is a comment written on the diff screen, offered to other plugins' actions.
+type Comment struct {
+	PullRequest PullRequest
+	Target      CommentTarget
+	Body        string
+}
+
 func (target CommentTarget) label() string {
 	version := "new"
 	if target.Side == CommentSideOld {

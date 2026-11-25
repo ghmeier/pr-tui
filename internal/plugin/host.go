@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"slices"
@@ -166,7 +167,16 @@ func validateBoard(board Board, owner string) error {
 	var keys []string
 	for _, action := range board.Actions {
 		if action.Run == nil {
-			return fmt.Errorf("board %q has an action on %q without a Run function", board.Name, action.Key)
+			return fmt.Errorf("board %q has an action on %q without a Run function", board.Name, cmp.Or(action.Key, action.Label))
+		}
+		if action.Takes != "" {
+			if action.Key != "" {
+				return fmt.Errorf("board %q has the action %q that takes %q values and also a key, %q; it is offered by a screen, so it has none", board.Name, action.Label, action.Takes, action.Key)
+			}
+			if action.Label == "" {
+				return fmt.Errorf("board %q has an action that takes %q values without a Label, which is what a screen offers", board.Name, action.Takes)
+			}
+			continue
 		}
 		if slices.Contains(reservedKeys, action.Key) {
 			return fmt.Errorf("board %q has an action on %q, a key the board uses itself", board.Name, action.Key)

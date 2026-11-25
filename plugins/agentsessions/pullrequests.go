@@ -2,6 +2,7 @@ package agentsessions
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/ghmeier/pr-tui/internal/plugin"
 	"github.com/ghmeier/pr-tui/plugins/pullrequests"
@@ -37,6 +38,50 @@ func pullRequestMessageAction(provider Provider) plugin.Action {
 	return messageAction(provider, "pull request", func(row plugin.Row) string {
 		return pullRequestPrefill(row.(pullrequests.Row).PullRequest)
 	})
+}
+
+// commentAction sends a comment written on the diff screen to a session that works on the pull
+// request. The text is already written, so no editor opens.
+func commentAction(provider Provider) plugin.Action {
+	return plugin.Action{
+		Takes:   pullrequests.CommentKind,
+		Label:   "send to agent session",
+		Applies: hasSessions,
+		Run: func(selection plugin.Selection) plugin.Effect {
+			text := commentMessage(selection.Value.(pullrequests.Comment))
+			sessions, _ := selection.Data(columnHeader).(matchedSessions)
+			if len(sessions) == 0 {
+				return plugin.Effect{Notice: "No live agent session mentions this pull request"}
+			}
+			return withSession(sessions, "Send to which session?", func(session Session) plugin.Effect {
+				return sendMessage(provider, session, text)
+			})
+		},
+	}
+}
+
+func hasSessions(selection plugin.Selection) bool {
+	sessions, _ := selection.Data(columnHeader).(matchedSessions)
+	return len(sessions) > 0
+}
+
+// commentMessage is the text sent for a comment: the pull request it is on, where in the diff it
+// is, and the comment.
+func commentMessage(comment pullrequests.Comment) string {
+	return strings.TrimRight(pullRequestPrefill(comment.PullRequest), "\n") + "\n" + commentLines(comment.Target) + "\n\n" + comment.Body
+}
+
+// commentLines say which line of which file the comment is on, and which comment it answers.
+func commentLines(target pullrequests.CommentTarget) string {
+	side := "new"
+	if target.Side == pullrequests.CommentSideOld {
+		side = "old"
+	}
+	lines := fmt.Sprintf("File: %s, line %d (%s side)", target.Path, target.Line, side)
+	if target.ReplyTo != 0 {
+		lines += fmt.Sprintf("\nIn reply to %s's comment", target.ReplyAuthor)
+	}
+	return lines
 }
 
 // pullRequestPrefill is what a message about a pull request starts with: enough to tell the

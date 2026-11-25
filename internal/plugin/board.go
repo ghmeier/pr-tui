@@ -106,7 +106,13 @@ func (board *boardState) selectionOf(row Row) Selection {
 		Data:       func(header string) any { return loaded[header] },
 		boardIndex: board.index,
 		current:    func() (Row, bool) { return board.rowWithKey(row.Key()) },
+		offerable:  board.offerable(),
 	}
+}
+
+// offerable are the board's actions that take a kind of value.
+func (board *boardState) offerable() []Action {
+	return slices.DeleteFunc(slices.Clone(board.spec.Actions), func(action Action) bool { return action.Takes == "" })
 }
 
 // reportFailure shows a failure notice that later successes leave in place until a load or a

@@ -93,9 +93,14 @@ type Selection struct {
 	// reads a copy made when the selection was built, so it is safe to call from any
 	// goroutine, including an Effect.Command.
 	Data func(columnHeader string) any
+	// Value is what a screen offered the action for, or nil when the action ran from its key.
+	Value any
 
 	boardIndex int
 	current    func() (Row, bool)
+	// offerable are the board's actions that take a kind of value. They never change after setup,
+	// so a selection shares them safely with any goroutine.
+	offerable []Action
 }
 
 // Current is the board's version of this selection's row as it is now, found by the row's key
@@ -129,10 +134,43 @@ func (selection Selection) RunAction(key string) tea.Cmd {
 	}
 }
 
-// Action is a key that does something to the selected row.
+// Offers lists the labels of the board's actions that take the kind of value and apply to the
+// selection, in the order they were added. A screen with a value of that kind shows them as
+// choices. It runs the actions' Applies functions, so call it only on the update loop.
+func (selection Selection) Offers(kind string) []string {
+	var labels []string
+	for _, action := range selection.offerable {
+		if action.Takes == kind && (action.Applies == nil || action.Applies(selection)) {
+			labels = append(labels, action.Label)
+		}
+	}
+	return labels
+}
+
+// RunOffer has the host run the board's action with that label for the value, on the row as the
+// board has it now, falling back to this selection's own row like RunAction does. The action
+// reads the value from Selection.Value, and its effect is applied like any other. A label the
+// board has no action for, or whose action does not apply, does nothing.
+func (selection Selection) RunOffer(label string, value any) tea.Cmd {
+	return func() tea.Msg {
+		return offerMessage{board: selection.boardIndex, rowKey: selection.Row.Key(), fallback: selection.Row, label: label, value: value}
+	}
+}
+
+// Action is something that can be done to the selected row, either with a key on the board or,
+// when it takes a kind of value, as an offer from a screen.
 type Action struct {
+	// Key is the key that runs the action. An action that takes a value has none.
 	Key string
-	// Label is shown in the help line. An empty label hides the action there.
+	// Takes, when set, is the kind of value the action works on, such as "comment". Such an
+	// action has no key: a screen offers it, by its label, for a value of that kind, and its Run
+	// reads the value from Selection.Value. It is not shown in the help line.
+	Takes string
+	// Applies, when set, says whether a screen offers the action for the selection. It runs on
+	// the update loop, so it must return quickly.
+	Applies func(selection Selection) bool
+	// Label is shown in the help line. An empty label hides the action there. An action that
+	// takes a value needs one, because it is what a screen offers.
 	Label string
 	// LabelFor, when set, replaces Label for the selected row. An empty label means the action
 	// does not apply to that row: it is hidden from the help line and its key does nothing. It
@@ -163,6 +201,8 @@ type Choice struct {
 	Options  []string
 	// Current is marked among the options, or empty.
 	Current string
+	// Cancel, when set, returns what esc does. Without it esc does nothing.
+	Cancel func() Effect
 	// Menu shows the options in a list above the board, or at the bottom of a screen, instead of
 	// in the status line. It suits a choice that can have more options than number keys: the list
 	// scrolls, typing narrows it to the options that contain the typed text, ignoring case, the
@@ -178,6 +218,11 @@ type Choice struct {
 type Effect struct {
 	// Notice is shown in the status line while Command runs.
 	Notice string
+	// Then, when set, is a command the host starts along with the effect. The message it returns
+	// reaches the open screens like any message the host does not recognise, so a screen can ask
+	// a question and get the work of the answer done by its own command. It is ignored when Edit
+	// is set.
+	Then tea.Cmd
 	// Choice, when set, is asked before anything else, and the host does nothing else with this
 	// effect. The effect that Pick returns for the chosen option is applied like any other, so
 	// it may ask a question of its own.

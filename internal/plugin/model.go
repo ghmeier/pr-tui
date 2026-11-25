@@ -53,6 +53,14 @@ type (
 		fallback Row
 		key      string
 	}
+	// offerMessage asks the host to run a board's action that takes a value, for that value.
+	offerMessage struct {
+		board    int
+		rowKey   string
+		fallback Row
+		label    string
+		value    any
+	}
 	commandFinishedMessage struct {
 		board   int
 		err     error
@@ -391,6 +399,13 @@ func (m *Model) update(message tea.Msg) tea.Cmd {
 			row = message.fallback
 		}
 		return m.runBoardAction(message.board, board.selectionOf(row), message.key)
+	case offerMessage:
+		board := m.boards[message.board]
+		row, found := board.rowWithKey(message.rowKey)
+		if !found {
+			row = message.fallback
+		}
+		return m.runBoardOffer(message.board, board.selectionOf(row), message.label, message.value)
 	case loadedMessage:
 		board := m.boards[message.board]
 		commands := m.applyLoaded(message)
@@ -583,7 +598,19 @@ func (m *Model) runAction(key string) tea.Cmd {
 // runBoardAction runs the board's action with the key on the selection, if it has one.
 func (m *Model) runBoardAction(index int, selection Selection, key string) tea.Cmd {
 	for _, action := range m.boards[index].spec.Actions {
-		if _, applies := action.LabelOf(selection.Row); action.Key == key && applies {
+		if _, applies := action.LabelOf(selection.Row); action.Takes == "" && action.Key == key && applies {
+			return m.applyEffect(index, action.Run(selection))
+		}
+	}
+	return nil
+}
+
+// runBoardOffer runs the board's action that takes a value and has the label, if it applies to
+// the selection.
+func (m *Model) runBoardOffer(index int, selection Selection, label string, value any) tea.Cmd {
+	selection.Value = value
+	for _, action := range selection.offerable {
+		if action.Label == label && (action.Applies == nil || action.Applies(selection)) {
 			return m.applyEffect(index, action.Run(selection))
 		}
 	}
@@ -645,6 +672,9 @@ func (m *Model) execute(index int, effect Effect) tea.Cmd {
 	if effect.Edit != nil {
 		return m.startEdit(index, effect.Edit)
 	}
+	if effect.Then != nil {
+		commands = append(commands, effect.Then)
+	}
 	if effect.Copy != "" {
 		successNotice := effect.Notice
 		if successNotice == "" {
@@ -680,8 +710,7 @@ func (m *Model) handleChoiceKey(key string) tea.Cmd {
 		return m.handleMenuKey(key)
 	}
 	if key == "esc" {
-		m.closeChoice()
-		return nil
+		return m.cancelChoice()
 	}
 	number, err := strconv.Atoi(key)
 	options := m.choice.shownOptions()
